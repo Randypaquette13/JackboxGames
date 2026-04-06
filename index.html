@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Platform host</title>
+    <link rel="stylesheet" href="/src/host/host.css" />
+  </head>
+  <body>
+    <div id="hud">
+      <div id="hud-row">
+        <span id="room-label">Room</span>
+        <code id="room-code"></code>
+        <span id="rtt"></span>
+        <span id="tick"></span>
+      </div>
+      <div id="qr-wrap">
+        <canvas id="qr"></canvas>
+        <p id="qr-hint">Scan to join as controller</p>
+      </div>
+    </div>
+    <canvas id="game"></canvas>
+    <script type="module" src="/src/host/main.ts"></script>
+  </body>
+</html>
