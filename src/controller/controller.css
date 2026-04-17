@@ -44,6 +44,9 @@ body {
   max-width: 440px;
   margin: 0 auto;
 }
+.panel[hidden] {
+  display: none !important;
+}
 .hint {
   text-align: center;
   margin: 0 0 8px;
