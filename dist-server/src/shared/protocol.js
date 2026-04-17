@@ -15,6 +15,11 @@ export const RoleByte = { host: 0, controller: 1 };
 export const Btn = {
     Jump: 1 << 0,
     Pause: 1 << 1,
+    /** Race Walk: cycle crosshair toward lower lane index */
+    AimUp: 1 << 2,
+    /** Race Walk: cycle crosshair toward higher lane index */
+    AimDown: 1 << 3,
+    Fire: 1 << 4,
 };
 export function encodeJoin(role, roomId) {
     const room = new TextEncoder().encode(roomId);

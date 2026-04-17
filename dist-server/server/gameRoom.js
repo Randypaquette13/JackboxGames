@@ -1,8 +1,17 @@
 import { MINIGAME_IDS, MINIGAME_LABELS } from "../src/shared/messages.js";
+import { TICK_RATE, WORLD_H, WORLD_W } from "../src/shared/constants.js";
+import { RACE_WALK_FINISH_X, RACE_WALK_LANES, RACE_WALK_START_X } from "../src/shared/raceWalk.js";
+import { Btn } from "../src/shared/protocol.js";
 import { chooseCrossingModeByHeading, constrainToCrossingLane, KART_FORWARD_SPEED, KART_SPEED_MIN, KART_SPEED_RECOVER, KART_TURN_SPEED, KART_WALL_IMPACT_FRICTION, KART_WALL_SCRAPE_FRICTION, checkLapCross, clampToRing, finishLineSegment, getBridgePolygon, getInnerIslands, getOuterWall, getUnderpassPolygon, isInsideCrossing, normalIntoTrack, spawnPosition, wallScrapeAndImpact, wallViolated, } from "../src/shared/kartTrack.js";
 import { snapshot, stepPlayer } from "./game.js";
 export const LAPS_TO_WIN = 3;
 export const KART_COUNTDOWN_SEC = 3;
+export { RACE_WALK_LANES } from "../src/shared/raceWalk.js";
+export const RACE_WALK_COUNTDOWN_SEC = KART_COUNTDOWN_SEC;
+/** Shared walk speed for humans (walk button) and NPCs in walk segments */
+const RACE_WALK_WALK_SPEED = 48;
+/** Shared run speed for humans (run button) and NPCs when allowed to run */
+const RACE_WALK_RUN_SPEED = 92;
 const KART_DRIFT_BASE_GRIP = 6.4;
 const KART_DRIFT_TURN_LOSS = 1.2;
 export function createRoom(host, platforms) {
@@ -25,6 +34,250 @@ export function createRoom(host, platforms) {
         kartCars: new Map(),
         kartWinnerId: null,
         seriesWins: new Map(),
+        raceWalkCountdown: null,
+        raceWalkRunners: [],
+        raceWalkShooters: new Map(),
+        raceWalkNpcAi: [],
+        raceWalkBanners: [],
+        raceWalkWinnerLane: null,
+        raceWalkWinnerPlayerId: null,
+    };
+}
+function clearRaceWalkState(room) {
+    room.raceWalkCountdown = null;
+    room.raceWalkRunners = [];
+    room.raceWalkShooters.clear();
+    room.raceWalkNpcAi = [];
+    room.raceWalkBanners = [];
+    room.raceWalkWinnerLane = null;
+    room.raceWalkWinnerPlayerId = null;
+}
+function shuffleIntRange(n) {
+    const a = Array.from({ length: n }, (_, i) => i);
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
+function pushRaceWalkBanner(room, text, durationSec) {
+    const ticks = Math.max(1, Math.floor(durationSec * TICK_RATE));
+    room.raceWalkBanners.push({ text, untilTick: room.tick + ticks });
+}
+function pruneRaceWalkBanners(room) {
+    room.raceWalkBanners = room.raceWalkBanners.filter((b) => b.untilTick > room.tick);
+}
+function anyRaceWalkCrosshairHasAmmo(room) {
+    for (const s of room.raceWalkShooters.values()) {
+        if (s.ammo > 0 && !s.crosshairDisabled)
+            return true;
+    }
+    return false;
+}
+function runnerForPlayer(room, playerId) {
+    return room.raceWalkRunners.find((r) => r.controllerId === playerId);
+}
+export function resetRaceWalk(room) {
+    clearRaceWalkState(room);
+    room.raceWalkCountdown = RACE_WALK_COUNTDOWN_SEC;
+    const ids = Array.from(room.players.keys()).sort((a, b) => a - b);
+    const nPlayers = ids.length;
+    const ammo = Math.max(1, nPlayers - 1);
+    const lanes = shuffleIntRange(RACE_WALK_LANES);
+    room.raceWalkRunners = [];
+    for (let lane = 0; lane < RACE_WALK_LANES; lane++) {
+        room.raceWalkRunners.push({
+            lane,
+            x: RACE_WALK_START_X,
+            downed: false,
+            controllerId: null,
+        });
+    }
+    const cap = Math.min(nPlayers, RACE_WALK_LANES);
+    for (let i = 0; i < cap; i++) {
+        const lane = lanes[i];
+        const runner = room.raceWalkRunners[lane];
+        if (runner)
+            runner.controllerId = ids[i];
+        room.raceWalkShooters.set(ids[i], {
+            ammo,
+            crosshairLane: Math.floor(Math.random() * RACE_WALK_LANES),
+            crosshairDisabled: false,
+            prevJump: false,
+            prevPause: false,
+            prevAimUp: false,
+            prevAimDown: false,
+            prevFire: false,
+        });
+    }
+    room.raceWalkNpcAi = Array.from({ length: RACE_WALK_LANES }, (_, lane) => {
+        const r = room.raceWalkRunners[lane];
+        if (r?.controllerId === null) {
+            const startWalk = Math.random() < 0.42;
+            return {
+                mode: (startWalk ? "walk" : "stop"),
+                timer: startWalk
+                    ? 0.35 + Math.random() * 1.15
+                    : 0.75 + Math.random() * 2.85,
+            };
+        }
+        return { mode: "stop", timer: 9999 };
+    });
+}
+export function startRaceWalkFromMenu(room) {
+    room.phase = "race_walk";
+    room.stubId = null;
+    room.showQr = false;
+    room.kartCars.clear();
+    room.kartWinnerId = null;
+    room.kartCountdown = null;
+    room.kartPaused = false;
+    room.kartPausedByPlayerId = null;
+    resetRaceWalk(room);
+}
+function tickRaceWalk(room, dt) {
+    pruneRaceWalkBanners(room);
+    if (room.raceWalkCountdown !== null && room.raceWalkCountdown > 0) {
+        room.raceWalkCountdown -= dt;
+        if (room.raceWalkCountdown <= 0) {
+            room.raceWalkCountdown = null;
+        }
+        return;
+    }
+    const racing = room.phase === "race_walk";
+    if (!racing)
+        return;
+    const npcsMayRun = !anyRaceWalkCrosshairHasAmmo(room);
+    for (const [pid, shooter] of room.raceWalkShooters) {
+        const player = room.players.get(pid);
+        if (!player)
+            continue;
+        const b = player.input.buttons;
+        const walkHeld = (b & Btn.Jump) !== 0;
+        const runHeld = (b & Btn.Pause) !== 0;
+        const aimUpHeld = (b & Btn.AimUp) !== 0;
+        const aimDownHeld = (b & Btn.AimDown) !== 0;
+        const fireHeld = (b & Btn.Fire) !== 0;
+        const edgeAimUp = aimUpHeld && !shooter.prevAimUp;
+        const edgeAimDown = aimDownHeld && !shooter.prevAimDown;
+        const edgeFire = fireHeld && !shooter.prevFire;
+        if (edgeAimUp) {
+            shooter.crosshairLane = (shooter.crosshairLane + RACE_WALK_LANES - 1) % RACE_WALK_LANES;
+        }
+        else if (edgeAimDown) {
+            shooter.crosshairLane = (shooter.crosshairLane + 1) % RACE_WALK_LANES;
+        }
+        const canUseCrosshair = shooter.ammo > 0 && !shooter.crosshairDisabled;
+        if (edgeFire && canUseCrosshair) {
+            const lane = shooter.crosshairLane;
+            const victim = room.raceWalkRunners[lane];
+            if (victim && !victim.downed) {
+                victim.downed = true;
+                shooter.ammo -= 1;
+                if (victim.controllerId !== null) {
+                    const vid = victim.controllerId;
+                    pushRaceWalkBanner(room, `Player ${vid} was eliminated`, 3.2);
+                    shooter.crosshairDisabled = true;
+                }
+            }
+        }
+        shooter.prevJump = walkHeld;
+        shooter.prevPause = runHeld;
+        shooter.prevAimUp = aimUpHeld;
+        shooter.prevAimDown = aimDownHeld;
+        shooter.prevFire = fireHeld;
+    }
+    for (const runner of room.raceWalkRunners) {
+        if (runner.downed)
+            continue;
+        let speed = 0;
+        if (runner.controllerId !== null) {
+            const p = room.players.get(runner.controllerId);
+            if (!p)
+                continue;
+            const b = p.input.buttons;
+            const walkHeld = (b & Btn.Jump) !== 0;
+            const runHeld = (b & Btn.Pause) !== 0;
+            if (runHeld)
+                speed = RACE_WALK_RUN_SPEED;
+            else if (walkHeld)
+                speed = RACE_WALK_WALK_SPEED;
+        }
+        else {
+            const lane = runner.lane;
+            const ai = room.raceWalkNpcAi[lane];
+            if (ai) {
+                ai.timer -= dt;
+                if (ai.timer <= 0) {
+                    if (ai.mode === "walk") {
+                        ai.mode = "stop";
+                        ai.timer = 0.55 + Math.random() * 2.45;
+                    }
+                    else {
+                        ai.mode = "walk";
+                        ai.timer = 0.5 + Math.random() * 2.2;
+                    }
+                }
+                if (ai.mode === "walk") {
+                    speed = npcsMayRun ? RACE_WALK_RUN_SPEED : RACE_WALK_WALK_SPEED;
+                }
+            }
+        }
+        runner.x += speed * dt;
+    }
+    for (const runner of room.raceWalkRunners) {
+        if (runner.downed)
+            continue;
+        if (runner.x >= RACE_WALK_FINISH_X) {
+            room.raceWalkWinnerLane = runner.lane;
+            room.raceWalkWinnerPlayerId = runner.controllerId;
+            if (runner.controllerId !== null) {
+                const wid = runner.controllerId;
+                const w = room.seriesWins.get(wid) ?? 0;
+                room.seriesWins.set(wid, w + 1);
+                pushRaceWalkBanner(room, `Player ${wid} wins!`, 4);
+            }
+            else {
+                pushRaceWalkBanner(room, "An NPC wins — no series points", 4);
+            }
+            room.phase = "race_walk_results";
+            room.menuIndex = 0;
+            return;
+        }
+    }
+}
+function buildRaceWalkHostJson(room) {
+    if (room.phase !== "race_walk" && room.phase !== "race_walk_results")
+        return null;
+    const runners = room.raceWalkRunners.map((r) => ({
+        lane: r.lane,
+        x: r.x,
+        downed: r.downed,
+        controllerId: r.controllerId,
+    }));
+    const crosshairs = [];
+    for (const [playerId, s] of room.raceWalkShooters) {
+        crosshairs.push({
+            playerId,
+            lane: s.crosshairLane,
+            ammo: s.ammo,
+            active: s.ammo > 0 && !s.crosshairDisabled,
+        });
+    }
+    crosshairs.sort((a, b) => a.playerId - b.playerId);
+    const banners = room.raceWalkBanners.filter((b) => b.untilTick > room.tick);
+    return {
+        countdown: room.raceWalkCountdown,
+        startX: RACE_WALK_START_X,
+        finishX: RACE_WALK_FINISH_X,
+        worldW: WORLD_W,
+        worldH: WORLD_H,
+        runners,
+        crosshairs,
+        banners,
+        winnerLane: room.raceWalkWinnerLane,
+        winnerPlayerId: room.raceWalkWinnerPlayerId,
+        seriesWins: Object.fromEntries(room.seriesWins),
     };
 }
 function menuItemsList() {
@@ -75,6 +328,7 @@ export function buildHostState(room, roomId) {
         gameSettings: { ...room.gameSettings },
         stubId: room.stubId,
         kart,
+        raceWalk: buildRaceWalkHostJson(room),
     };
 }
 export function buildControllerState(room, playerId) {
@@ -82,6 +336,18 @@ export function buildControllerState(room, playerId) {
     for (const [pid, car] of room.kartCars) {
         laps[pid] = Math.min(LAPS_TO_WIN, car.laps);
     }
+    const shooter = room.raceWalkShooters.get(playerId);
+    const assigned = runnerForPlayer(room, playerId);
+    const raceWalkHud = room.phase === "race_walk" || room.phase === "race_walk_results"
+        ? {
+            assignedLane: assigned?.lane ?? null,
+            runnerDowned: assigned?.downed ?? false,
+            crosshairLane: shooter?.crosshairLane ?? 0,
+            ammo: shooter?.ammo ?? 0,
+            crosshairActive: shooter ? shooter.ammo > 0 && !shooter.crosshairDisabled : false,
+            seriesWins: Object.fromEntries(room.seriesWins),
+        }
+        : null;
     return {
         type: "controller_state",
         phase: room.phase,
@@ -98,6 +364,7 @@ export function buildControllerState(room, playerId) {
                 seriesWins: Object.fromEntries(room.seriesWins),
             }
             : null,
+        raceWalk: raceWalkHud,
     };
 }
 export function resetKartRace(room) {
@@ -126,6 +393,7 @@ export function startKartFromMenu(room) {
     room.phase = "kart";
     room.stubId = null;
     room.showQr = false;
+    clearRaceWalkState(room);
     resetKartRace(room);
 }
 export function ensureKartCar(room, playerId) {
@@ -153,6 +421,14 @@ export function tickSimulation(room, dt) {
         for (const p of room.players.values()) {
             stepPlayer(p, room.platforms);
         }
+        return;
+    }
+    if (room.phase === "race_walk_results") {
+        pruneRaceWalkBanners(room);
+        return;
+    }
+    if (room.phase === "race_walk") {
+        tickRaceWalk(room, dt);
         return;
     }
     if (room.phase !== "kart" || room.kartPaused)
@@ -302,7 +578,7 @@ export function applyIntent(room, _playerId, intent) {
             }
             break;
         case "menu_nav": {
-            if (room.phase === "kart_results") {
+            if (room.phase === "kart_results" || room.phase === "race_walk_results") {
                 const n = 3;
                 if (intent.dir === "up")
                     room.menuIndex = (room.menuIndex - 1 + n) % n;
@@ -348,10 +624,32 @@ export function applyIntent(room, _playerId, intent) {
                 }
                 break;
             }
+            if (room.phase === "race_walk_results") {
+                const actions = ["play_again", "minigame_menu", "add_controllers"];
+                const action = actions[room.menuIndex % 3];
+                if (action === "play_again")
+                    startRaceWalkFromMenu(room);
+                else if (action === "minigame_menu") {
+                    room.phase = "menu";
+                    room.stubId = null;
+                    clearRaceWalkState(room);
+                    room.showQr = false;
+                }
+                else {
+                    room.phase = "lobby";
+                    room.menuIndex = 0;
+                    room.stubId = null;
+                    clearRaceWalkState(room);
+                    room.showQr = true;
+                }
+                break;
+            }
             if (room.phase === "menu") {
                 const id = MINIGAME_IDS[room.menuIndex];
                 if (id === "kart")
                     startKartFromMenu(room);
+                else if (id === "race_walk")
+                    startRaceWalkFromMenu(room);
                 else {
                     room.phase = "stub";
                     room.stubId = id;
@@ -403,6 +701,26 @@ export function applyIntent(room, _playerId, intent) {
                 room.showQr = true;
             }
             break;
+        case "race_walk_results":
+            if (room.phase !== "race_walk_results")
+                break;
+            if (intent.action === "play_again") {
+                startRaceWalkFromMenu(room);
+            }
+            else if (intent.action === "minigame_menu") {
+                room.phase = "menu";
+                room.stubId = null;
+                clearRaceWalkState(room);
+                room.showQr = false;
+            }
+            else if (intent.action === "add_controllers") {
+                room.phase = "lobby";
+                room.menuIndex = 0;
+                room.stubId = null;
+                clearRaceWalkState(room);
+                room.showQr = true;
+            }
+            break;
         case "pause_resume":
             if (room.phase === "kart_paused") {
                 room.phase = "kart";
@@ -422,6 +740,12 @@ export function applyIntent(room, _playerId, intent) {
                 room.kartWinnerId = null;
                 room.stubId = null;
                 room.kartPausedByPlayerId = null;
+            }
+            else if (room.phase === "race_walk") {
+                room.phase = "menu";
+                room.stubId = null;
+                clearRaceWalkState(room);
+                room.showQr = false;
             }
             break;
         default:

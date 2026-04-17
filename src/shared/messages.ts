@@ -5,15 +5,43 @@
 
 import type { PlayerSnapshot } from "./protocol.js";
 
-export type GamePhase = "lobby" | "menu" | "stub" | "kart" | "kart_paused" | "kart_results";
+export type GamePhase =
+  | "lobby"
+  | "menu"
+  | "stub"
+  | "kart"
+  | "kart_paused"
+  | "kart_results"
+  | "race_walk"
+  | "race_walk_paused"
+  | "race_walk_results";
 
-export const MINIGAME_IDS = ["kart", "stub2", "stub3"] as const;
+export const MINIGAME_IDS = ["kart", "race_walk"] as const;
 export type MinigameId = (typeof MINIGAME_IDS)[number];
 
 export const MINIGAME_LABELS: Record<MinigameId, string> = {
   kart: "Kart Racing",
-  stub2: "minigame2",
-  stub3: "minigame3",
+  race_walk: "Race Walk",
+};
+
+export type RaceWalkRunnerJson = {
+  lane: number;
+  x: number;
+  downed: boolean;
+  controllerId: number | null;
+};
+
+export type RaceWalkCrosshairJson = {
+  playerId: number;
+  lane: number;
+  ammo: number;
+  /** false when out of ammo or unusable after eliminating a human */
+  active: boolean;
+};
+
+export type RaceWalkBannerJson = {
+  text: string;
+  untilTick: number;
 };
 
 /** Client → server (controller or dev; some allowed from host in dev only — server validates). */
@@ -26,6 +54,7 @@ export type ClientIntent =
   | { type: "settings_close" }
   | { type: "stub_back" }
   | { type: "kart_results"; action: "play_again" | "minigame_menu" | "add_controllers" }
+  | { type: "race_walk_results"; action: "play_again" | "minigame_menu" | "add_controllers" }
   | { type: "pause_resume" }
   | { type: "pause_to_menu" };
 
@@ -66,6 +95,19 @@ export type HostStateJson = {
     /** Cumulative race wins per playerId in this room */
     seriesWins: Record<number, number>;
   };
+  raceWalk: null | {
+    countdown: number | null;
+    startX: number;
+    finishX: number;
+    worldW: number;
+    worldH: number;
+    runners: RaceWalkRunnerJson[];
+    crosshairs: RaceWalkCrosshairJson[];
+    banners: RaceWalkBannerJson[];
+    winnerLane: number | null;
+    winnerPlayerId: number | null;
+    seriesWins: Record<number, number>;
+  };
 };
 
 export type ControllerStateJson = {
@@ -80,6 +122,14 @@ export type ControllerStateJson = {
     paused: boolean;
     laps: Record<number, number>;
     winnerId: number | null;
+    seriesWins: Record<number, number>;
+  };
+  raceWalk: null | {
+    assignedLane: number | null;
+    runnerDowned: boolean;
+    crosshairLane: number;
+    ammo: number;
+    crosshairActive: boolean;
     seriesWins: Record<number, number>;
   };
 };
@@ -99,6 +149,12 @@ export function parseClientIntent(raw: unknown): ClientIntent | null {
     const a = o.action;
     if (a === "play_again" || a === "minigame_menu" || a === "add_controllers") {
       return { type: "kart_results", action: a };
+    }
+  }
+  if (t === "race_walk_results") {
+    const a = o.action;
+    if (a === "play_again" || a === "minigame_menu" || a === "add_controllers") {
+      return { type: "race_walk_results", action: a };
     }
   }
   if (t === "pause_resume") return { type: "pause_resume" };

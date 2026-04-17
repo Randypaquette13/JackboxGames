@@ -29,6 +29,7 @@ const panels = {
   lobby: document.querySelector<HTMLElement>("#panel-lobby")!,
   menu: document.querySelector<HTMLElement>("#panel-menu")!,
   stub: document.querySelector<HTMLElement>("#panel-stub")!,
+  raceWalk: document.querySelector<HTMLElement>("#panel-race-walk")!,
   kart: document.querySelector<HTMLElement>("#panel-kart")!,
   kartPause: document.querySelector<HTMLElement>("#panel-kart-pause")!,
   results: document.querySelector<HTMLElement>("#panel-results")!,
@@ -122,6 +123,55 @@ if (!roomId) {
     }, 100);
   });
 
+  let rwWalk = false;
+  let rwRun = false;
+  let rwAimUp = false;
+  let rwAimDown = false;
+  let rwFire = false;
+  bindHold(
+    document.querySelector("#rw-walk")!,
+    () => {
+      rwWalk = true;
+    },
+    () => {
+      rwWalk = false;
+    }
+  );
+  bindHold(
+    document.querySelector("#rw-run")!,
+    () => {
+      rwRun = true;
+    },
+    () => {
+      rwRun = false;
+    }
+  );
+  bindHold(
+    document.querySelector("#rw-aim-up")!,
+    () => {
+      rwAimUp = true;
+    },
+    () => {
+      rwAimUp = false;
+    }
+  );
+  bindHold(
+    document.querySelector("#rw-aim-down")!,
+    () => {
+      rwAimDown = true;
+    },
+    () => {
+      rwAimDown = false;
+    }
+  );
+  document.querySelector("#rw-fire")!.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    rwFire = true;
+    setTimeout(() => {
+      rwFire = false;
+    }, 100);
+  });
+
   const ws = new WebSocket(wsUrl());
   ws.binaryType = "arraybuffer";
 
@@ -159,11 +209,13 @@ if (!roomId) {
       menuPreview.textContent = cur ? cur.label : "";
     } else if (ph === "stub") {
       panels.stub.hidden = false;
+    } else if (ph === "race_walk") {
+      panels.raceWalk.hidden = false;
     } else if (ph === "kart") {
       panels.kart.hidden = false;
     } else if (ph === "kart_paused") {
       panels.kartPause.hidden = false;
-    } else if (ph === "kart_results") {
+    } else if (ph === "kart_results" || ph === "race_walk_results") {
       panels.results.hidden = false;
       resultsPreview.textContent = RESULT_LABELS[st.menuIndex % 3] ?? "";
     }
@@ -302,6 +354,14 @@ if (!roomId) {
         else if (kRight && !kLeft) h = 127;
         const buttons = kPause ? Btn.Pause : 0;
         ws.send(encodeInput(seq, h, buttons));
+      } else if (ph === "race_walk") {
+        let buttons = 0;
+        if (rwWalk) buttons |= Btn.Jump;
+        if (rwRun) buttons |= Btn.Pause;
+        if (rwAimUp) buttons |= Btn.AimUp;
+        if (rwAimDown) buttons |= Btn.AimDown;
+        if (rwFire) buttons |= Btn.Fire;
+        ws.send(encodeInput(seq, 0, buttons));
       }
     }
     requestAnimationFrame(loop);

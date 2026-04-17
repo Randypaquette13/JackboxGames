@@ -41,7 +41,17 @@ export function initDevKeyboardControllers(
   const slots: Slot[] = [];
   let activePlayerId: number | null = null;
 
-  const keys = { left: false, right: false, jump: false, pause: false };
+  const keys = {
+    left: false,
+    right: false,
+    jump: false,
+    pause: false,
+    rwWalk: false,
+    rwRun: false,
+    rwAimUp: false,
+    rwAimDown: false,
+    rwFire: false,
+  };
 
   function activeWs(): WebSocket | null {
     const slot = slots.find((s) => s.playerId === activePlayerId);
@@ -108,7 +118,7 @@ export function initDevKeyboardControllers(
 
       const ws = activeWs();
       if (ws && !e.repeat) {
-        if (ph === "menu" || ph === "kart_results") {
+        if (ph === "menu" || ph === "kart_results" || ph === "race_walk_results") {
           if (e.code === "ArrowUp") {
             e.preventDefault();
             sendIntent(ws, { type: "menu_nav", dir: "up" });
@@ -159,7 +169,39 @@ export function initDevKeyboardControllers(
 
       if (e.repeat) return;
 
-      if (ph === "menu" || ph === "kart_results") {
+      if (ph === "menu" || ph === "kart_results" || ph === "race_walk_results") {
+        return;
+      }
+
+      if (ph === "race_walk") {
+        if (e.code === "KeyJ") {
+          e.preventDefault();
+          keys.rwWalk = true;
+          return;
+        }
+        if (e.code === "KeyL") {
+          e.preventDefault();
+          keys.rwRun = true;
+          return;
+        }
+        if (e.code === "KeyI") {
+          e.preventDefault();
+          keys.rwAimUp = true;
+          return;
+        }
+        if (e.code === "KeyK") {
+          e.preventDefault();
+          keys.rwAimDown = true;
+          return;
+        }
+        if (e.code === "KeyF") {
+          e.preventDefault();
+          keys.rwFire = true;
+          setTimeout(() => {
+            keys.rwFire = false;
+          }, 100);
+          return;
+        }
         return;
       }
 
@@ -174,6 +216,10 @@ export function initDevKeyboardControllers(
   window.addEventListener(
     "keyup",
     (e) => {
+      if (e.code === "KeyJ") keys.rwWalk = false;
+      if (e.code === "KeyL") keys.rwRun = false;
+      if (e.code === "KeyI") keys.rwAimUp = false;
+      if (e.code === "KeyK") keys.rwAimDown = false;
       setKey(e.code, false);
     },
     true
@@ -184,6 +230,11 @@ export function initDevKeyboardControllers(
     keys.right = false;
     keys.jump = false;
     keys.pause = false;
+    keys.rwWalk = false;
+    keys.rwRun = false;
+    keys.rwAimUp = false;
+    keys.rwAimDown = false;
+    keys.rwFire = false;
   });
 
   function syncSelectOptions(): void {
@@ -230,6 +281,15 @@ export function initDevKeyboardControllers(
     else if (keys.right && !keys.left) h = 127;
     if (ph === "kart" || ph === "kart_paused") {
       return { h, buttons: keys.pause ? Btn.Pause : 0 };
+    }
+    if (ph === "race_walk") {
+      let buttons = 0;
+      if (keys.rwWalk) buttons |= Btn.Jump;
+      if (keys.rwRun) buttons |= Btn.Pause;
+      if (keys.rwAimUp) buttons |= Btn.AimUp;
+      if (keys.rwAimDown) buttons |= Btn.AimDown;
+      if (keys.rwFire) buttons |= Btn.Fire;
+      return { h: 0, buttons };
     }
     return { h, buttons: keys.jump ? Btn.Jump : 0 };
   }
@@ -288,7 +348,7 @@ export function initDevKeyboardControllers(
       if (slot.ws.readyState !== WebSocket.OPEN || slot.playerId === null) continue;
       slot.seq = (slot.seq + 1) >>> 0;
       const forActive = activePlayerId !== null && slot.playerId === activePlayerId;
-      if (ph === "menu" || ph === "stub" || ph === "kart_results") {
+      if (ph === "menu" || ph === "stub" || ph === "kart_results" || ph === "race_walk_results") {
         slot.ws.send(encodeInput(slot.seq, 0, 0));
         continue;
       }

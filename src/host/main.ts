@@ -13,6 +13,7 @@ import {
   type PlayerSnapshot,
 } from "@shared/protocol";
 import { drawKart } from "./renderKart";
+import { drawRaceWalk } from "./renderRaceWalk";
 
 function publicBaseUrl(): string {
   const raw = import.meta.env.VITE_PUBLIC_BASE_URL?.trim() || window.location.origin;
@@ -135,14 +136,22 @@ function drawSettingsOverlay(w: number, h: number): void {
 }
 
 function drawResultsMenu(w: number, h: number): void {
-  if (!hostState || hostState.phase !== "kart_results" || !hostState.kart) return;
+  if (!hostState) return;
   const opts = ["Play again", "Back to minigame select", "Add more controllers"];
+  let title = "";
+  if (hostState.phase === "kart_results" && hostState.kart) {
+    title = "Race finished — choose on controller:";
+  } else if (hostState.phase === "race_walk_results" && hostState.raceWalk) {
+    title = "Race Walk finished — choose on controller:";
+  } else {
+    return;
+  }
   ctx.fillStyle = "rgba(0,0,0,0.5)";
   ctx.fillRect(0, h - 200, w, 200);
   ctx.fillStyle = "#e8e8f0";
   ctx.font = "bold 20px system-ui,sans-serif";
   ctx.textAlign = "left";
-  ctx.fillText("Race finished — choose on controller:", 24, h - 168);
+  ctx.fillText(title, 24, h - 168);
   ctx.font = "18px system-ui,sans-serif";
   opts.forEach((label, i) => {
     const sel = i === hostState!.menuIndex;
@@ -172,6 +181,9 @@ function draw(): void {
     drawStub(w, h);
   } else if (phase === "kart" || phase === "kart_paused" || phase === "kart_results") {
     if (hostState) drawKart(ctx, hostState, w, h);
+    drawResultsMenu(w, h);
+  } else if (phase === "race_walk" || phase === "race_walk_results") {
+    if (hostState) drawRaceWalk(ctx, hostState, w, h, scale, ox, oy);
     drawResultsMenu(w, h);
   }
 
