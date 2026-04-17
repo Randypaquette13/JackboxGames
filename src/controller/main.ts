@@ -194,8 +194,26 @@ if (!roomId) {
     hideAll();
   });
 
-  document.querySelector("#lb-ready")!.addEventListener("click", () => {
+  const lobbyReadyBtn = document.querySelector<HTMLElement>("#lb-ready")!;
+  let readyPressed = false;
+  const sendAllReady = () => {
+    if (readyPressed) return;
+    readyPressed = true;
     sendJson(ws, { type: "all_ready" });
+    setTimeout(() => {
+      readyPressed = false;
+    }, 250);
+  };
+  lobbyReadyBtn.addEventListener(
+    "pointerdown",
+    (e) => {
+      e.preventDefault();
+      sendAllReady();
+    },
+    { passive: false }
+  );
+  lobbyReadyBtn.addEventListener("click", () => {
+    sendAllReady();
   });
 
   document.querySelector("#mn-up")!.addEventListener("click", () => {

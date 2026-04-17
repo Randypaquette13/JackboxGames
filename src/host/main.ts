@@ -51,6 +51,11 @@ let hostState: HostStateJson | null = null;
 const phaseRef: { current: GamePhase } = { current: "lobby" };
 let latestLobby: { tick: number; players: PlayerSnapshot[] } = { tick: 0, players: [] };
 let rttMs = 0;
+const isLocalDevHost =
+  location.hostname === "localhost" ||
+  location.hostname === "127.0.0.1" ||
+  location.hostname === "[::1]";
+const enableDevControllers = import.meta.env.DEV && isLocalDevHost;
 
 function updateQrVisibility(): void {
   if (!hostState) return;
@@ -215,7 +220,7 @@ ws.addEventListener("message", (ev) => {
   const op = v.getUint8(0);
   if (op === Op.ServerWelcome) {
     parseWelcome(data);
-    if (import.meta.env.DEV && !devKeyboardStarted) {
+    if (enableDevControllers && !devKeyboardStarted) {
       devKeyboardStarted = true;
       void import("./devKeyboardPlayer").then(({ initDevKeyboardControllers }) => {
         initDevKeyboardControllers(roomId, wsUrl(), () => phaseRef.current);
