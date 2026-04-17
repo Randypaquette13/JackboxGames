@@ -47,6 +47,7 @@ if (!roomId) {
   let right = false;
   let jump = false;
   let seq = 0;
+  let forceMenuUiUntilMs = 0;
 
   function bindHold(el: HTMLElement, onDown: () => void, onUp: () => void): void {
     el.addEventListener(
@@ -141,7 +142,8 @@ if (!roomId) {
       panels.settings.hidden = false;
       return;
     }
-    const ph = st.phase;
+    const now = performance.now();
+    const ph = st.phase === "lobby" && now < forceMenuUiUntilMs ? "menu" : st.phase;
     if (ph === "lobby") {
       panels.lobby.hidden = false;
     } else if (ph === "menu") {
@@ -170,6 +172,9 @@ if (!roomId) {
       try {
         ctrlState = JSON.parse(ev.data) as ControllerStateJson;
         if (ctrlState.type === "controller_state") {
+          if (ctrlState.phase !== "lobby") {
+            forceMenuUiUntilMs = 0;
+          }
           refreshUI();
         }
       } catch {
@@ -199,7 +204,9 @@ if (!roomId) {
   const sendAllReady = () => {
     if (readyPressed) return;
     readyPressed = true;
+    forceMenuUiUntilMs = performance.now() + 5000;
     sendJson(ws, { type: "all_ready" });
+    refreshUI();
     setTimeout(() => {
       readyPressed = false;
     }, 250);

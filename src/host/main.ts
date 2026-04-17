@@ -56,6 +56,10 @@ const isLocalDevHost =
   location.hostname === "127.0.0.1" ||
   location.hostname === "[::1]";
 const enableDevControllers = import.meta.env.DEV && isLocalDevHost;
+if (!enableDevControllers) {
+  document.querySelector("#dev-controller-panel")?.remove();
+  document.querySelector("#dev-keyboard-hint")?.remove();
+}
 
 function updateQrVisibility(): void {
   if (!hostState) return;
