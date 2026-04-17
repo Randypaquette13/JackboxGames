@@ -37,6 +37,59 @@ body {
   gap: 10px;
   flex-wrap: wrap;
 }
+.dev-hint {
+  font-size: 0.75rem;
+  opacity: 0.85;
+  max-width: 16rem;
+}
+.dev-panel {
+  pointer-events: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  background: #1a1a28;
+  border-radius: 8px;
+  border: 1px solid #2a2a3c;
+}
+.dev-panel-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+}
+#dev-control-select {
+  min-width: 8rem;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid #3a3a55;
+  background: #12121c;
+  color: #e8e8f0;
+  font-size: 0.85rem;
+}
+.dev-panel-btn {
+  pointer-events: auto;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid #4a6;
+  background: #1e2e22;
+  color: #b8e0c8;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.dev-panel-btn:hover {
+  background: #2a4030;
+}
+.dev-panel-btn-ready {
+  border-color: #6a8;
+  background: #1a2e1a;
+  color: #c8f0c8;
+  font-weight: 600;
+}
+.dev-panel-btn-ready:hover {
+  background: #243a24;
+}
 #room-code {
   font-size: 1.25rem;
   letter-spacing: 0.12em;

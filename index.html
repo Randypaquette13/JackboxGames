@@ -13,6 +13,19 @@
         <code id="room-code"></code>
         <span id="rtt"></span>
         <span id="tick"></span>
+        <div id="dev-controller-panel" class="dev-panel" hidden>
+          <label class="dev-panel-label"
+            >Keyboard →
+            <select id="dev-control-select" aria-label="Dev keyboard target player"></select>
+          </label>
+          <button type="button" id="dev-all-ready" class="dev-panel-btn dev-panel-btn-ready">
+            All players joined
+          </button>
+          <button type="button" id="dev-add-controller" class="dev-panel-btn">+ Dev controller</button>
+        </div>
+        <span id="dev-keyboard-hint" class="dev-hint" hidden
+          >Dev: A/D or ←/→, Space / W / ↑ jump — R or button for ready — Tab cycles player</span
+        >
       </div>
       <div id="qr-wrap">
         <canvas id="qr"></canvas>

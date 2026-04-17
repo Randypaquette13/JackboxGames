@@ -4,9 +4,11 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { WebSocketServer } from "ws";
-import { TICK_RATE } from "../src/shared/constants.js";
-import { encodeError, encodePong, encodeState, encodeWelcome, Op, parseInput, parseJoin, parsePing, } from "../src/shared/protocol.js";
-import { createPlayer, DEFAULT_PLATFORMS, snapshot, stepPlayer, } from "./game.js";
+import { TICK_DT } from "../src/shared/constants.js";
+import { parseClientIntent } from "../src/shared/messages.js";
+import { Btn, encodeError, encodePong, encodeWelcome, Op, parseInput, parseJoin, parsePing, } from "../src/shared/protocol.js";
+import { applyIntent, buildControllerState, buildHostState, createRoom, ensureKartCar, handleKartPauseEdge, tickSimulation, } from "./gameRoom.js";
+import { createPlayer, DEFAULT_PLATFORMS } from "./game.js";
 const PORT = Number(process.env.PORT) || 3001;
 const rooms = new Map();
 function setTcpNoDelay(ws) {
@@ -46,43 +48,58 @@ function bufferToArrayBuffer(data) {
     u8.set(data);
     return u8.buffer;
 }
-function broadcastState(roomId) {
-    const r = rooms.get(roomId);
-    if (!r || !r.host || r.host.readyState !== 1)
+export function broadcastRoom(roomId) {
+    const room = rooms.get(roomId);
+    if (!room || !room.host || room.host.readyState !== 1)
         return;
-    const list = [];
-    for (const p of r.players.values())
-        list.push(snapshot(p));
-    const buf = encodeState(r.tick, list);
+    const hostJson = JSON.stringify(buildHostState(room, roomId));
     try {
-        r.host.send(buf);
+        room.host.send(hostJson);
     }
     catch {
         /* ignore */
     }
-}
-function gameLoop() {
-    for (const [roomId, r] of rooms) {
-        const hasHost = r.host && r.host.readyState === 1;
-        if (!hasHost)
+    for (const [ws, pid] of room.controllers) {
+        if (ws.readyState !== 1)
             continue;
-        r.tick = (r.tick + 1) >>> 0;
-        for (const p of r.players.values()) {
-            stepPlayer(p, r.platforms);
-        }
-        broadcastState(roomId);
-    }
-}
-function handleMessage(ws, data, isBinary) {
-    if (!isBinary || !Buffer.isBuffer(data)) {
         try {
-            ws.send(encodeError("binary frames only"));
+            ws.send(JSON.stringify(buildControllerState(room, pid)));
         }
         catch {
             /* ignore */
         }
+    }
+}
+function gameLoop() {
+    for (const [roomId, room] of rooms) {
+        const hasHost = room.host && room.host.readyState === 1;
+        if (!hasHost)
+            continue;
+        tickSimulation(room, TICK_DT);
+        broadcastRoom(roomId);
+    }
+}
+function handleTextMessage(ws, raw) {
+    const att = getAttached(ws);
+    if (!att || att.role !== "controller" || att.playerId === undefined)
+        return;
+    let parsed;
+    try {
+        parsed = JSON.parse(raw);
+    }
+    catch {
         return;
     }
+    const intent = parseClientIntent(parsed);
+    if (!intent)
+        return;
+    const room = rooms.get(att.roomId);
+    if (!room)
+        return;
+    applyIntent(room, att.playerId, intent);
+    broadcastRoom(att.roomId);
+}
+function handleBinaryMessage(ws, data) {
     const buf = bufferToArrayBuffer(data);
     const u8 = new Uint8Array(buf);
     const op = u8[0];
@@ -109,17 +126,11 @@ function handleMessage(ws, data, isBinary) {
                 ws.close();
                 return;
             }
-            rooms.set(roomId, {
-                host: ws,
-                controllers: new Map(),
-                players: new Map(),
-                nextPlayerId: 1,
-                tick: 0,
-                platforms: DEFAULT_PLATFORMS,
-            });
+            const room = createRoom(ws, DEFAULT_PLATFORMS);
+            rooms.set(roomId, room);
             setAttached(ws, { role: "host", roomId });
             ws.send(encodeWelcome(0, roomId));
-            broadcastState(roomId);
+            broadcastRoom(roomId);
             return;
         }
         const room = rooms.get(roomId);
@@ -135,8 +146,9 @@ function handleMessage(ws, data, isBinary) {
         room.players.set(playerId, sim);
         room.controllers.set(ws, playerId);
         setAttached(ws, { role: "controller", roomId, playerId });
+        ensureKartCar(room, playerId);
         ws.send(encodeWelcome(playerId, roomId));
-        broadcastState(roomId);
+        broadcastRoom(roomId);
         return;
     }
     if (att.role === "host") {
@@ -148,8 +160,7 @@ function handleMessage(ws, data, isBinary) {
             catch {
                 return;
             }
-            const serverTime = performance.now();
-            ws.send(encodePong(t, serverTime));
+            ws.send(encodePong(t, performance.now()));
         }
         return;
     }
@@ -169,6 +180,11 @@ function handleMessage(ws, data, isBinary) {
                 return;
             }
             player.input = { h: inp.h, buttons: inp.buttons, seq: inp.seq };
+            const car = room.kartCars.get(att.playerId);
+            if (car && (room.phase === "kart" || room.phase === "kart_paused")) {
+                const pauseHeld = (inp.buttons & Btn.Pause) !== 0;
+                handleKartPauseEdge(room, att.playerId, car, pauseHeld);
+            }
             return;
         }
         if (op === Op.ClientPing) {
@@ -234,7 +250,14 @@ const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
 wss.on("connection", (ws) => {
     setTcpNoDelay(ws);
     ws.on("message", (data, isBinary) => {
-        handleMessage(ws, data, Boolean(isBinary));
+        if (!isBinary) {
+            const s = Buffer.isBuffer(data) ? data.toString("utf8") : String(data);
+            handleTextMessage(ws, s);
+            return;
+        }
+        if (Buffer.isBuffer(data)) {
+            handleBinaryMessage(ws, data);
+        }
     });
     ws.on("close", () => {
         const att = getAttached(ws);
@@ -250,11 +273,12 @@ wss.on("connection", (ws) => {
                 return;
             room.controllers.delete(ws);
             room.players.delete(att.playerId);
-            broadcastState(att.roomId);
+            room.kartCars.delete(att.playerId);
+            broadcastRoom(att.roomId);
         }
     });
 });
-setInterval(gameLoop, 1000 / TICK_RATE);
+setInterval(gameLoop, 1000 * TICK_DT);
 httpServer.on("error", (err) => {
     if (err.code === "EADDRINUSE") {
         console.error(`[game] Port ${PORT} is already in use. Set a different PORT in .env.`);

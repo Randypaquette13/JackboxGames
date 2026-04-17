@@ -1,3 +1,4 @@
+import type { ClientIntent, ControllerStateJson } from "@shared/messages";
 import {
   Btn,
   encodeInput,
@@ -13,18 +14,35 @@ function wsUrl(): string {
   return `${p}//${location.host}/ws`;
 }
 
+function sendJson(ws: WebSocket, intent: ClientIntent): void {
+  if (ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(intent));
+  }
+}
+
 const params = new URLSearchParams(window.location.search);
 const roomId = params.get("room")?.trim();
 
 const statusEl = document.querySelector<HTMLElement>("#status")!;
-const controlsEl = document.querySelector<HTMLElement>("#controls")!;
-const btnLeft = document.querySelector<HTMLButtonElement>("#btn-left")!;
-const btnRight = document.querySelector<HTMLButtonElement>("#btn-right")!;
-const btnJump = document.querySelector<HTMLButtonElement>("#btn-jump")!;
+const panels = {
+  lobby: document.querySelector<HTMLElement>("#panel-lobby")!,
+  menu: document.querySelector<HTMLElement>("#panel-menu")!,
+  stub: document.querySelector<HTMLElement>("#panel-stub")!,
+  kart: document.querySelector<HTMLElement>("#panel-kart")!,
+  kartPause: document.querySelector<HTMLElement>("#panel-kart-pause")!,
+  results: document.querySelector<HTMLElement>("#panel-results")!,
+  settings: document.querySelector<HTMLElement>("#panel-settings")!,
+};
+
+const menuPreview = document.querySelector<HTMLElement>("#menu-preview")!;
+const resultsPreview = document.querySelector<HTMLElement>("#results-preview")!;
+
+const RESULT_LABELS = ["Play again", "Back to minigame select", "Add more controllers"];
 
 if (!roomId) {
   statusEl.textContent = "Missing ?room= in URL. Scan the QR on the host screen.";
 } else {
+  let ctrlState: ControllerStateJson | null = null;
   let left = false;
   let right = false;
   let jump = false;
@@ -46,7 +64,7 @@ if (!roomId) {
   }
 
   bindHold(
-    btnLeft,
+    document.querySelector("#lb-left")!,
     () => {
       left = true;
     },
@@ -55,7 +73,7 @@ if (!roomId) {
     }
   );
   bindHold(
-    btnRight,
+    document.querySelector("#lb-right")!,
     () => {
       right = true;
     },
@@ -64,7 +82,7 @@ if (!roomId) {
     }
   );
   bindHold(
-    btnJump,
+    document.querySelector("#lb-jump")!,
     () => {
       jump = true;
     },
@@ -73,46 +91,171 @@ if (!roomId) {
     }
   );
 
+  let kLeft = false;
+  let kRight = false;
+  let kPause = false;
+  bindHold(
+    document.querySelector("#kt-left")!,
+    () => {
+      kLeft = true;
+    },
+    () => {
+      kLeft = false;
+    }
+  );
+  bindHold(
+    document.querySelector("#kt-right")!,
+    () => {
+      kRight = true;
+    },
+    () => {
+      kRight = false;
+    }
+  );
+  document.querySelector("#kt-pause")!.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    kPause = true;
+    setTimeout(() => {
+      kPause = false;
+    }, 100);
+  });
+
   const ws = new WebSocket(wsUrl());
   ws.binaryType = "arraybuffer";
 
+  function hideAll(): void {
+    Object.values(panels).forEach((p) => {
+      if (p) p.hidden = true;
+    });
+  }
+
+  function refreshUI(): void {
+    const st = ctrlState;
+    hideAll();
+    if (!st) {
+      statusEl.textContent = "Connecting…";
+      return;
+    }
+    statusEl.textContent = "";
+    if (st.settingsOpen) {
+      panels.settings.hidden = false;
+      return;
+    }
+    const ph = st.phase;
+    if (ph === "lobby") {
+      panels.lobby.hidden = false;
+    } else if (ph === "menu") {
+      panels.menu.hidden = false;
+      const cur = st.menuItems[st.menuIndex];
+      menuPreview.textContent = cur ? cur.label : "";
+    } else if (ph === "stub") {
+      panels.stub.hidden = false;
+    } else if (ph === "kart") {
+      panels.kart.hidden = false;
+    } else if (ph === "kart_paused") {
+      panels.kartPause.hidden = false;
+    } else if (ph === "kart_results") {
+      panels.results.hidden = false;
+      resultsPreview.textContent = RESULT_LABELS[st.menuIndex % 3] ?? "";
+    }
+  }
+
   ws.addEventListener("open", () => {
-    statusEl.textContent = "Connected — use on-screen controls";
-    controlsEl.hidden = false;
+    statusEl.textContent = "Connected";
     ws.send(encodeJoin("controller", roomId));
   });
 
   ws.addEventListener("message", (ev) => {
+    if (typeof ev.data === "string") {
+      try {
+        ctrlState = JSON.parse(ev.data) as ControllerStateJson;
+        if (ctrlState.type === "controller_state") {
+          refreshUI();
+        }
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
     const data = ev.data as ArrayBuffer;
     const op = new DataView(data).getUint8(0);
     if (op === Op.ServerWelcome) {
       parseWelcome(data);
+      refreshUI();
       return;
     }
     if (op === Op.ServerError) {
       statusEl.textContent = parseError(data);
-      controlsEl.hidden = true;
     }
   });
 
   ws.addEventListener("close", () => {
     statusEl.textContent = "Disconnected";
-    controlsEl.hidden = true;
+    hideAll();
   });
 
-  function sampleInput(): { h: number; buttons: number } {
-    let h = 0;
-    if (left && !right) h = -127;
-    else if (right && !left) h = 127;
-    const buttons = jump ? Btn.Jump : 0;
-    return { h, buttons };
-  }
+  document.querySelector("#lb-ready")!.addEventListener("click", () => {
+    sendJson(ws, { type: "all_ready" });
+  });
+
+  document.querySelector("#mn-up")!.addEventListener("click", () => {
+    sendJson(ws, { type: "menu_nav", dir: "up" });
+  });
+  document.querySelector("#mn-down")!.addEventListener("click", () => {
+    sendJson(ws, { type: "menu_nav", dir: "down" });
+  });
+  document.querySelector("#mn-confirm")!.addEventListener("click", () => {
+    sendJson(ws, { type: "menu_confirm" });
+  });
+  document.querySelector("#mn-add")!.addEventListener("click", () => {
+    sendJson(ws, { type: "menu_add_players" });
+  });
+  document.querySelector("#mn-settings")!.addEventListener("click", () => {
+    sendJson(ws, { type: "menu_game_settings" });
+  });
+
+  document.querySelector("#st-back")!.addEventListener("click", () => {
+    sendJson(ws, { type: "stub_back" });
+  });
+
+  document.querySelector("#kp-resume")!.addEventListener("click", () => {
+    sendJson(ws, { type: "pause_resume" });
+  });
+  document.querySelector("#kp-menu")!.addEventListener("click", () => {
+    sendJson(ws, { type: "pause_to_menu" });
+  });
+
+  document.querySelector("#rs-up")!.addEventListener("click", () => {
+    sendJson(ws, { type: "menu_nav", dir: "up" });
+  });
+  document.querySelector("#rs-down")!.addEventListener("click", () => {
+    sendJson(ws, { type: "menu_nav", dir: "down" });
+  });
+  document.querySelector("#rs-confirm")!.addEventListener("click", () => {
+    sendJson(ws, { type: "menu_confirm" });
+  });
+
+  document.querySelector("#set-close")!.addEventListener("click", () => {
+    sendJson(ws, { type: "settings_close" });
+  });
 
   function loop(): void {
-    if (ws.readyState === WebSocket.OPEN) {
+    if (ws.readyState === WebSocket.OPEN && ctrlState) {
       seq = (seq + 1) >>> 0;
-      const { h, buttons } = sampleInput();
-      ws.send(encodeInput(seq, h, buttons));
+      const ph = ctrlState.phase;
+      if (ph === "lobby") {
+        let h = 0;
+        if (left && !right) h = -127;
+        else if (right && !left) h = 127;
+        const buttons = jump ? Btn.Jump : 0;
+        ws.send(encodeInput(seq, h, buttons));
+      } else if (ph === "kart") {
+        let h = 0;
+        if (kLeft && !kRight) h = -127;
+        else if (kRight && !kLeft) h = 127;
+        const buttons = kPause ? Btn.Pause : 0;
+        ws.send(encodeInput(seq, h, buttons));
+      }
     }
     requestAnimationFrame(loop);
   }

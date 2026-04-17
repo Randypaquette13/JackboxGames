@@ -19,6 +19,7 @@ export const RoleByte = { host: 0, controller: 1 } as const;
 
 export const Btn = {
   Jump: 1 << 0,
+  Pause: 1 << 1,
 } as const;
 
 export function encodeJoin(role: Role, roomId: string): ArrayBuffer {

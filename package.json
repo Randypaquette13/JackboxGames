@@ -7,7 +7,8 @@
     "dev": "concurrently -k \"npm run dev:server\" \"npm run dev:vite\"",
     "dev:server": "tsx watch server/index.ts",
     "dev:vite": "vite",
-    "build": "tsc -p tsconfig.server.json && vite build",
+    "gen:kart-geometry": "tsx scripts/generate-kart-geometry.ts",
+    "build": "tsc -p tsconfig.server.json && node scripts/copy-kart-geometry.mjs && vite build",
     "start": "node dist-server/server/index.js",
     "preview": "vite preview"
   },
