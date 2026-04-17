@@ -24,6 +24,7 @@ const params = new URLSearchParams(window.location.search);
 const roomId = params.get("room")?.trim();
 
 const statusEl = document.querySelector<HTMLElement>("#status")!;
+const debugPhaseEl = document.querySelector<HTMLElement>("#debug-phase");
 const panels = {
   lobby: document.querySelector<HTMLElement>("#panel-lobby")!,
   menu: document.querySelector<HTMLElement>("#panel-menu")!,
@@ -133,6 +134,13 @@ if (!roomId) {
   function refreshUI(): void {
     const st = ctrlState;
     hideAll();
+    if (debugPhaseEl) {
+      debugPhaseEl.hidden = false;
+      const serverPhase = st?.phase ?? "none";
+      const forced = forcedControllerPhase ?? "none";
+      const shown = forcedControllerPhase ?? serverPhase;
+      debugPhaseEl.textContent = `server: ${serverPhase}\nforced: ${forced}\nshown:  ${shown}`;
+    }
     if (!st) {
       statusEl.textContent = "Connecting…";
       return;

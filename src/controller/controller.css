@@ -18,6 +18,22 @@ body {
   text-align: center;
   font-size: 1rem;
 }
+.debug-phase {
+  position: fixed;
+  top: 8px;
+  right: 8px;
+  z-index: 20;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid #4a4a62;
+  background: rgba(12, 12, 20, 0.86);
+  color: #cbd3ec;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+  line-height: 1.25;
+  white-space: pre;
+  pointer-events: none;
+}
 .panel {
   display: flex;
   flex-direction: column;
