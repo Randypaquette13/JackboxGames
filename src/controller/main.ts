@@ -162,6 +162,18 @@ if (!roomId) {
     }
   }
 
+  function showMenuPanelImmediately(): void {
+    hideAll();
+    panels.menu.hidden = false;
+    if (ctrlState) {
+      const cur = ctrlState.menuItems[ctrlState.menuIndex];
+      menuPreview.textContent = cur ? cur.label : "Minigame menu";
+    } else {
+      menuPreview.textContent = "Minigame menu";
+    }
+    statusEl.textContent = "";
+  }
+
   ws.addEventListener("open", () => {
     statusEl.textContent = "Connected";
     ws.send(encodeJoin("controller", roomId));
@@ -209,7 +221,7 @@ if (!roomId) {
       ctrlState = { ...ctrlState, phase: "menu" };
     }
     sendJson(ws, { type: "all_ready" });
-    refreshUI();
+    showMenuPanelImmediately();
     setTimeout(() => {
       readyPressed = false;
     }, 250);
