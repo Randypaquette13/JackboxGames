@@ -205,6 +205,9 @@ if (!roomId) {
     if (readyPressed) return;
     readyPressed = true;
     forceMenuUiUntilMs = performance.now() + 5000;
+    if (ctrlState && ctrlState.phase === "lobby") {
+      ctrlState = { ...ctrlState, phase: "menu" };
+    }
     sendJson(ws, { type: "all_ready" });
     refreshUI();
     setTimeout(() => {
