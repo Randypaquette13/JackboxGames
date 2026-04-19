@@ -53,6 +53,27 @@ body {
   font-size: 0.95rem;
   color: #a8a8c8;
 }
+.settings-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 0;
+}
+.settings-row label {
+  font-size: 0.9rem;
+  color: #c8c8e0;
+}
+.settings-row input[type="range"] {
+  width: 100%;
+  accent-color: #8ab4ff;
+}
+.settings-val {
+  font-variant-numeric: tabular-nums;
+  font-size: 1rem;
+  color: #e8e8f0;
+  text-align: center;
+}
 .menu-preview {
   text-align: center;
   font-size: 1.1rem;

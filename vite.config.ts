@@ -20,6 +20,8 @@ export default defineConfig(({ mode }) => {
       },
     },
     server: {
+      /** Listen on LAN (0.0.0.0) so phones can open http://<your-ip>:5173 — not just localhost */
+      host: true,
       port: 5173,
       // Allow ngrok / Cloudflare Tunnel / etc. (Host header is not localhost)
       allowedHosts: true,

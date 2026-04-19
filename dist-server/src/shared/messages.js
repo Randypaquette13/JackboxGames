@@ -24,6 +24,12 @@ export function parseClientIntent(raw) {
         return { type: "menu_game_settings" };
     if (t === "settings_close")
         return { type: "settings_close" };
+    if (t === "game_settings_patch") {
+        const patch = o.patch;
+        if (patch && typeof patch === "object" && !Array.isArray(patch)) {
+            return { type: "game_settings_patch", patch: patch };
+        }
+    }
     if (t === "stub_back")
         return { type: "stub_back" };
     if (t === "kart_results") {

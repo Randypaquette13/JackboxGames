@@ -2,6 +2,7 @@ import QRCode from "qrcode";
 import { PLAYER_H, PLAYER_W, WORLD_H, WORLD_W } from "@shared/constants";
 import type { GamePhase, HostStateJson } from "@shared/messages";
 import { MINIGAME_LABELS } from "@shared/messages";
+import { resolveKartForwardSpeed } from "@shared/kartSettings";
 import { PLATFORMS } from "@shared/level";
 import {
   encodeJoin,
@@ -52,11 +53,8 @@ let hostState: HostStateJson | null = null;
 const phaseRef: { current: GamePhase } = { current: "lobby" };
 let latestLobby: { tick: number; players: PlayerSnapshot[] } = { tick: 0, players: [] };
 let rttMs = 0;
-const isLocalDevHost =
-  location.hostname === "localhost" ||
-  location.hostname === "127.0.0.1" ||
-  location.hostname === "[::1]";
-const enableDevControllers = import.meta.env.DEV && isLocalDevHost;
+const enableDevControllers =
+  import.meta.env.DEV && import.meta.env.VITE_ENABLE_DEV_CONTROLLERS === "true";
 if (!enableDevControllers) {
   document.querySelector("#dev-controller-panel")?.remove();
   document.querySelector("#dev-keyboard-hint")?.remove();
@@ -130,9 +128,13 @@ function drawSettingsOverlay(w: number, h: number): void {
   ctx.fillStyle = "#fff";
   ctx.font = "bold 24px system-ui,sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText("Game Settings (stub)", w / 2, h / 2 - 20);
-  ctx.font = "16px system-ui,sans-serif";
-  ctx.fillText(JSON.stringify(hostState.gameSettings), w / 2, h / 2 + 20);
+  ctx.fillText("Game settings", w / 2, h / 2 - 36);
+  ctx.font = "18px system-ui,sans-serif";
+  const kartSpd = resolveKartForwardSpeed(hostState.gameSettings);
+  ctx.fillText(`Kart racing speed: ${kartSpd}`, w / 2, h / 2 + 4);
+  ctx.font = "15px system-ui,sans-serif";
+  ctx.fillStyle = "#b8c0d8";
+  ctx.fillText("Adjust on a controller (Menu → Game settings)", w / 2, h / 2 + 40);
 }
 
 function drawResultsMenu(w: number, h: number): void {

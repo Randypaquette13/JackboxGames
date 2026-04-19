@@ -1,5 +1,10 @@
 import type { ClientIntent, ControllerStateJson } from "@shared/messages";
 import {
+  KART_FORWARD_SPEED_MAX,
+  KART_FORWARD_SPEED_MIN,
+  resolveKartForwardSpeed,
+} from "@shared/kartSettings";
+import {
   Btn,
   encodeInput,
   encodeJoin,
@@ -40,6 +45,12 @@ const menuPreview = document.querySelector<HTMLElement>("#menu-preview")!;
 const resultsPreview = document.querySelector<HTMLElement>("#results-preview")!;
 
 const RESULT_LABELS = ["Play again", "Back to minigame select", "Add more controllers"];
+
+const kartSpeedInput = document.querySelector<HTMLInputElement>("#set-kart-speed")!;
+const kartSpeedVal = document.querySelector<HTMLElement>("#set-kart-speed-val")!;
+kartSpeedInput.min = String(KART_FORWARD_SPEED_MIN);
+kartSpeedInput.max = String(KART_FORWARD_SPEED_MAX);
+kartSpeedInput.step = "5";
 
 if (!roomId) {
   statusEl.textContent = "Missing ?room= in URL. Scan the QR on the host screen.";
@@ -175,6 +186,12 @@ if (!roomId) {
   const ws = new WebSocket(wsUrl());
   ws.binaryType = "arraybuffer";
 
+  function syncKartSettingsFromState(st: ControllerStateJson): void {
+    const v = resolveKartForwardSpeed(st.gameSettings);
+    kartSpeedInput.value = String(v);
+    kartSpeedVal.textContent = String(v);
+  }
+
   function hideAll(): void {
     Object.values(panels).forEach((p) => {
       if (p) p.hidden = true;
@@ -197,6 +214,7 @@ if (!roomId) {
     }
     statusEl.textContent = "";
     if (st.settingsOpen) {
+      syncKartSettingsFromState(st);
       panels.settings.hidden = false;
       return;
     }
@@ -336,6 +354,12 @@ if (!roomId) {
 
   document.querySelector("#set-close")!.addEventListener("click", () => {
     sendJson(ws, { type: "settings_close" });
+  });
+
+  kartSpeedInput.addEventListener("input", () => {
+    const n = Number(kartSpeedInput.value);
+    kartSpeedVal.textContent = String(n);
+    sendJson(ws, { type: "game_settings_patch", patch: { kartForwardSpeed: n } });
   });
 
   function loop(): void {

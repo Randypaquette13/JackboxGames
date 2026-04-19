@@ -52,6 +52,7 @@ export type ClientIntent =
   | { type: "menu_add_players" }
   | { type: "menu_game_settings" }
   | { type: "settings_close" }
+  | { type: "game_settings_patch"; patch: Record<string, unknown> }
   | { type: "stub_back" }
   | { type: "kart_results"; action: "play_again" | "minigame_menu" | "add_controllers" }
   | { type: "race_walk_results"; action: "play_again" | "minigame_menu" | "add_controllers" }
@@ -117,6 +118,7 @@ export type ControllerStateJson = {
   menuIndex: number;
   menuItems: { id: MinigameId; label: string }[];
   settingsOpen: boolean;
+  gameSettings: Record<string, unknown>;
   stubId: MinigameId | null;
   kart: null | {
     paused: boolean;
@@ -144,6 +146,12 @@ export function parseClientIntent(raw: unknown): ClientIntent | null {
   if (t === "menu_add_players") return { type: "menu_add_players" };
   if (t === "menu_game_settings") return { type: "menu_game_settings" };
   if (t === "settings_close") return { type: "settings_close" };
+  if (t === "game_settings_patch") {
+    const patch = o.patch;
+    if (patch && typeof patch === "object" && !Array.isArray(patch)) {
+      return { type: "game_settings_patch", patch: patch as Record<string, unknown> };
+    }
+  }
   if (t === "stub_back") return { type: "stub_back" };
   if (t === "kart_results") {
     const a = o.action;

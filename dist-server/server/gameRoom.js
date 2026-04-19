@@ -1,17 +1,18 @@
 import { MINIGAME_IDS, MINIGAME_LABELS } from "../src/shared/messages.js";
 import { TICK_RATE, WORLD_H, WORLD_W } from "../src/shared/constants.js";
+import { clampKartForwardSpeed, resolveKartForwardSpeed } from "../src/shared/kartSettings.js";
 import { RACE_WALK_FINISH_X, RACE_WALK_LANES, RACE_WALK_START_X } from "../src/shared/raceWalk.js";
 import { Btn } from "../src/shared/protocol.js";
-import { chooseCrossingModeByHeading, constrainToCrossingLane, KART_FORWARD_SPEED, KART_SPEED_MIN, KART_SPEED_RECOVER, KART_TURN_SPEED, KART_WALL_IMPACT_FRICTION, KART_WALL_SCRAPE_FRICTION, checkLapCross, clampToRing, finishLineSegment, getBridgePolygon, getInnerIslands, getOuterWall, getUnderpassPolygon, isInsideCrossing, normalIntoTrack, spawnPosition, wallScrapeAndImpact, wallViolated, } from "../src/shared/kartTrack.js";
+import { chooseCrossingModeByHeading, constrainToCrossingLane, KART_SPEED_MIN, KART_SPEED_RECOVER, KART_TURN_SPEED, KART_WALL_IMPACT_FRICTION, KART_WALL_SCRAPE_FRICTION, checkLapCross, clampToRing, finishLineSegment, getBridgePolygon, getInnerIslands, getOuterWall, getUnderpassPolygon, isInsideCrossing, normalIntoTrack, spawnPosition, wallScrapeAndImpact, wallViolated, } from "../src/shared/kartTrack.js";
 import { snapshot, stepPlayer } from "./game.js";
 export const LAPS_TO_WIN = 3;
 export const KART_COUNTDOWN_SEC = 3;
 export { RACE_WALK_LANES } from "../src/shared/raceWalk.js";
 export const RACE_WALK_COUNTDOWN_SEC = KART_COUNTDOWN_SEC;
 /** Shared walk speed for humans (walk button) and NPCs in walk segments */
-const RACE_WALK_WALK_SPEED = 48;
+const RACE_WALK_WALK_SPEED = 32;
 /** Shared run speed for humans (run button) and NPCs when allowed to run */
-const RACE_WALK_RUN_SPEED = 92;
+const RACE_WALK_RUN_SPEED = 82;
 const KART_DRIFT_BASE_GRIP = 6.4;
 const KART_DRIFT_TURN_LOSS = 1.2;
 export function createRoom(host, platforms) {
@@ -76,6 +77,9 @@ function anyRaceWalkCrosshairHasAmmo(room) {
 }
 function runnerForPlayer(room, playerId) {
     return room.raceWalkRunners.find((r) => r.controllerId === playerId);
+}
+function getKartForwardSpeed(room) {
+    return resolveKartForwardSpeed(room.gameSettings);
 }
 export function resetRaceWalk(room) {
     clearRaceWalkState(room);
@@ -355,6 +359,7 @@ export function buildControllerState(room, playerId) {
         menuIndex: room.menuIndex,
         menuItems: menuItemsList(),
         settingsOpen: room.settingsOpen,
+        gameSettings: { ...room.gameSettings },
         stubId: room.stubId,
         kart: room.phase === "kart" || room.phase === "kart_paused" || room.phase === "kart_results"
             ? {
@@ -374,6 +379,7 @@ export function resetKartRace(room) {
     room.kartCountdown = KART_COUNTDOWN_SEC;
     room.kartCars.clear();
     const ids = Array.from(room.players.keys()).sort((a, b) => a - b);
+    const cruise = getKartForwardSpeed(room);
     for (let i = 0; i < ids.length; i++) {
         const sp = spawnPosition(i);
         room.kartCars.set(ids[i], {
@@ -381,11 +387,11 @@ export function resetKartRace(room) {
             y: sp.y,
             angle: sp.angle,
             laps: 0,
-            speed: KART_FORWARD_SPEED,
+            speed: cruise,
             prevPauseHeld: false,
             crossingMode: null,
-            velX: Math.cos(sp.angle) * KART_FORWARD_SPEED,
-            velY: Math.sin(sp.angle) * KART_FORWARD_SPEED,
+            velX: Math.cos(sp.angle) * cruise,
+            velY: Math.sin(sp.angle) * cruise,
         });
     }
 }
@@ -402,16 +408,17 @@ export function ensureKartCar(room, playerId) {
         const ids = Array.from(room.players.keys()).sort((a, b) => a - b);
         const idx = ids.indexOf(playerId);
         const sp = spawnPosition(idx >= 0 ? idx : 0);
+        const cruise = getKartForwardSpeed(room);
         room.kartCars.set(playerId, {
             x: sp.x,
             y: sp.y,
             angle: sp.angle,
             laps: 0,
-            speed: KART_FORWARD_SPEED,
+            speed: cruise,
             prevPauseHeld: false,
             crossingMode: null,
-            velX: Math.cos(sp.angle) * KART_FORWARD_SPEED,
-            velY: Math.sin(sp.angle) * KART_FORWARD_SPEED,
+            velX: Math.cos(sp.angle) * cruise,
+            velY: Math.sin(sp.angle) * cruise,
         });
     }
 }
@@ -433,6 +440,7 @@ export function tickSimulation(room, dt) {
     }
     if (room.phase !== "kart" || room.kartPaused)
         return;
+    const kartCruise = getKartForwardSpeed(room);
     if (room.kartCountdown !== null && room.kartCountdown > 0) {
         room.kartCountdown -= dt;
         if (room.kartCountdown <= 0) {
@@ -538,7 +546,7 @@ export function tickSimulation(room, dt) {
             car.velY *= retained;
         }
         else {
-            car.speed += (KART_FORWARD_SPEED - car.speed) * Math.min(1, KART_SPEED_RECOVER * dt);
+            car.speed += (kartCruise - car.speed) * Math.min(1, KART_SPEED_RECOVER * dt);
         }
         car.x = clamped.x;
         car.y = clamped.y;
@@ -667,6 +675,16 @@ export function applyIntent(room, _playerId, intent) {
         case "settings_close":
             room.settingsOpen = false;
             break;
+        case "game_settings_patch": {
+            const p = intent.patch;
+            if (Object.prototype.hasOwnProperty.call(p, "kartForwardSpeed")) {
+                const v = p.kartForwardSpeed;
+                if (typeof v === "number" && Number.isFinite(v)) {
+                    room.gameSettings.kartForwardSpeed = clampKartForwardSpeed(v);
+                }
+            }
+            break;
+        }
         case "stub_back":
             if (room.phase === "stub") {
                 room.phase = "menu";

@@ -6,6 +6,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { KART_FORWARD_SPEED_DEFAULT } from "./kartSettings.js";
 let _geometryCache = null;
 function loadTrackGeometry() {
     if (_geometryCache)
@@ -15,7 +16,7 @@ function loadTrackGeometry() {
     _geometryCache = JSON.parse(raw);
     return _geometryCache;
 }
-export const KART_FORWARD_SPEED = 220;
+export const KART_FORWARD_SPEED = KART_FORWARD_SPEED_DEFAULT;
 export const KART_TURN_SPEED = 2.8;
 export const KART_WALL_SCRAPE_FRICTION = 4.5;
 export const KART_WALL_IMPACT_FRICTION = 2.2;
