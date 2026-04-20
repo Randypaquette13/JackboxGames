@@ -8,9 +8,10 @@ function clamp(v, lo, hi) {
 function aabbOverlap(ax, ay, aw, ah, bx, by, bw, bh) {
     return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
 }
-export function createPlayer(id, spawnX, spawnY) {
+export function createPlayer(id, spawnX, spawnY, hue) {
     return {
         id,
+        hue,
         x: spawnX,
         y: spawnY,
         vx: 0,
@@ -78,5 +79,5 @@ export function stepPlayer(p, platforms) {
     }
 }
 export function snapshot(p) {
-    return { id: p.id, x: p.x, y: p.y, vx: p.vx, vy: p.vy };
+    return { id: p.id, hue: p.hue, x: p.x, y: p.y, vx: p.vx, vy: p.vy };
 }

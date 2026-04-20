@@ -6,8 +6,9 @@ import path from "node:path";
 import { WebSocketServer } from "ws";
 import { TICK_DT } from "../src/shared/constants.js";
 import { parseClientIntent } from "../src/shared/messages.js";
+import { pickPlayerHue } from "../src/shared/playerColors.js";
 import { Btn, encodeError, encodePong, encodeWelcome, Op, parseInput, parseJoin, parsePing, } from "../src/shared/protocol.js";
-import { applyIntent, buildControllerState, buildHostState, createRoom, ensureKartCar, handleKartPauseEdge, tickSimulation, } from "./gameRoom.js";
+import { applyIntent, buildControllerState, buildHostState, createRoom, ensureKartCar, handleKartPauseEdge, handleRaceWalkPauseEdge, tickSimulation, } from "./gameRoom.js";
 import { createPlayer, DEFAULT_PLATFORMS } from "./game.js";
 const PORT = Number(process.env.PORT) || 3001;
 const rooms = new Map();
@@ -142,7 +143,9 @@ function handleBinaryMessage(ws, data) {
         const playerId = room.nextPlayerId++;
         const spawnX = 80 + (playerId - 1) * 72;
         const spawnY = 200;
-        const sim = createPlayer(playerId, spawnX, spawnY);
+        const existingHues = [...room.players.values()].map((p) => p.hue);
+        const hue = pickPlayerHue(existingHues);
+        const sim = createPlayer(playerId, spawnX, spawnY, hue);
         room.players.set(playerId, sim);
         room.controllers.set(ws, playerId);
         setAttached(ws, { role: "controller", roomId, playerId });
@@ -184,6 +187,11 @@ function handleBinaryMessage(ws, data) {
             if (car && (room.phase === "kart" || room.phase === "kart_paused")) {
                 const pauseHeld = (inp.buttons & Btn.Pause) !== 0;
                 handleKartPauseEdge(room, att.playerId, car, pauseHeld);
+            }
+            const rwShooter = room.raceWalkShooters.get(att.playerId);
+            if (rwShooter && (room.phase === "race_walk" || room.phase === "race_walk_paused")) {
+                const pauseHeld = (inp.buttons & Btn.Pause) !== 0;
+                handleRaceWalkPauseEdge(room, att.playerId, rwShooter, pauseHeld);
             }
             return;
         }

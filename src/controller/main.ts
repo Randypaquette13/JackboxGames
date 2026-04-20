@@ -136,6 +136,7 @@ if (!roomId) {
 
   let rwWalk = false;
   let rwRun = false;
+  let rwPause = false;
   let rwAimUp = false;
   let rwAimDown = false;
   let rwFire = false;
@@ -180,6 +181,13 @@ if (!roomId) {
     rwFire = true;
     setTimeout(() => {
       rwFire = false;
+    }, 100);
+  });
+  document.querySelector("#rw-pause")!.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    rwPause = true;
+    setTimeout(() => {
+      rwPause = false;
     }, 100);
   });
 
@@ -231,7 +239,7 @@ if (!roomId) {
       panels.raceWalk.hidden = false;
     } else if (ph === "kart") {
       panels.kart.hidden = false;
-    } else if (ph === "kart_paused") {
+    } else if (ph === "kart_paused" || ph === "race_walk_paused") {
       panels.kartPause.hidden = false;
     } else if (ph === "kart_results" || ph === "race_walk_results") {
       panels.results.hidden = false;
@@ -381,7 +389,8 @@ if (!roomId) {
       } else if (ph === "race_walk") {
         let buttons = 0;
         if (rwWalk) buttons |= Btn.Jump;
-        if (rwRun) buttons |= Btn.Pause;
+        if (rwRun) buttons |= Btn.Run;
+        if (rwPause) buttons |= Btn.Pause;
         if (rwAimUp) buttons |= Btn.AimUp;
         if (rwAimDown) buttons |= Btn.AimDown;
         if (rwFire) buttons |= Btn.Fire;

@@ -23,6 +23,8 @@ export type PlayerInput = {
 
 export type SimPlayer = {
   id: number;
+  /** HSL hue 0–359; set at join (distinct from existing players). */
+  hue: number;
   x: number;
   y: number;
   vx: number;
@@ -52,9 +54,10 @@ function aabbOverlap(
   return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
 }
 
-export function createPlayer(id: number, spawnX: number, spawnY: number): SimPlayer {
+export function createPlayer(id: number, spawnX: number, spawnY: number, hue: number): SimPlayer {
   return {
     id,
+    hue,
     x: spawnX,
     y: spawnY,
     vx: 0,
@@ -121,5 +124,5 @@ export function stepPlayer(p: SimPlayer, platforms: Platform[]): void {
 }
 
 export function snapshot(p: SimPlayer): PlayerSnapshot {
-  return { id: p.id, x: p.x, y: p.y, vx: p.vx, vy: p.vy };
+  return { id: p.id, hue: p.hue, x: p.x, y: p.y, vx: p.vx, vy: p.vy };
 }

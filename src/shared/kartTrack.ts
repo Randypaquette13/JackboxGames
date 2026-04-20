@@ -387,16 +387,26 @@ export function finishLineSegment(): { a: Vec2; b: Vec2 } {
   return { a: { ..._finishA }, b: { ..._finishB } };
 }
 
+export type FinishLineCross = "none" | "forward" | "backward";
+
 /**
- * Lap when crossing finish segment in forward direction (along centerline tangent).
+ * Detect crossing the finish segment: forward (correct race direction) vs backward.
+ * Uses velocity vs finish tangent; small tangential crossings are ignored (same thresholds).
  */
-export function checkLapCross(prev: Vec2, curr: Vec2, vx: number, vy: number): boolean {
+export function checkFinishLineCross(
+  prev: Vec2,
+  curr: Vec2,
+  vx: number,
+  vy: number
+): FinishLineCross {
   const { a, b } = finishLineSegment();
-  if (!segIntersect(prev, curr, a, b)) return false;
+  if (!segIntersect(prev, curr, a, b)) return "none";
   const tx = _finishTan.x;
   const ty = _finishTan.y;
   const dot = vx * tx + vy * ty;
-  return dot > 40;
+  if (dot > 40) return "forward";
+  if (dot < -40) return "backward";
+  return "none";
 }
 
 export function spawnPosition(index: number): { x: number; y: number; angle: number } {

@@ -1,9 +1,57 @@
-import type { HostStateJson } from "@shared/messages";
+import type { HostStateJson, RaceWalkCrosshairJson } from "@shared/messages";
 import { WORLD_H, WORLD_W } from "@shared/constants";
+import { fallbackPlayerHue } from "@shared/playerColors";
 import { raceWalkLaneCenterY, raceWalkLanePitch } from "@shared/raceWalk";
 
 let prevRwCountdown: number | null | undefined;
 let goFlashUntil = 0;
+
+function hslToRgb(h: number, s: number, l: number): [number, number, number] {
+  h = ((h % 360) + 360) % 360;
+  s /= 100;
+  l /= 100;
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+  let rp = 0;
+  let gp = 0;
+  let bp = 0;
+  if (h < 60) {
+    rp = c;
+    gp = x;
+  } else if (h < 120) {
+    rp = x;
+    gp = c;
+  } else if (h < 180) {
+    gp = c;
+    bp = x;
+  } else if (h < 240) {
+    gp = x;
+    bp = c;
+  } else if (h < 300) {
+    rp = x;
+    bp = c;
+  } else {
+    rp = c;
+    bp = x;
+  }
+  return [(rp + m) * 255, (gp + m) * 255, (bp + m) * 255];
+}
+
+function blendedCrosshairStrokeRgb(hues: number[]): [number, number, number] {
+  if (hues.length === 0) return [255, 107, 107];
+  const rgbs = hues.map((hue) => hslToRgb(hue, 72, 58));
+  const n = rgbs.length;
+  const r = rgbs.reduce((a, v) => a + v[0], 0) / n;
+  const g = rgbs.reduce((a, v) => a + v[1], 0) / n;
+  const b = rgbs.reduce((a, v) => a + v[2], 0) / n;
+  return [r, g, b];
+}
+
+function crosshairStrokeStyle(hues: number[]): string {
+  const [r, g, b] = blendedCrosshairStrokeRgb(hues);
+  return `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
+}
 
 function runnerInLane(rw: NonNullable<HostStateJson["raceWalk"]>, lane: number) {
   return rw.runners.find((r) => r.lane === lane);
@@ -72,12 +120,26 @@ export function drawRaceWalk(
     ctx.restore();
   }
 
-  for (const ch of rw.crosshairs) {
-    if (!ch.active) continue;
-    const target = runnerInLane(rw, ch.lane);
-    const cy = raceWalkLaneCenterY(ch.lane);
+  const activeCrosshairs = rw.crosshairs.filter((ch) => ch.active);
+  const byLane = new Map<number, RaceWalkCrosshairJson[]>();
+  for (const ch of activeCrosshairs) {
+    const list = byLane.get(ch.lane) ?? [];
+    list.push(ch);
+    byLane.set(ch.lane, list);
+  }
+
+  const laneOrder = [...byLane.keys()].sort((a, b) => a - b);
+  for (const lane of laneOrder) {
+    const group = byLane.get(lane)!;
+    const sorted = [...group].sort((a, b) => a.playerId - b.playerId);
+    const playerIds = sorted.map((c) => c.playerId);
+    const hues = sorted.map((c) => c.hue ?? fallbackPlayerHue(c.playerId));
+    const stroke = crosshairStrokeStyle(hues);
+
+    const target = runnerInLane(rw, lane);
+    const cy = raceWalkLaneCenterY(lane);
     const cx = target?.x ?? rw.startX;
-    ctx.strokeStyle = "#ff6b6b";
+    ctx.strokeStyle = stroke;
     ctx.lineWidth = 2;
     const s = 14;
     ctx.beginPath();
@@ -89,17 +151,58 @@ export function drawRaceWalk(
     ctx.beginPath();
     ctx.arc(cx, cy, s + 4, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.fillStyle = "#fff";
+    const idLabel = playerIds.map((id) => `P${id}`).join(" · ");
+    ctx.fillStyle = stroke;
     ctx.font = "bold 13px system-ui,sans-serif";
     ctx.textAlign = "left";
     ctx.textBaseline = "bottom";
-    ctx.fillText(`P${ch.playerId}`, cx + 18, cy - 10);
+    ctx.fillText(idLabel, cx + 18, cy - 10);
     ctx.font = "12px system-ui,sans-serif";
     ctx.fillStyle = "#aab0c8";
-    ctx.fillText(`ammo ${ch.ammo}`, cx + 18, cy + 6);
+    const ammoLabel =
+      sorted.length > 1
+        ? `ammo ${sorted.map((c) => c.ammo).join(" · ")}`
+        : `ammo ${sorted[0].ammo}`;
+    ctx.fillText(ammoLabel, cx + 18, cy + 6);
   }
 
   ctx.restore();
+
+  if (state.phase === "race_walk_paused") {
+    ctx.save();
+    ctx.filter = "blur(2.5px)";
+    ctx.drawImage(ctx.canvas, 0, 0);
+    ctx.restore();
+    ctx.fillStyle = "rgba(8, 10, 14, 0.34)";
+    ctx.fillRect(0, 0, canvasW, canvasH);
+
+    const pausedBy = rw.pausedByPlayerId;
+    const byText = pausedBy !== null ? `Player ${pausedBy} paused the game` : "Paused";
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const cx = canvasW / 2;
+    const cy = canvasH / 2;
+    const boxW = Math.min(560, canvasW * 0.72);
+    const boxH = 146;
+    ctx.fillStyle = "rgba(14, 16, 24, 0.82)";
+    ctx.strokeStyle = "rgba(255,255,255,0.22)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(cx - boxW / 2, cy - boxH / 2, boxW, boxH, 14);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#ffde87";
+    ctx.font = "bold 48px system-ui,sans-serif";
+    ctx.fillText("PAUSED", cx, cy - 24);
+    ctx.fillStyle = "#e8e8f0";
+    ctx.font = "22px system-ui,sans-serif";
+    ctx.fillText(byText, cx, cy + 20);
+    ctx.font = "16px system-ui,sans-serif";
+    ctx.fillStyle = "#b9c0d4";
+    ctx.fillText("Press resume on controller to continue", cx, cy + 52);
+    ctx.restore();
+  }
 
   const cd = rw.countdown;
   if (cd !== null && cd > 0) {

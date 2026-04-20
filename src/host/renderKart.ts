@@ -1,4 +1,5 @@
 import type { HostStateJson } from "@shared/messages";
+import { fallbackPlayerHue } from "@shared/playerColors";
 
 const CAR_R = 12;
 
@@ -112,14 +113,14 @@ function isInUnderpassTunnel(
 
 function drawKartCar(
   ctx: CanvasRenderingContext2D,
-  car: { playerId: number; x: number; y: number; angle: number },
+  car: { playerId: number; hue: number; x: number; y: number; angle: number },
   scale: number,
   inTunnel: boolean
 ): void {
   ctx.save();
   ctx.translate(car.x, car.y);
   ctx.rotate(car.angle);
-  const hue = (car.playerId * 47) % 360;
+  const hue = car.hue ?? fallbackPlayerHue(car.playerId);
   if (inTunnel) {
     ctx.globalAlpha = 0.94;
     ctx.shadowColor = "rgba(0,0,0,0.55)";

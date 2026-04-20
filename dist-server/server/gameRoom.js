@@ -1,9 +1,10 @@
 import { MINIGAME_IDS, MINIGAME_LABELS } from "../src/shared/messages.js";
 import { TICK_RATE, WORLD_H, WORLD_W } from "../src/shared/constants.js";
 import { clampKartForwardSpeed, resolveKartForwardSpeed } from "../src/shared/kartSettings.js";
+import { fallbackPlayerHue } from "../src/shared/playerColors.js";
 import { RACE_WALK_FINISH_X, RACE_WALK_LANES, RACE_WALK_START_X } from "../src/shared/raceWalk.js";
 import { Btn } from "../src/shared/protocol.js";
-import { chooseCrossingModeByHeading, constrainToCrossingLane, KART_SPEED_MIN, KART_SPEED_RECOVER, KART_TURN_SPEED, KART_WALL_IMPACT_FRICTION, KART_WALL_SCRAPE_FRICTION, checkLapCross, clampToRing, finishLineSegment, getBridgePolygon, getInnerIslands, getOuterWall, getUnderpassPolygon, isInsideCrossing, normalIntoTrack, spawnPosition, wallScrapeAndImpact, wallViolated, } from "../src/shared/kartTrack.js";
+import { chooseCrossingModeByHeading, constrainToCrossingLane, KART_SPEED_MIN, KART_SPEED_RECOVER, KART_TURN_SPEED, KART_WALL_IMPACT_FRICTION, KART_WALL_SCRAPE_FRICTION, checkFinishLineCross, clampToRing, finishLineSegment, getBridgePolygon, getInnerIslands, getOuterWall, getUnderpassPolygon, isInsideCrossing, normalIntoTrack, spawnPosition, wallScrapeAndImpact, wallViolated, } from "../src/shared/kartTrack.js";
 import { snapshot, stepPlayer } from "./game.js";
 export const LAPS_TO_WIN = 3;
 export const KART_COUNTDOWN_SEC = 3;
@@ -42,6 +43,7 @@ export function createRoom(host, platforms) {
         raceWalkBanners: [],
         raceWalkWinnerLane: null,
         raceWalkWinnerPlayerId: null,
+        raceWalkPausedByPlayerId: null,
     };
 }
 function clearRaceWalkState(room) {
@@ -52,6 +54,7 @@ function clearRaceWalkState(room) {
     room.raceWalkBanners = [];
     room.raceWalkWinnerLane = null;
     room.raceWalkWinnerPlayerId = null;
+    room.raceWalkPausedByPlayerId = null;
 }
 function shuffleIntRange(n) {
     const a = Array.from({ length: n }, (_, i) => i);
@@ -108,7 +111,8 @@ export function resetRaceWalk(room) {
             crosshairLane: Math.floor(Math.random() * RACE_WALK_LANES),
             crosshairDisabled: false,
             prevJump: false,
-            prevPause: false,
+            prevRun: false,
+            prevGamePauseHeld: false,
             prevAimUp: false,
             prevAimDown: false,
             prevFire: false,
@@ -158,7 +162,7 @@ function tickRaceWalk(room, dt) {
             continue;
         const b = player.input.buttons;
         const walkHeld = (b & Btn.Jump) !== 0;
-        const runHeld = (b & Btn.Pause) !== 0;
+        const runHeld = (b & Btn.Run) !== 0;
         const aimUpHeld = (b & Btn.AimUp) !== 0;
         const aimDownHeld = (b & Btn.AimDown) !== 0;
         const fireHeld = (b & Btn.Fire) !== 0;
@@ -186,7 +190,7 @@ function tickRaceWalk(room, dt) {
             }
         }
         shooter.prevJump = walkHeld;
-        shooter.prevPause = runHeld;
+        shooter.prevRun = runHeld;
         shooter.prevAimUp = aimUpHeld;
         shooter.prevAimDown = aimDownHeld;
         shooter.prevFire = fireHeld;
@@ -201,7 +205,7 @@ function tickRaceWalk(room, dt) {
                 continue;
             const b = p.input.buttons;
             const walkHeld = (b & Btn.Jump) !== 0;
-            const runHeld = (b & Btn.Pause) !== 0;
+            const runHeld = (b & Btn.Run) !== 0;
             if (runHeld)
                 speed = RACE_WALK_RUN_SPEED;
             else if (walkHeld)
@@ -251,8 +255,11 @@ function tickRaceWalk(room, dt) {
     }
 }
 function buildRaceWalkHostJson(room) {
-    if (room.phase !== "race_walk" && room.phase !== "race_walk_results")
+    if (room.phase !== "race_walk" &&
+        room.phase !== "race_walk_paused" &&
+        room.phase !== "race_walk_results") {
         return null;
+    }
     const runners = room.raceWalkRunners.map((r) => ({
         lane: r.lane,
         x: r.x,
@@ -261,8 +268,10 @@ function buildRaceWalkHostJson(room) {
     }));
     const crosshairs = [];
     for (const [playerId, s] of room.raceWalkShooters) {
+        const pl = room.players.get(playerId);
         crosshairs.push({
             playerId,
+            hue: pl?.hue ?? fallbackPlayerHue(playerId),
             lane: s.crosshairLane,
             ammo: s.ammo,
             active: s.ammo > 0 && !s.crosshairDisabled,
@@ -282,6 +291,8 @@ function buildRaceWalkHostJson(room) {
         winnerLane: room.raceWalkWinnerLane,
         winnerPlayerId: room.raceWalkWinnerPlayerId,
         seriesWins: Object.fromEntries(room.seriesWins),
+        paused: room.phase === "race_walk_paused",
+        pausedByPlayerId: room.raceWalkPausedByPlayerId,
     };
 }
 function menuItemsList() {
@@ -298,13 +309,17 @@ export function buildHostState(room, roomId) {
         const bridgePolygon = getBridgePolygon().map((p) => ({ x: p.x, y: p.y }));
         const underpassPolygon = getUnderpassPolygon().map((p) => ({ x: p.x, y: p.y }));
         const finishLine = finishLineSegment();
-        const cars = Array.from(room.kartCars.entries()).map(([playerId, c]) => ({
-            playerId,
-            x: c.x,
-            y: c.y,
-            angle: c.angle,
-            laps: Math.min(LAPS_TO_WIN, c.laps),
-        }));
+        const cars = Array.from(room.kartCars.entries()).map(([playerId, c]) => {
+            const pl = room.players.get(playerId);
+            return {
+                playerId,
+                hue: pl?.hue ?? fallbackPlayerHue(playerId),
+                x: c.x,
+                y: c.y,
+                angle: c.angle,
+                laps: Math.min(LAPS_TO_WIN, c.laps),
+            };
+        });
         kart = {
             countdown: room.kartCountdown,
             paused: room.kartPaused,
@@ -342,7 +357,9 @@ export function buildControllerState(room, playerId) {
     }
     const shooter = room.raceWalkShooters.get(playerId);
     const assigned = runnerForPlayer(room, playerId);
-    const raceWalkHud = room.phase === "race_walk" || room.phase === "race_walk_results"
+    const raceWalkHud = room.phase === "race_walk" ||
+        room.phase === "race_walk_paused" ||
+        room.phase === "race_walk_results"
         ? {
             assignedLane: assigned?.lane ?? null,
             runnerDowned: assigned?.downed ?? false,
@@ -350,6 +367,7 @@ export function buildControllerState(room, playerId) {
             ammo: shooter?.ammo ?? 0,
             crosshairActive: shooter ? shooter.ammo > 0 && !shooter.crosshairDisabled : false,
             seriesWins: Object.fromEntries(room.seriesWins),
+            paused: room.phase === "race_walk_paused",
         }
         : null;
     return {
@@ -431,6 +449,10 @@ export function tickSimulation(room, dt) {
         return;
     }
     if (room.phase === "race_walk_results") {
+        pruneRaceWalkBanners(room);
+        return;
+    }
+    if (room.phase === "race_walk_paused") {
         pruneRaceWalkBanners(room);
         return;
     }
@@ -550,7 +572,8 @@ export function tickSimulation(room, dt) {
         }
         car.x = clamped.x;
         car.y = clamped.y;
-        if (checkLapCross(prev, { x: car.x, y: car.y }, vx, vy)) {
+        const finishCross = checkFinishLineCross(prev, { x: car.x, y: car.y }, vx, vy);
+        if (finishCross === "forward") {
             car.laps++;
             if (car.laps >= LAPS_TO_WIN) {
                 car.laps = LAPS_TO_WIN;
@@ -561,6 +584,9 @@ export function tickSimulation(room, dt) {
                 room.menuIndex = 0;
                 return;
             }
+        }
+        else if (finishCross === "backward") {
+            car.laps = Math.max(0, car.laps - 1);
         }
     }
 }
@@ -574,6 +600,17 @@ export function handleKartPauseEdge(room, playerId, car, pauseHeld) {
         room.phase = "kart_paused";
         room.kartPaused = true;
         room.kartPausedByPlayerId = playerId;
+    }
+}
+/** Call when binary input arrives for Race Walk game-pause edge (Btn.Pause, same as kart). */
+export function handleRaceWalkPauseEdge(room, playerId, shooter, pauseHeld) {
+    const edge = pauseHeld && !shooter.prevGamePauseHeld;
+    shooter.prevGamePauseHeld = pauseHeld;
+    if (!edge)
+        return;
+    if (room.phase === "race_walk" && room.raceWalkCountdown === null) {
+        room.phase = "race_walk_paused";
+        room.raceWalkPausedByPlayerId = playerId;
     }
 }
 export function applyIntent(room, _playerId, intent) {
@@ -667,7 +704,22 @@ export function applyIntent(room, _playerId, intent) {
             break;
         }
         case "menu_add_players":
-            room.showQr = true;
+            if (room.phase === "menu") {
+                room.phase = "lobby";
+                room.menuIndex = 0;
+                room.stubId = null;
+                room.settingsOpen = false;
+                room.kartCars.clear();
+                room.kartWinnerId = null;
+                room.kartCountdown = null;
+                room.kartPaused = false;
+                room.kartPausedByPlayerId = null;
+                clearRaceWalkState(room);
+                room.showQr = true;
+            }
+            else {
+                room.showQr = true;
+            }
             break;
         case "menu_game_settings":
             room.settingsOpen = true;
@@ -748,6 +800,13 @@ export function applyIntent(room, _playerId, intent) {
                     c.prevPauseHeld = false;
                 }
             }
+            else if (room.phase === "race_walk_paused") {
+                room.phase = "race_walk";
+                room.raceWalkPausedByPlayerId = null;
+                for (const s of room.raceWalkShooters.values()) {
+                    s.prevGamePauseHeld = false;
+                }
+            }
             break;
         case "pause_to_menu":
             if (room.phase === "kart_paused" || room.phase === "kart") {
@@ -759,7 +818,7 @@ export function applyIntent(room, _playerId, intent) {
                 room.stubId = null;
                 room.kartPausedByPlayerId = null;
             }
-            else if (room.phase === "race_walk") {
+            else if (room.phase === "race_walk" || room.phase === "race_walk_paused") {
                 room.phase = "menu";
                 room.stubId = null;
                 clearRaceWalkState(room);

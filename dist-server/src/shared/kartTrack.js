@@ -332,16 +332,21 @@ export function finishLineSegment() {
     return { a: { ..._finishA }, b: { ..._finishB } };
 }
 /**
- * Lap when crossing finish segment in forward direction (along centerline tangent).
+ * Detect crossing the finish segment: forward (correct race direction) vs backward.
+ * Uses velocity vs finish tangent; small tangential crossings are ignored (same thresholds).
  */
-export function checkLapCross(prev, curr, vx, vy) {
+export function checkFinishLineCross(prev, curr, vx, vy) {
     const { a, b } = finishLineSegment();
     if (!segIntersect(prev, curr, a, b))
-        return false;
+        return "none";
     const tx = _finishTan.x;
     const ty = _finishTan.y;
     const dot = vx * tx + vy * ty;
-    return dot > 40;
+    if (dot > 40)
+        return "forward";
+    if (dot < -40)
+        return "backward";
+    return "none";
 }
 export function spawnPosition(index) {
     const row = Math.floor(index / 4);

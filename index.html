@@ -13,24 +13,35 @@
         <code id="room-code"></code>
         <span id="rtt"></span>
         <span id="tick"></span>
-        <div id="dev-controller-panel" class="dev-panel" hidden>
-          <label class="dev-panel-label"
-            >Keyboard →
-            <select id="dev-control-select" aria-label="Dev keyboard target player"></select>
-          </label>
-          <button type="button" id="dev-all-ready" class="dev-panel-btn dev-panel-btn-ready">
-            All players joined
-          </button>
-          <button type="button" id="dev-add-controller" class="dev-panel-btn">+ Dev controller</button>
-        </div>
-        <span id="dev-keyboard-hint" class="dev-hint" hidden
-          >Dev: A/D or ←/→, Space / W / ↑ jump — R or button for ready — Tab cycles player</span
-        >
       </div>
       <div id="qr-wrap">
         <canvas id="qr"></canvas>
         <p id="qr-hint">Scan to join as controller</p>
       </div>
+    </div>
+    <div id="dev-host-dock" class="dev-host-dock" hidden>
+      <div id="dev-controller-panel" class="dev-panel">
+        <label class="dev-panel-label"
+          >Keyboard →
+          <select id="dev-control-select" aria-label="Dev keyboard target player"></select>
+        </label>
+        <button type="button" id="dev-all-ready" class="dev-panel-btn dev-panel-btn-ready">
+          All players joined
+        </button>
+        <button type="button" id="dev-add-controller" class="dev-panel-btn">+ Dev controller</button>
+        <div class="dev-panel-row">
+          <button type="button" id="dev-mn-add" class="dev-panel-btn">Back to lobby</button>
+          <button type="button" id="dev-mn-settings" class="dev-panel-btn">Game settings</button>
+        </div>
+        <button type="button" id="dev-stub-back" class="dev-panel-btn" hidden>Back to menu (stub)</button>
+        <div id="dev-settings-inline" class="dev-settings-inline" hidden>
+          <label class="dev-panel-label" for="dev-set-kart-speed">Kart racing speed</label>
+          <input type="range" id="dev-set-kart-speed" />
+          <span id="dev-set-kart-speed-val" class="dev-settings-val"></span>
+          <button type="button" id="dev-settings-close" class="dev-panel-btn">Close settings</button>
+        </div>
+      </div>
+      <p id="dev-keyboard-hint" class="dev-hint"></p>
     </div>
     <canvas id="game"></canvas>
     <script type="module" src="/src/host/main.ts"></script>

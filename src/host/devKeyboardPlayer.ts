@@ -1,10 +1,19 @@
 /**
  * Dev controllers: multiple WS connections; keyboard mirrors phone (binary + JSON).
  * Lobby: A/D or arrows move, Space/W jump, R or “All players joined” = all ready.
- * Menu / results: arrows navigate, Enter = confirm, Tab cycles target player.
+ * Menu / results: arrows navigate, Enter = confirm, F2/F3 = Back to lobby / Game settings (panel buttons too).
+ * Settings overlay: Esc or F4 close, −/+ adjust kart speed (slider on panel).
+ * Stub: Esc or panel “Back to menu”.
  * Kart: A/D steer, P or Esc = pause edge.
+ * Race Walk: J/L walk-run, I/K aim, F fire.
  */
 import type { ClientIntent, GamePhase } from "@shared/messages";
+import {
+  clampKartForwardSpeed,
+  KART_FORWARD_SPEED_MAX,
+  KART_FORWARD_SPEED_MIN,
+  resolveKartForwardSpeed,
+} from "@shared/kartSettings";
 import { Btn, encodeInput, encodeJoin, Op, parseWelcome } from "@shared/protocol";
 
 type Slot = {
@@ -13,22 +22,65 @@ type Slot = {
   playerId: number | null;
 };
 
+export type DevHostSnapshot = {
+  settingsOpen: boolean;
+  gameSettings: Record<string, unknown>;
+};
+
+export type DevKeyboardHost = {
+  getPhase: () => GamePhase;
+  getHostSnapshot: () => DevHostSnapshot;
+};
+
+function devHintForScreen(ph: GamePhase, snap: DevHostSnapshot): string {
+  if (snap.settingsOpen) {
+    return "Esc or F4: close · −/+: kart speed · slider below · Tab: target player";
+  }
+  switch (ph) {
+    case "lobby":
+      return "A/D or ←/→: move · Space/W/↑: jump · R or All ready · Tab: target player";
+    case "menu":
+      return "↑↓: navigate · Enter: confirm · F2: Back to lobby · F3: Game settings · Tab: target";
+    case "stub":
+      return "Esc or Back to menu · Tab: target player";
+    case "kart":
+      return "A/D or ←/→: steer · P or Esc: pause · Tab: target player";
+    case "kart_paused":
+      return "Enter: resume · Esc: to menu · Tab: target player";
+    case "kart_results":
+    case "race_walk_results":
+      return "↑↓: navigate · Enter: confirm · Tab: target player";
+    case "race_walk":
+      return "J: walk · L: run · P/Esc: pause · I/K: aim · F: fire · Tab: target";
+    case "race_walk_paused":
+      return "Enter: resume · Esc: to menu · Tab: target player";
+    default: {
+      const _exhaustive: never = ph;
+      return _exhaustive;
+    }
+  }
+}
+
 function sendIntent(ws: WebSocket, intent: ClientIntent): void {
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify(intent));
   }
 }
 
-export function initDevKeyboardControllers(
-  roomId: string,
-  url: string,
-  getPhase: () => GamePhase
-): void {
+export function initDevKeyboardControllers(roomId: string, url: string, host: DevKeyboardHost): void {
+  const { getPhase, getHostSnapshot } = host;
   const panel = document.querySelector<HTMLElement>("#dev-controller-panel");
   const select = document.querySelector<HTMLSelectElement>("#dev-control-select");
   const allReadyBtn = document.querySelector<HTMLButtonElement>("#dev-all-ready");
   const addBtn = document.querySelector<HTMLButtonElement>("#dev-add-controller");
   const hint = document.querySelector<HTMLElement>("#dev-keyboard-hint");
+  const mnAddBtn = document.querySelector<HTMLButtonElement>("#dev-mn-add");
+  const mnSettingsBtn = document.querySelector<HTMLButtonElement>("#dev-mn-settings");
+  const stubBackBtn = document.querySelector<HTMLButtonElement>("#dev-stub-back");
+  const settingsInline = document.querySelector<HTMLElement>("#dev-settings-inline");
+  const kartSpeedInput = document.querySelector<HTMLInputElement>("#dev-set-kart-speed");
+  const kartSpeedVal = document.querySelector<HTMLElement>("#dev-set-kart-speed-val");
+  const settingsCloseBtn = document.querySelector<HTMLButtonElement>("#dev-settings-close");
 
   if (!panel || !select || !allReadyBtn || !addBtn) {
     console.warn("[dev] controller panel elements missing");
@@ -37,6 +89,12 @@ export function initDevKeyboardControllers(
 
   panel.hidden = false;
   if (hint) hint.hidden = false;
+
+  if (kartSpeedInput) {
+    kartSpeedInput.min = String(KART_FORWARD_SPEED_MIN);
+    kartSpeedInput.max = String(KART_FORWARD_SPEED_MAX);
+    kartSpeedInput.step = "5";
+  }
 
   const slots: Slot[] = [];
   let activePlayerId: number | null = null;
@@ -94,6 +152,7 @@ export function initDevKeyboardControllers(
     "keydown",
     (e) => {
       const ph = getPhase();
+      const snap = getHostSnapshot();
 
       if (e.target === select && arrowNavKeys.includes(e.key)) {
         e.preventDefault();
@@ -118,7 +177,45 @@ export function initDevKeyboardControllers(
 
       const ws = activeWs();
       if (ws && !e.repeat) {
-        if (ph === "menu" || ph === "kart_results" || ph === "race_walk_results") {
+        if (snap.settingsOpen) {
+          if (e.code === "Escape" || e.code === "F4") {
+            e.preventDefault();
+            sendIntent(ws, { type: "settings_close" });
+            return;
+          }
+          if (e.code === "Minus" || e.code === "NumpadSubtract") {
+            e.preventDefault();
+            const cur = resolveKartForwardSpeed(snap.gameSettings);
+            const next = clampKartForwardSpeed(cur - 5);
+            sendIntent(ws, { type: "game_settings_patch", patch: { kartForwardSpeed: next } });
+            return;
+          }
+          if (e.code === "Equal" || e.code === "NumpadAdd") {
+            e.preventDefault();
+            const cur = resolveKartForwardSpeed(snap.gameSettings);
+            const next = clampKartForwardSpeed(cur + 5);
+            sendIntent(ws, { type: "game_settings_patch", patch: { kartForwardSpeed: next } });
+            return;
+          }
+        }
+
+        if (!snap.settingsOpen) {
+          if (e.code === "F2") {
+            e.preventDefault();
+            sendIntent(ws, { type: "menu_add_players" });
+            return;
+          }
+          if (e.code === "F3") {
+            e.preventDefault();
+            sendIntent(ws, { type: "menu_game_settings" });
+            return;
+          }
+        }
+
+        if (
+          !snap.settingsOpen &&
+          (ph === "menu" || ph === "kart_results" || ph === "race_walk_results")
+        ) {
           if (e.code === "ArrowUp") {
             e.preventDefault();
             sendIntent(ws, { type: "menu_nav", dir: "up" });
@@ -153,7 +250,15 @@ export function initDevKeyboardControllers(
           }, 100);
           return;
         }
-        if (ph === "kart_paused") {
+        if (ph === "race_walk" && (e.code === "KeyP" || e.code === "Escape")) {
+          e.preventDefault();
+          keys.pause = true;
+          setTimeout(() => {
+            keys.pause = false;
+          }, 100);
+          return;
+        }
+        if (ph === "kart_paused" || ph === "race_walk_paused") {
           if (e.code === "Enter") {
             e.preventDefault();
             sendIntent(ws, { type: "pause_resume" });
@@ -202,7 +307,6 @@ export function initDevKeyboardControllers(
           }, 100);
           return;
         }
-        return;
       }
 
       if (["ArrowLeft", "ArrowRight", "ArrowUp", "Space", "KeyA", "KeyD", "KeyW", "KeyP"].includes(e.code)) {
@@ -285,7 +389,8 @@ export function initDevKeyboardControllers(
     if (ph === "race_walk") {
       let buttons = 0;
       if (keys.rwWalk) buttons |= Btn.Jump;
-      if (keys.rwRun) buttons |= Btn.Pause;
+      if (keys.rwRun) buttons |= Btn.Run;
+      if (keys.pause) buttons |= Btn.Pause;
       if (keys.rwAimUp) buttons |= Btn.AimUp;
       if (keys.rwAimDown) buttons |= Btn.AimDown;
       if (keys.rwFire) buttons |= Btn.Fire;
@@ -342,13 +447,61 @@ export function initDevKeyboardControllers(
     if (ws) sendIntent(ws, { type: "all_ready" });
   });
 
+  mnAddBtn?.addEventListener("click", () => {
+    const ws = activeWs();
+    if (ws) sendIntent(ws, { type: "menu_add_players" });
+  });
+  mnSettingsBtn?.addEventListener("click", () => {
+    const ws = activeWs();
+    if (ws) sendIntent(ws, { type: "menu_game_settings" });
+  });
+  stubBackBtn?.addEventListener("click", () => {
+    const ws = activeWs();
+    if (ws) sendIntent(ws, { type: "stub_back" });
+  });
+  settingsCloseBtn?.addEventListener("click", () => {
+    const ws = activeWs();
+    if (ws) sendIntent(ws, { type: "settings_close" });
+  });
+  kartSpeedInput?.addEventListener("input", () => {
+    const ws = activeWs();
+    if (!ws || !kartSpeedVal) return;
+    const n = Number(kartSpeedInput.value);
+    kartSpeedVal.textContent = String(n);
+    sendIntent(ws, { type: "game_settings_patch", patch: { kartForwardSpeed: n } });
+  });
+
   function loop(): void {
     const ph = getPhase();
+    const snap = getHostSnapshot();
+
+    if (stubBackBtn) stubBackBtn.hidden = ph !== "stub";
+    if (settingsInline) settingsInline.hidden = !snap.settingsOpen;
+    if (kartSpeedInput && kartSpeedVal && snap.settingsOpen) {
+      const v = resolveKartForwardSpeed(snap.gameSettings);
+      if (document.activeElement !== kartSpeedInput) {
+        kartSpeedInput.value = String(v);
+      }
+      kartSpeedVal.textContent = String(resolveKartForwardSpeed(snap.gameSettings));
+    }
+
+    if (hint) {
+      hint.textContent = devHintForScreen(ph, snap);
+    }
+
     for (const slot of slots) {
       if (slot.ws.readyState !== WebSocket.OPEN || slot.playerId === null) continue;
       slot.seq = (slot.seq + 1) >>> 0;
       const forActive = activePlayerId !== null && slot.playerId === activePlayerId;
-      if (ph === "menu" || ph === "stub" || ph === "kart_results" || ph === "race_walk_results") {
+      if (
+        ph === "menu" ||
+        ph === "stub" ||
+        ph === "kart_results" ||
+        ph === "race_walk_results" ||
+        ph === "kart_paused" ||
+        ph === "race_walk_paused" ||
+        snap.settingsOpen
+      ) {
         slot.ws.send(encodeInput(slot.seq, 0, 0));
         continue;
       }

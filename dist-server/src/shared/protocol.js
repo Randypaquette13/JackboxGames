@@ -20,6 +20,8 @@ export const Btn = {
     /** Race Walk: cycle crosshair toward higher lane index */
     AimDown: 1 << 3,
     Fire: 1 << 4,
+    /** Race Walk: run (faster than walk); Pause is reserved for game pause */
+    Run: 1 << 5,
 };
 export function encodeJoin(role, roomId) {
     const room = new TextEncoder().encode(roomId);
@@ -98,10 +100,13 @@ export function parseState(data) {
     const n = v.getUint8(5);
     let o = 6;
     const players = [];
+    const stride = 18;
     for (let i = 0; i < n; i++) {
-        if (o + 21 > data.byteLength)
+        if (o + stride > data.byteLength)
             throw new Error("truncated state");
         const id = v.getUint8(o);
+        o += 1;
+        const hue = v.getUint8(o);
         o += 1;
         const x = v.getFloat32(o, true);
         o += 4;
@@ -111,7 +116,7 @@ export function parseState(data) {
         o += 4;
         const vy = v.getFloat32(o, true);
         o += 4;
-        players.push({ id, x, y, vx, vy });
+        players.push({ id, hue, x, y, vx, vy });
     }
     return { tick, players };
 }
@@ -148,7 +153,8 @@ export function encodeWelcome(playerId, roomId) {
 }
 export function encodeState(tick, players) {
     const n = Math.min(players.length, 255);
-    const buf = new ArrayBuffer(6 + n * 21);
+    const stride = 18;
+    const buf = new ArrayBuffer(6 + n * stride);
     const v = new DataView(buf);
     const u8 = new Uint8Array(buf);
     v.setUint8(0, Op.ServerState);
@@ -158,6 +164,7 @@ export function encodeState(tick, players) {
     for (let i = 0; i < n; i++) {
         const p = players[i];
         u8[o++] = p.id & 0xff;
+        u8[o++] = Math.max(0, Math.min(359, Math.round(p.hue))) & 0xff;
         v.setFloat32(o, p.x, true);
         o += 4;
         v.setFloat32(o, p.y, true);

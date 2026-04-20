@@ -2,6 +2,7 @@ import QRCode from "qrcode";
 import { PLAYER_H, PLAYER_W, WORLD_H, WORLD_W } from "@shared/constants";
 import type { GamePhase, HostStateJson } from "@shared/messages";
 import { MINIGAME_LABELS } from "@shared/messages";
+import { fallbackPlayerHue } from "@shared/playerColors";
 import { resolveKartForwardSpeed } from "@shared/kartSettings";
 import { PLATFORMS } from "@shared/level";
 import {
@@ -56,8 +57,10 @@ let rttMs = 0;
 const enableDevControllers =
   import.meta.env.DEV && import.meta.env.VITE_ENABLE_DEV_CONTROLLERS === "true";
 if (!enableDevControllers) {
-  document.querySelector("#dev-controller-panel")?.remove();
-  document.querySelector("#dev-keyboard-hint")?.remove();
+  document.querySelector("#dev-host-dock")?.remove();
+} else {
+  const devDock = document.querySelector<HTMLElement>("#dev-host-dock");
+  if (devDock) devDock.hidden = false;
 }
 
 function updateQrVisibility(): void {
@@ -74,7 +77,7 @@ function drawLobby(w: number, h: number, scale: number, ox: number, oy: number):
     ctx.fillRect(pl.x, pl.y, pl.w, pl.h);
   }
   for (const p of latestLobby.players) {
-    const hue = (p.id * 47) % 360;
+    const hue = p.hue ?? fallbackPlayerHue(p.id);
     ctx.fillStyle = `hsl(${hue} 72% 58%)`;
     ctx.strokeStyle = "#0a0a12";
     ctx.lineWidth = 2;
@@ -105,7 +108,7 @@ function drawMenu(w: number, h: number): void {
   });
   ctx.font = "16px system-ui,sans-serif";
   ctx.fillStyle = "#888";
-  ctx.fillText("↑↓ navigate · OK select · Add players / Settings on controller", w / 2, h - 48);
+  ctx.fillText("↑↓ navigate · OK select · Back to lobby / Settings on controller", w / 2, h - 48);
 }
 
 function drawStub(w: number, h: number): void {
@@ -184,7 +187,7 @@ function draw(): void {
   } else if (phase === "kart" || phase === "kart_paused" || phase === "kart_results") {
     if (hostState) drawKart(ctx, hostState, w, h);
     drawResultsMenu(w, h);
-  } else if (phase === "race_walk" || phase === "race_walk_results") {
+  } else if (phase === "race_walk" || phase === "race_walk_paused" || phase === "race_walk_results") {
     if (hostState) drawRaceWalk(ctx, hostState, w, h, scale, ox, oy);
     drawResultsMenu(w, h);
   }
@@ -241,7 +244,13 @@ ws.addEventListener("message", (ev) => {
     if (enableDevControllers && !devKeyboardStarted) {
       devKeyboardStarted = true;
       void import("./devKeyboardPlayer").then(({ initDevKeyboardControllers }) => {
-        initDevKeyboardControllers(roomId, wsUrl(), () => phaseRef.current);
+        initDevKeyboardControllers(roomId, wsUrl(), {
+          getPhase: () => phaseRef.current,
+          getHostSnapshot: () => ({
+            settingsOpen: hostState?.settingsOpen ?? false,
+            gameSettings: hostState?.gameSettings ?? {},
+          }),
+        });
       });
     }
     return;

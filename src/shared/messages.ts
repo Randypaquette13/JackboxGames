@@ -33,6 +33,8 @@ export type RaceWalkRunnerJson = {
 
 export type RaceWalkCrosshairJson = {
   playerId: number;
+  /** HSL hue 0–359 (same as lobby / kart for this player). */
+  hue: number;
   lane: number;
   ammo: number;
   /** false when out of ammo or unusable after eliminating a human */
@@ -61,6 +63,8 @@ export type ClientIntent =
 
 export type KartCarState = {
   playerId: number;
+  /** HSL hue 0–359 */
+  hue: number;
   x: number;
   y: number;
   /** Heading radians; +x = 0, +y = π/2 (y-down) */
@@ -108,6 +112,8 @@ export type HostStateJson = {
     winnerLane: number | null;
     winnerPlayerId: number | null;
     seriesWins: Record<number, number>;
+    paused: boolean;
+    pausedByPlayerId: number | null;
   };
 };
 
@@ -133,6 +139,7 @@ export type ControllerStateJson = {
     ammo: number;
     crosshairActive: boolean;
     seriesWins: Record<number, number>;
+    paused: boolean;
   };
 };
 
