@@ -121,12 +121,12 @@ export function resetRaceWalk(room) {
     room.raceWalkNpcAi = Array.from({ length: RACE_WALK_LANES }, (_, lane) => {
         const r = room.raceWalkRunners[lane];
         if (r?.controllerId === null) {
-            const startWalk = Math.random() < 0.42;
+            const startWalk = Math.random() < 0.2;
             return {
                 mode: (startWalk ? "walk" : "stop"),
                 timer: startWalk
-                    ? 0.35 + Math.random() * 1.15
-                    : 0.75 + Math.random() * 2.85,
+                    ? 0.25 + Math.random() * 0.85
+                    : 1.2 + Math.random() * 3.4,
             };
         }
         return { mode: "stop", timer: 9999 };
@@ -219,11 +219,11 @@ function tickRaceWalk(room, dt) {
                 if (ai.timer <= 0) {
                     if (ai.mode === "walk") {
                         ai.mode = "stop";
-                        ai.timer = 0.55 + Math.random() * 2.45;
+                        ai.timer = 1.1 + Math.random() * 3.6;
                     }
                     else {
                         ai.mode = "walk";
-                        ai.timer = 0.5 + Math.random() * 2.2;
+                        ai.timer = 0.2 + Math.random() * 1.0;
                     }
                 }
                 if (ai.mode === "walk") {
