@@ -8,10 +8,13 @@ import { TICK_DT } from "../src/shared/constants.js";
 import { parseClientIntent } from "../src/shared/messages.js";
 import { pickPlayerHue } from "../src/shared/playerColors.js";
 import { Btn, encodeError, encodePong, encodeWelcome, Op, parseInput, parseJoin, parsePing, } from "../src/shared/protocol.js";
-import { applyIntent, buildControllerState, buildHostState, createRoom, ensureKartCar, handleKartPauseEdge, handleRaceWalkPauseEdge, tickSimulation, } from "./gameRoom.js";
+import { applyIntent, buildControllerState, buildHostState, createRoom, ensureKartCar, handleFroggerPauseEdge, handleKartPauseEdge, handleRaceWalkPauseEdge, tickSimulation, } from "./gameRoom.js";
 import { createPlayer, DEFAULT_PLATFORMS } from "./game.js";
 const PORT = Number(process.env.PORT) || 3001;
+const CONTROLLER_GRACE_MS = 30_000;
 const rooms = new Map();
+const reconnectGraceByRoom = new Map();
+const clientIdByPlayerByRoom = new Map();
 function setTcpNoDelay(ws) {
     const sock = ws._socket;
     sock?.setNoDelay?.(true);
@@ -21,6 +24,45 @@ function getAttached(ws) {
 }
 function setAttached(ws, a) {
     ws.__jb = a;
+}
+function setClientId(ws, cid) {
+    ws.__jbCid = cid;
+}
+function getClientId(ws) {
+    return ws.__jbCid ?? null;
+}
+function graceMap(roomId) {
+    let m = reconnectGraceByRoom.get(roomId);
+    if (!m) {
+        m = new Map();
+        reconnectGraceByRoom.set(roomId, m);
+    }
+    return m;
+}
+function clientMap(roomId) {
+    let m = clientIdByPlayerByRoom.get(roomId);
+    if (!m) {
+        m = new Map();
+        clientIdByPlayerByRoom.set(roomId, m);
+    }
+    return m;
+}
+function removePlayerFromRoom(room, playerId) {
+    room.players.delete(playerId);
+    room.kartCars.delete(playerId);
+    room.raceWalkShooters.delete(playerId);
+    room.froggerFrogs.delete(playerId);
+    room.froggerDeathNotices.delete(playerId);
+    for (const runner of room.raceWalkRunners) {
+        if (runner.controllerId === playerId)
+            runner.controllerId = null;
+    }
+    if (room.kartPausedByPlayerId === playerId)
+        room.kartPausedByPlayerId = null;
+    if (room.raceWalkPausedByPlayerId === playerId)
+        room.raceWalkPausedByPlayerId = null;
+    if (room.froggerPausedByPlayerId === playerId)
+        room.froggerPausedByPlayerId = null;
 }
 function destroyRoom(roomId) {
     const r = rooms.get(roomId);
@@ -42,6 +84,13 @@ function destroyRoom(roomId) {
             /* ignore */
         }
     }
+    const gm = reconnectGraceByRoom.get(roomId);
+    if (gm) {
+        for (const g of gm.values())
+            clearTimeout(g.timeout);
+        reconnectGraceByRoom.delete(roomId);
+    }
+    clientIdByPlayerByRoom.delete(roomId);
     rooms.delete(roomId);
 }
 function bufferToArrayBuffer(data) {
@@ -53,7 +102,15 @@ export function broadcastRoom(roomId) {
     const room = rooms.get(roomId);
     if (!room || !room.host || room.host.readyState !== 1)
         return;
-    const hostJson = JSON.stringify(buildHostState(room, roomId));
+    const now = Date.now();
+    const reconnectingPlayers = [...graceMap(roomId).values()]
+        .map((g) => ({
+        playerId: g.playerId,
+        secondsLeft: Math.max(0, Math.ceil((g.expiresAt - now) / 1000)),
+    }))
+        .filter((p) => p.secondsLeft > 0)
+        .sort((a, b) => a.playerId - b.playerId);
+    const hostJson = JSON.stringify(buildHostState(room, roomId, reconnectingPlayers));
     try {
         room.host.send(hostJson);
     }
@@ -140,6 +197,29 @@ function handleBinaryMessage(ws, data) {
             ws.close();
             return;
         }
+        const wsCid = getClientId(ws);
+        if (wsCid) {
+            const gm = graceMap(roomId);
+            const pending = gm.get(wsCid);
+            if (pending &&
+                pending.expiresAt > Date.now() &&
+                room.players.has(pending.playerId)) {
+                clearTimeout(pending.timeout);
+                gm.delete(wsCid);
+                const playerId = pending.playerId;
+                room.controllers.set(ws, playerId);
+                setAttached(ws, { role: "controller", roomId, playerId });
+                clientMap(roomId).set(playerId, wsCid);
+                ensureKartCar(room, playerId);
+                ws.send(encodeWelcome(playerId, roomId));
+                broadcastRoom(roomId);
+                return;
+            }
+            if (pending) {
+                clearTimeout(pending.timeout);
+                gm.delete(wsCid);
+            }
+        }
         const playerId = room.nextPlayerId++;
         const spawnX = 80 + (playerId - 1) * 72;
         const spawnY = 200;
@@ -149,6 +229,8 @@ function handleBinaryMessage(ws, data) {
         room.players.set(playerId, sim);
         room.controllers.set(ws, playerId);
         setAttached(ws, { role: "controller", roomId, playerId });
+        if (wsCid)
+            clientMap(roomId).set(playerId, wsCid);
         ensureKartCar(room, playerId);
         ws.send(encodeWelcome(playerId, roomId));
         broadcastRoom(roomId);
@@ -192,6 +274,11 @@ function handleBinaryMessage(ws, data) {
             if (rwShooter && (room.phase === "race_walk" || room.phase === "race_walk_paused")) {
                 const pauseHeld = (inp.buttons & Btn.Pause) !== 0;
                 handleRaceWalkPauseEdge(room, att.playerId, rwShooter, pauseHeld);
+            }
+            const fgFrog = room.froggerFrogs.get(att.playerId);
+            if (fgFrog && (room.phase === "frogger" || room.phase === "frogger_paused")) {
+                const pauseHeld = (inp.buttons & Btn.Pause) !== 0;
+                handleFroggerPauseEdge(room, att.playerId, fgFrog, pauseHeld);
             }
             return;
         }
@@ -255,8 +342,12 @@ const httpServer = http.createServer((req, res) => {
     });
 });
 const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
-wss.on("connection", (ws) => {
+wss.on("connection", (ws, req) => {
     setTcpNoDelay(ws);
+    const url = new URL(req.url || "/", "http://127.0.0.1");
+    const cidRaw = url.searchParams.get("cid")?.trim() ?? "";
+    const cid = cidRaw && cidRaw.length <= 128 ? cidRaw : null;
+    setClientId(ws, cid);
     ws.on("message", (data, isBinary) => {
         if (!isBinary) {
             const s = Buffer.isBuffer(data) ? data.toString("utf8") : String(data);
@@ -280,8 +371,31 @@ wss.on("connection", (ws) => {
             if (!room)
                 return;
             room.controllers.delete(ws);
-            room.players.delete(att.playerId);
-            room.kartCars.delete(att.playerId);
+            const pid = att.playerId;
+            const cid = getClientId(ws) ?? clientMap(att.roomId).get(pid) ?? null;
+            if (!cid) {
+                removePlayerFromRoom(room, pid);
+                broadcastRoom(att.roomId);
+                return;
+            }
+            const gm = graceMap(att.roomId);
+            const prior = gm.get(cid);
+            if (prior)
+                clearTimeout(prior.timeout);
+            const expiresAt = Date.now() + CONTROLLER_GRACE_MS;
+            const timeout = setTimeout(() => {
+                const r = rooms.get(att.roomId);
+                if (!r)
+                    return;
+                const cur = graceMap(att.roomId).get(cid);
+                if (!cur || cur.playerId !== pid)
+                    return;
+                graceMap(att.roomId).delete(cid);
+                clientMap(att.roomId).delete(pid);
+                removePlayerFromRoom(r, pid);
+                broadcastRoom(att.roomId);
+            }, CONTROLLER_GRACE_MS);
+            gm.set(cid, { playerId: pid, expiresAt, timeout });
             broadcastRoom(att.roomId);
         }
     });

@@ -6,6 +6,7 @@
  * Stub: Esc or panel “Back to menu”.
  * Kart: A/D steer, P or Esc = pause edge.
  * Race Walk: J/L walk-run, I/K aim, F fire.
+ * Frogger: WASD or arrows move, P/Esc pause.
  */
 import type { ClientIntent, GamePhase } from "@shared/messages";
 import {
@@ -54,6 +55,12 @@ function devHintForScreen(ph: GamePhase, snap: DevHostSnapshot): string {
       return "J: walk · L: run · P/Esc: pause · I/K: aim · F: fire · Tab: target";
     case "race_walk_paused":
       return "Enter: resume · Esc: to menu · Tab: target player";
+    case "frogger":
+      return "WASD or arrows: move · P/Esc: pause · Tab: target player";
+    case "frogger_paused":
+      return "Enter: resume · Esc: to menu · Tab: target player";
+    case "frogger_results":
+      return "↑↓: navigate · Enter: confirm · Tab: target player";
     default: {
       const _exhaustive: never = ph;
       return _exhaustive;
@@ -109,6 +116,8 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
     rwAimUp: false,
     rwAimDown: false,
     rwFire: false,
+    fgAimUp: false,
+    fgAimDown: false,
   };
 
   function activeWs(): WebSocket | null {
@@ -214,7 +223,7 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
 
         if (
           !snap.settingsOpen &&
-          (ph === "menu" || ph === "kart_results" || ph === "race_walk_results")
+          (ph === "menu" || ph === "kart_results" || ph === "race_walk_results" || ph === "frogger_results")
         ) {
           if (e.code === "ArrowUp") {
             e.preventDefault();
@@ -258,7 +267,15 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
           }, 100);
           return;
         }
-        if (ph === "kart_paused" || ph === "race_walk_paused") {
+        if (ph === "frogger" && (e.code === "KeyP" || e.code === "Escape")) {
+          e.preventDefault();
+          keys.pause = true;
+          setTimeout(() => {
+            keys.pause = false;
+          }, 100);
+          return;
+        }
+        if (ph === "kart_paused" || ph === "race_walk_paused" || ph === "frogger_paused") {
           if (e.code === "Enter") {
             e.preventDefault();
             sendIntent(ws, { type: "pause_resume" });
@@ -274,8 +291,21 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
 
       if (e.repeat) return;
 
-      if (ph === "menu" || ph === "kart_results" || ph === "race_walk_results") {
+      if (ph === "menu" || ph === "kart_results" || ph === "race_walk_results" || ph === "frogger_results") {
         return;
+      }
+
+      if (ph === "frogger") {
+        if (e.code === "ArrowUp" || e.code === "KeyW") {
+          e.preventDefault();
+          keys.fgAimUp = true;
+          return;
+        }
+        if (e.code === "ArrowDown" || e.code === "KeyS") {
+          e.preventDefault();
+          keys.fgAimDown = true;
+          return;
+        }
       }
 
       if (ph === "race_walk") {
@@ -309,10 +339,15 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
         }
       }
 
-      if (["ArrowLeft", "ArrowRight", "ArrowUp", "Space", "KeyA", "KeyD", "KeyW", "KeyP"].includes(e.code)) {
+      if (ph !== "frogger" && ph !== "frogger_paused") {
+        if (["ArrowLeft", "ArrowRight", "ArrowUp", "Space", "KeyA", "KeyD", "KeyW", "KeyP"].includes(e.code)) {
+          e.preventDefault();
+        }
+        setKey(e.code, true);
+      } else if (["ArrowLeft", "ArrowRight", "KeyA", "KeyD", "KeyP"].includes(e.code)) {
         e.preventDefault();
+        setKey(e.code, true);
       }
-      setKey(e.code, true);
     },
     true
   );
@@ -324,6 +359,8 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
       if (e.code === "KeyL") keys.rwRun = false;
       if (e.code === "KeyI") keys.rwAimUp = false;
       if (e.code === "KeyK") keys.rwAimDown = false;
+      if (e.code === "ArrowUp" || e.code === "KeyW") keys.fgAimUp = false;
+      if (e.code === "ArrowDown" || e.code === "KeyS") keys.fgAimDown = false;
       setKey(e.code, false);
     },
     true
@@ -339,6 +376,8 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
     keys.rwAimUp = false;
     keys.rwAimDown = false;
     keys.rwFire = false;
+    keys.fgAimUp = false;
+    keys.fgAimDown = false;
   });
 
   function syncSelectOptions(): void {
@@ -395,6 +434,13 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
       if (keys.rwAimDown) buttons |= Btn.AimDown;
       if (keys.rwFire) buttons |= Btn.Fire;
       return { h: 0, buttons };
+    }
+    if (ph === "frogger") {
+      let buttons = 0;
+      if (keys.fgAimUp) buttons |= Btn.AimUp;
+      if (keys.fgAimDown) buttons |= Btn.AimDown;
+      if (keys.pause) buttons |= Btn.Pause;
+      return { h, buttons };
     }
     return { h, buttons: keys.jump ? Btn.Jump : 0 };
   }
@@ -498,8 +544,10 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
         ph === "stub" ||
         ph === "kart_results" ||
         ph === "race_walk_results" ||
+        ph === "frogger_results" ||
         ph === "kart_paused" ||
         ph === "race_walk_paused" ||
+        ph === "frogger_paused" ||
         snap.settingsOpen
       ) {
         slot.ws.send(encodeInput(slot.seq, 0, 0));

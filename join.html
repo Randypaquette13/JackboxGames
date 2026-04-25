@@ -39,6 +39,7 @@
 
     <div id="panel-race-walk" class="panel" hidden>
       <p class="hint">Race Walk</p>
+      <p id="rw-status" class="rw-status" hidden></p>
       <div class="dpad">
         <button type="button" id="rw-walk" class="pad" aria-label="Walk">Walk</button>
         <button type="button" id="rw-run" class="pad" aria-label="Run">Run</button>
@@ -49,6 +50,23 @@
       </div>
       <button type="button" id="rw-fire" class="jump">Fire</button>
       <button type="button" id="rw-pause" class="secondary small-pause">Pause</button>
+    </div>
+
+    <div id="panel-frogger" class="panel" hidden>
+      <div id="fg-death-banner" class="frogger-death-banner" hidden>
+        <p class="fg-death-title">You died</p>
+        <p id="fg-death-sub" class="fg-death-sub"></p>
+      </div>
+      <p class="hint">Frogger — move up to stay ahead of the scroll</p>
+      <div class="dpad frogger-pad">
+        <button type="button" id="fg-up" class="pad sm" aria-label="Up">▲</button>
+        <div class="frogger-mid-row">
+          <button type="button" id="fg-left" class="pad" aria-label="Left">◀</button>
+          <button type="button" id="fg-right" class="pad" aria-label="Right">▶</button>
+        </div>
+        <button type="button" id="fg-down" class="pad sm" aria-label="Down">▼</button>
+      </div>
+      <button type="button" id="fg-pause" class="secondary small-pause">Pause</button>
     </div>
 
     <div id="panel-kart" class="panel" hidden>

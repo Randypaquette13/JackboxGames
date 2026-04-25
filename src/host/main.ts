@@ -15,6 +15,7 @@ import {
   type PlayerSnapshot,
 } from "@shared/protocol";
 import { drawKart } from "./renderKart";
+import { drawFrogger } from "./renderFrogger";
 import { drawRaceWalk } from "./renderRaceWalk";
 
 function publicBaseUrl(): string {
@@ -97,16 +98,22 @@ function drawMenu(w: number, h: number): void {
   ctx.fillStyle = "rgba(0,0,0,0.75)";
   ctx.fillRect(0, 0, w, h);
   ctx.fillStyle = "#e8e8f0";
-  ctx.font = "bold 28px system-ui,sans-serif";
+  const titleSize = Math.max(34, Math.min(56, Math.floor(h * 0.065)));
+  const itemSize = Math.max(42, Math.min(82, Math.floor(h * 0.1)));
+  const itemGap = Math.max(54, Math.floor(itemSize * 1.18));
+  const menuBlockH = hostState.menuItems.length * itemGap;
+  const menuTop = Math.floor(h * 0.5 - menuBlockH * 0.5 + itemGap * 0.5);
+
+  ctx.font = `bold ${titleSize}px system-ui,sans-serif`;
   ctx.textAlign = "center";
-  ctx.fillText("Minigames", w / 2, 80);
-  ctx.font = "22px system-ui,sans-serif";
+  ctx.fillText("Minigames", w / 2, Math.max(90, Math.floor(h * 0.16)));
+  ctx.font = `bold ${itemSize}px system-ui,sans-serif`;
   hostState.menuItems.forEach((item, i) => {
     const sel = i === hostState!.menuIndex;
     ctx.fillStyle = sel ? "#ffffaa" : "#ccc";
-    ctx.fillText(`${sel ? "› " : "  "}${item.label}`, w / 2, 140 + i * 44);
+    ctx.fillText(`${sel ? "› " : "  "}${item.label}`, w / 2, menuTop + i * itemGap);
   });
-  ctx.font = "16px system-ui,sans-serif";
+  ctx.font = "18px system-ui,sans-serif";
   ctx.fillStyle = "#888";
   ctx.fillText("↑↓ navigate · OK select · Back to lobby / Settings on controller", w / 2, h - 48);
 }
@@ -148,6 +155,8 @@ function drawResultsMenu(w: number, h: number): void {
     title = "Race finished — choose on controller:";
   } else if (hostState.phase === "race_walk_results" && hostState.raceWalk) {
     title = "Race Walk finished — choose on controller:";
+  } else if (hostState.phase === "frogger_results" && hostState.frogger) {
+    title = "Frogger finished — choose on controller:";
   } else {
     return;
   }
@@ -163,6 +172,29 @@ function drawResultsMenu(w: number, h: number): void {
     ctx.fillStyle = sel ? "#ff8" : "#aaa";
     ctx.fillText(`${sel ? "▶ " : "   "}${label}`, 40, h - 130 + i * 36);
   });
+}
+
+function drawReconnectOverlay(w: number): void {
+  const reconnecting = hostState?.reconnectingPlayers ?? [];
+  if (reconnecting.length === 0) return;
+  ctx.save();
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  const x = 12;
+  let y = 12;
+  ctx.fillStyle = "rgba(10, 10, 18, 0.68)";
+  ctx.fillRect(x - 8, y - 8, 320, 28 + reconnecting.length * 22);
+  ctx.fillStyle = "#ffd38a";
+  ctx.font = "bold 16px system-ui,sans-serif";
+  ctx.fillText("Reconnecting controllers", x, y);
+  y += 24;
+  ctx.fillStyle = "#e8e8f0";
+  ctx.font = "14px system-ui,sans-serif";
+  for (const p of reconnecting) {
+    ctx.fillText(`P${p.playerId} (${p.secondsLeft}s left)`, x, y);
+    y += 20;
+  }
+  ctx.restore();
 }
 
 function draw(): void {
@@ -190,9 +222,13 @@ function draw(): void {
   } else if (phase === "race_walk" || phase === "race_walk_paused" || phase === "race_walk_results") {
     if (hostState) drawRaceWalk(ctx, hostState, w, h, scale, ox, oy);
     drawResultsMenu(w, h);
+  } else if (phase === "frogger" || phase === "frogger_paused" || phase === "frogger_results") {
+    if (hostState) drawFrogger(ctx, hostState, w, h, scale, ox, oy);
+    drawResultsMenu(w, h);
   }
 
   drawSettingsOverlay(w, h);
+  drawReconnectOverlay(w);
 
   tickEl.textContent = hostState ? `tick ${hostState.tick}` : "…";
   rttEl.textContent = rttMs > 0 ? `RTT ${rttMs.toFixed(0)} ms` : "";

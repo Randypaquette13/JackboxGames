@@ -14,14 +14,18 @@ export type GamePhase =
   | "kart_results"
   | "race_walk"
   | "race_walk_paused"
-  | "race_walk_results";
+  | "race_walk_results"
+  | "frogger"
+  | "frogger_paused"
+  | "frogger_results";
 
-export const MINIGAME_IDS = ["kart", "race_walk"] as const;
+export const MINIGAME_IDS = ["kart", "race_walk", "frogger"] as const;
 export type MinigameId = (typeof MINIGAME_IDS)[number];
 
 export const MINIGAME_LABELS: Record<MinigameId, string> = {
   kart: "Kart Racing",
   race_walk: "Race Walk",
+  frogger: "Frogger",
 };
 
 export type RaceWalkRunnerJson = {
@@ -37,13 +41,46 @@ export type RaceWalkCrosshairJson = {
   hue: number;
   lane: number;
   ammo: number;
-  /** false when out of ammo or unusable after eliminating a human */
+  /** false when out of ammo or after this player has been eliminated */
   active: boolean;
 };
 
 export type RaceWalkBannerJson = {
   text: string;
   untilTick: number;
+};
+
+export type FroggerObstacleJson = { x: number; y: number; w: number; h: number };
+
+export type FroggerCarJson = {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  fast: boolean;
+};
+
+export type FroggerPlatformJson = {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  kind: "lily" | "log";
+};
+
+export type FroggerBandJson =
+  | { kind: "grass"; y0: number; h: number; obstacles: FroggerObstacleJson[] }
+  | { kind: "street"; y0: number; h: number; dir: 1 | -1; cars: FroggerCarJson[] }
+  | { kind: "water"; y0: number; h: number; dir: 1 | -1; platforms: FroggerPlatformJson[] };
+
+export type FroggerFrogHostJson = {
+  playerId: number;
+  hue: number;
+  x: number;
+  y: number;
+  alive: boolean;
+  /** Best distance (m) reached this round. */
+  distance: number;
 };
 
 /** Client → server (controller or dev; some allowed from host in dev only — server validates). */
@@ -58,6 +95,7 @@ export type ClientIntent =
   | { type: "stub_back" }
   | { type: "kart_results"; action: "play_again" | "minigame_menu" | "add_controllers" }
   | { type: "race_walk_results"; action: "play_again" | "minigame_menu" | "add_controllers" }
+  | { type: "frogger_results"; action: "play_again" | "minigame_menu" | "add_controllers" }
   | { type: "pause_resume" }
   | { type: "pause_to_menu" };
 
@@ -77,6 +115,7 @@ export type HostStateJson = {
   phase: GamePhase;
   tick: number;
   roomId: string;
+  reconnectingPlayers: { playerId: number; secondsLeft: number }[];
   showQr: boolean;
   lobbyPlayers: PlayerSnapshot[];
   menuIndex: number;
@@ -115,10 +154,24 @@ export type HostStateJson = {
     paused: boolean;
     pausedByPlayerId: number | null;
   };
+  frogger: null | {
+    countdown: number | null;
+    scroll: number;
+    scrollSpeed: number;
+    bands: FroggerBandJson[];
+    frogs: FroggerFrogHostJson[];
+    winnerId: number | null;
+    seriesWins: Record<number, number>;
+    paused: boolean;
+    pausedByPlayerId: number | null;
+    banners: RaceWalkBannerJson[];
+  };
 };
 
 export type ControllerStateJson = {
   type: "controller_state";
+  /** Authoritative tick (for timed UI like Frogger death notice). */
+  tick: number;
   phase: GamePhase;
   playerId: number;
   menuIndex: number;
@@ -138,6 +191,13 @@ export type ControllerStateJson = {
     crosshairLane: number;
     ammo: number;
     crosshairActive: boolean;
+    seriesWins: Record<number, number>;
+    paused: boolean;
+  };
+  frogger: null | {
+    alive: boolean;
+    distance: number;
+    deathNotice?: { text: string; untilTick: number };
     seriesWins: Record<number, number>;
     paused: boolean;
   };
@@ -170,6 +230,12 @@ export function parseClientIntent(raw: unknown): ClientIntent | null {
     const a = o.action;
     if (a === "play_again" || a === "minigame_menu" || a === "add_controllers") {
       return { type: "race_walk_results", action: a };
+    }
+  }
+  if (t === "frogger_results") {
+    const a = o.action;
+    if (a === "play_again" || a === "minigame_menu" || a === "add_controllers") {
+      return { type: "frogger_results", action: a };
     }
   }
   if (t === "pause_resume") return { type: "pause_resume" };

@@ -248,6 +248,28 @@ export function drawRaceWalk(
     ctx.restore();
   }
 
+  const deadPlayers = rw.runners
+    .filter((r) => r.downed && r.controllerId !== null)
+    .map((r) => r.controllerId!)
+    .sort((a, b) => a - b);
+  if (deadPlayers.length > 0) {
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const msg =
+      deadPlayers.length === 1
+        ? `Player ${deadPlayers[0]} died`
+        : `Players ${deadPlayers.join(", ")} died`;
+    const cx = canvasW / 2;
+    const y = canvasH - 54;
+    ctx.font = "bold 24px system-ui,sans-serif";
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.fillRect(cx - 260, y - 22, 520, 44);
+    ctx.fillStyle = "#ffd2d2";
+    ctx.fillText(msg, cx, y);
+    ctx.restore();
+  }
+
   ctx.save();
   ctx.fillStyle = "#e8e8f0";
   ctx.font = "14px system-ui,sans-serif";

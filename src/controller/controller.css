@@ -53,6 +53,38 @@ body {
   font-size: 0.95rem;
   color: #a8a8c8;
 }
+.rw-status {
+  text-align: center;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #6b3a3a;
+  background: rgba(120, 34, 34, 0.35);
+  color: #ffd8d8;
+  font-weight: 700;
+}
+.frogger-death-banner {
+  text-align: center;
+  margin: 0 0 12px;
+  padding: 16px 14px;
+  border-radius: 12px;
+  border: 2px solid #8b2a2a;
+  background: linear-gradient(180deg, rgba(90, 20, 28, 0.92), rgba(40, 10, 14, 0.95));
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.45);
+}
+.frogger-death-banner .fg-death-title {
+  margin: 0 0 8px;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #ffb4b4;
+  letter-spacing: 0.02em;
+}
+.frogger-death-banner .fg-death-sub {
+  margin: 0;
+  font-size: 1.05rem;
+  color: #f0e8e8;
+  font-weight: 600;
+}
 .settings-row {
   display: flex;
   flex-direction: column;
@@ -94,6 +126,29 @@ body {
   gap: 16px;
   width: 100%;
 }
+.frogger-pad {
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.frogger-mid-row {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  width: 100%;
+}
+.frogger-mid-row .pad {
+  flex: 1;
+  max-width: 160px;
+}
+#panel-frogger #fg-up.pad.sm,
+#panel-frogger #fg-down.pad.sm {
+  min-height: 116px;
+  max-width: 220px;
+  width: 78%;
+  font-size: 2.35rem;
+  font-weight: 800;
+}
 .pad {
   flex: 1;
   min-height: 120px;
@@ -128,6 +183,11 @@ body {
 .jump:active {
   transform: translateY(4px);
   box-shadow: 0 2px 0 #642, 0 4px 12px #0004;
+}
+.jump:disabled {
+  opacity: 0.55;
+  filter: grayscale(0.2);
+  box-shadow: 0 2px 0 #642, 0 2px 8px #0003;
 }
 .primary {
   width: 100%;

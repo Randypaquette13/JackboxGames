@@ -19,6 +19,18 @@ function wsUrl(): string {
   return `${p}//${location.host}/ws`;
 }
 
+function getOrCreateControllerClientId(): string {
+  const key = "jb_controller_client_id";
+  const existing = localStorage.getItem(key);
+  if (existing && existing.trim()) return existing;
+  const cid =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `cid_${Date.now()}_${Math.floor(Math.random() * 1_000_000)}`;
+  localStorage.setItem(key, cid);
+  return cid;
+}
+
 function sendJson(ws: WebSocket, intent: ClientIntent): void {
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify(intent));
@@ -35,14 +47,20 @@ const panels = {
   menu: document.querySelector<HTMLElement>("#panel-menu")!,
   stub: document.querySelector<HTMLElement>("#panel-stub")!,
   raceWalk: document.querySelector<HTMLElement>("#panel-race-walk")!,
+  frogger: document.querySelector<HTMLElement>("#panel-frogger")!,
   kart: document.querySelector<HTMLElement>("#panel-kart")!,
   kartPause: document.querySelector<HTMLElement>("#panel-kart-pause")!,
   results: document.querySelector<HTMLElement>("#panel-results")!,
   settings: document.querySelector<HTMLElement>("#panel-settings")!,
 };
 
+const fgDeathBanner = document.querySelector<HTMLElement>("#fg-death-banner")!;
+const fgDeathSub = document.querySelector<HTMLElement>("#fg-death-sub")!;
+
 const menuPreview = document.querySelector<HTMLElement>("#menu-preview")!;
 const resultsPreview = document.querySelector<HTMLElement>("#results-preview")!;
+const rwFireBtn = document.querySelector<HTMLButtonElement>("#rw-fire")!;
+const rwStatusEl = document.querySelector<HTMLElement>("#rw-status")!;
 
 const RESULT_LABELS = ["Play again", "Back to minigame select", "Add more controllers"];
 
@@ -55,6 +73,7 @@ kartSpeedInput.step = "5";
 if (!roomId) {
   statusEl.textContent = "Missing ?room= in URL. Scan the QR on the host screen.";
 } else {
+  const controllerClientId = getOrCreateControllerClientId();
   let ctrlState: ControllerStateJson | null = null;
   let left = false;
   let right = false;
@@ -191,7 +210,56 @@ if (!roomId) {
     }, 100);
   });
 
-  const ws = new WebSocket(wsUrl());
+  let fgUp = false;
+  let fgDown = false;
+  let fgLeft = false;
+  let fgRight = false;
+  let fgPause = false;
+  bindHold(
+    document.querySelector("#fg-up")!,
+    () => {
+      fgUp = true;
+    },
+    () => {
+      fgUp = false;
+    }
+  );
+  bindHold(
+    document.querySelector("#fg-down")!,
+    () => {
+      fgDown = true;
+    },
+    () => {
+      fgDown = false;
+    }
+  );
+  bindHold(
+    document.querySelector("#fg-left")!,
+    () => {
+      fgLeft = true;
+    },
+    () => {
+      fgLeft = false;
+    }
+  );
+  bindHold(
+    document.querySelector("#fg-right")!,
+    () => {
+      fgRight = true;
+    },
+    () => {
+      fgRight = false;
+    }
+  );
+  document.querySelector("#fg-pause")!.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    fgPause = true;
+    setTimeout(() => {
+      fgPause = false;
+    }, 100);
+  });
+
+  const ws = new WebSocket(`${wsUrl()}?cid=${encodeURIComponent(controllerClientId)}`);
   ws.binaryType = "arraybuffer";
 
   function syncKartSettingsFromState(st: ControllerStateJson): void {
@@ -206,8 +274,58 @@ if (!roomId) {
     });
   }
 
+  function syncFroggerPanelState(st: ControllerStateJson | null): void {
+    const fg = st?.frogger;
+    const tick = st?.tick ?? 0;
+    if (!fg) {
+      fgDeathBanner.hidden = true;
+      fgDeathSub.textContent = "";
+      return;
+    }
+    const noticeOk = fg.deathNotice && tick < fg.deathNotice.untilTick;
+    const showDead =
+      !fg.alive &&
+      (noticeOk ||
+        st?.phase === "frogger" ||
+        st?.phase === "frogger_paused" ||
+        st?.phase === "frogger_results");
+    if (showDead) {
+      fgDeathBanner.hidden = false;
+      fgDeathSub.textContent = noticeOk
+        ? fg.deathNotice!.text.replace(/^You died\s*[—-]\s*/i, "").trim() || `You got ${fg.distance} m`
+        : `You got ${fg.distance} m`;
+    } else {
+      fgDeathBanner.hidden = true;
+      fgDeathSub.textContent = "";
+    }
+  }
+
+  function syncRaceWalkPanelState(st: ControllerStateJson | null): void {
+    const rw = st?.raceWalk;
+    if (!rw) {
+      rwFireBtn.disabled = false;
+      rwFireBtn.textContent = "Fire";
+      rwStatusEl.hidden = true;
+      rwStatusEl.textContent = "";
+      return;
+    }
+    const outOfAmmo = rw.ammo <= 0;
+    const dead = rw.runnerDowned;
+    rwFireBtn.disabled = outOfAmmo || dead;
+    rwFireBtn.textContent = outOfAmmo ? "No bullets remaining" : "Fire";
+    if (dead) {
+      rwStatusEl.hidden = false;
+      rwStatusEl.textContent = "You died.";
+    } else {
+      rwStatusEl.hidden = true;
+      rwStatusEl.textContent = "";
+    }
+  }
+
   function refreshUI(): void {
     const st = ctrlState;
+    syncRaceWalkPanelState(st);
+    syncFroggerPanelState(st);
     hideAll();
     if (debugPhaseEl) {
       debugPhaseEl.hidden = false;
@@ -237,11 +355,13 @@ if (!roomId) {
       panels.stub.hidden = false;
     } else if (ph === "race_walk") {
       panels.raceWalk.hidden = false;
+    } else if (ph === "frogger") {
+      panels.frogger.hidden = false;
     } else if (ph === "kart") {
       panels.kart.hidden = false;
-    } else if (ph === "kart_paused" || ph === "race_walk_paused") {
+    } else if (ph === "kart_paused" || ph === "race_walk_paused" || ph === "frogger_paused") {
       panels.kartPause.hidden = false;
-    } else if (ph === "kart_results" || ph === "race_walk_results") {
+    } else if (ph === "kart_results" || ph === "race_walk_results" || ph === "frogger_results") {
       panels.results.hidden = false;
       resultsPreview.textContent = RESULT_LABELS[st.menuIndex % 3] ?? "";
     }
@@ -395,6 +515,15 @@ if (!roomId) {
         if (rwAimDown) buttons |= Btn.AimDown;
         if (rwFire) buttons |= Btn.Fire;
         ws.send(encodeInput(seq, 0, buttons));
+      } else if (ph === "frogger") {
+        let h = 0;
+        if (fgLeft && !fgRight) h = -127;
+        else if (fgRight && !fgLeft) h = 127;
+        let buttons = 0;
+        if (fgUp) buttons |= Btn.AimUp;
+        if (fgDown) buttons |= Btn.AimDown;
+        if (fgPause) buttons |= Btn.Pause;
+        ws.send(encodeInput(seq, h, buttons));
       }
     }
     requestAnimationFrame(loop);

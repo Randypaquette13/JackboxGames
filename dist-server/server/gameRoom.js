@@ -2,6 +2,7 @@ import { MINIGAME_IDS, MINIGAME_LABELS } from "../src/shared/messages.js";
 import { TICK_RATE, WORLD_H, WORLD_W } from "../src/shared/constants.js";
 import { clampKartForwardSpeed, resolveKartForwardSpeed } from "../src/shared/kartSettings.js";
 import { fallbackPlayerHue } from "../src/shared/playerColors.js";
+import { FROGGER_BAND_H_MAX, FROGGER_BAND_H_MIN, FROGGER_CAR_SPEED_MAX, FROGGER_CAR_SPEED_MIN, FROGGER_CAR_SPAWN_MAX, FROGGER_CAR_SPAWN_MIN, FROGGER_COUNTDOWN_SEC, FROGGER_DEATH_NOTICE_TICKS, FROGGER_DISTANCE_UNIT, FROGGER_FAST_CAR_AFTER_BANDS, FROGGER_FAST_CAR_CHANCE, FROGGER_FAST_CAR_MULT, FROGGER_FROG_SIZE, FROGGER_KILL_MARGIN, FROGGER_LILY_W, FROGGER_LOG_W_MAX, FROGGER_LOG_W_MIN, FROGGER_MOVE_COOLDOWN, FROGGER_OBSTACLE_AFTER_BANDS, FROGGER_OBSTACLE_CHANCE, FROGGER_PLATFORM_SPEED_MAX, FROGGER_PLATFORM_SPEED_MIN, FROGGER_PLATFORM_SPAWN_MAX, FROGGER_PLATFORM_SPAWN_MIN, FROGGER_SCROLL_BASE, FROGGER_SCROLL_DELAY_SEC, FROGGER_SCROLL_MAX, FROGGER_SCROLL_RAMP, FROGGER_TILE, froggerClampX, pickFroggerSectionKind, } from "../src/shared/froggerSettings.js";
 import { RACE_WALK_FINISH_X, RACE_WALK_LANES, RACE_WALK_START_X } from "../src/shared/raceWalk.js";
 import { Btn } from "../src/shared/protocol.js";
 import { chooseCrossingModeByHeading, constrainToCrossingLane, KART_SPEED_MIN, KART_SPEED_RECOVER, KART_TURN_SPEED, KART_WALL_IMPACT_FRICTION, KART_WALL_SCRAPE_FRICTION, checkFinishLineCross, clampToRing, finishLineSegment, getBridgePolygon, getInnerIslands, getOuterWall, getUnderpassPolygon, isInsideCrossing, normalIntoTrack, spawnPosition, wallScrapeAndImpact, wallViolated, } from "../src/shared/kartTrack.js";
@@ -44,6 +45,18 @@ export function createRoom(host, platforms) {
         raceWalkWinnerLane: null,
         raceWalkWinnerPlayerId: null,
         raceWalkPausedByPlayerId: null,
+        froggerCountdown: null,
+        froggerScroll: 0,
+        froggerScrollSpeed: FROGGER_SCROLL_BASE,
+        froggerScrollDelaySec: FROGGER_SCROLL_DELAY_SEC,
+        froggerGameTimeSec: 0,
+        froggerBandsGenerated: 0,
+        froggerBands: [],
+        froggerFrogs: new Map(),
+        froggerWinnerId: null,
+        froggerPausedByPlayerId: null,
+        froggerBanners: [],
+        froggerDeathNotices: new Map(),
     };
 }
 function clearRaceWalkState(room) {
@@ -55,6 +68,20 @@ function clearRaceWalkState(room) {
     room.raceWalkWinnerLane = null;
     room.raceWalkWinnerPlayerId = null;
     room.raceWalkPausedByPlayerId = null;
+}
+function clearFroggerState(room) {
+    room.froggerCountdown = null;
+    room.froggerScroll = 0;
+    room.froggerScrollSpeed = FROGGER_SCROLL_BASE;
+    room.froggerScrollDelaySec = FROGGER_SCROLL_DELAY_SEC;
+    room.froggerGameTimeSec = 0;
+    room.froggerBandsGenerated = 0;
+    room.froggerBands = [];
+    room.froggerFrogs.clear();
+    room.froggerWinnerId = null;
+    room.froggerPausedByPlayerId = null;
+    room.froggerBanners = [];
+    room.froggerDeathNotices.clear();
 }
 function shuffleIntRange(n) {
     const a = Array.from({ length: n }, (_, i) => i);
@@ -70,6 +97,213 @@ function pushRaceWalkBanner(room, text, durationSec) {
 }
 function pruneRaceWalkBanners(room) {
     room.raceWalkBanners = room.raceWalkBanners.filter((b) => b.untilTick > room.tick);
+}
+function pushFroggerBanner(room, text, durationSec) {
+    const ticks = Math.max(1, Math.floor(durationSec * TICK_RATE));
+    room.froggerBanners.push({ text, untilTick: room.tick + ticks });
+}
+function pruneFroggerBanners(room) {
+    room.froggerBanners = room.froggerBanners.filter((b) => b.untilTick > room.tick);
+}
+function froggerWorldTop(room) {
+    if (room.froggerBands.length === 0)
+        return 0;
+    const last = room.froggerBands[room.froggerBands.length - 1];
+    return last.y0 + last.h;
+}
+function overlapAx(ax, ay, aw, ah, bx, by, bw, bh) {
+    return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+}
+function frogFrogRect(f) {
+    const s = FROGGER_FROG_SIZE;
+    return { x: f.x - s / 2, y: f.y - s / 2, w: s, h: s };
+}
+function createGrassBand(y0, h, bandsGen) {
+    const obstacles = [];
+    if (bandsGen >= FROGGER_OBSTACLE_AFTER_BANDS && Math.random() < FROGGER_OBSTACLE_CHANCE) {
+        const n = 1 + Math.floor(Math.random() * 3);
+        for (let i = 0; i < n; i++) {
+            const big = Math.random() < 0.35;
+            const w = big ? 44 + Math.random() * 36 : 28 + Math.random() * 22;
+            const hh = big ? Math.min(h * 0.4, 52) : 24 + Math.random() * 28;
+            const x = 40 + Math.random() * (WORLD_W - w - 80);
+            const yLocal = h * 0.48 + Math.random() * (h * 0.42 - hh);
+            obstacles.push({ x, y: y0 + yLocal, w, h: hh });
+        }
+    }
+    return { kind: "grass", y0, h, obstacles };
+}
+function createStreetBand(y0, h) {
+    const dir = Math.random() < 0.5 ? 1 : -1;
+    const laneYs = [y0 + h * 0.3, y0 + h * 0.72];
+    const laneSpeeds = laneYs.map(() => FROGGER_CAR_SPEED_MIN + Math.random() * (FROGGER_CAR_SPEED_MAX - FROGGER_CAR_SPEED_MIN));
+    const laneSpawnAccum = laneYs.map(() => FROGGER_CAR_SPAWN_MIN + Math.random() * (FROGGER_CAR_SPAWN_MAX - FROGGER_CAR_SPAWN_MIN));
+    return { kind: "street", y0, h, dir, cars: [], laneYs, laneSpeeds, laneSpawnAccum };
+}
+function createWaterBand(y0, h) {
+    const dir = Math.random() < 0.5 ? 1 : -1;
+    const spawnAccum = FROGGER_PLATFORM_SPAWN_MIN + Math.random() * (FROGGER_PLATFORM_SPAWN_MAX - FROGGER_PLATFORM_SPAWN_MIN);
+    return { kind: "water", y0, h, dir, platforms: [], spawnAccum };
+}
+function appendFroggerBand(room) {
+    const y0 = froggerWorldTop(room);
+    const h = FROGGER_BAND_H_MIN + Math.floor(Math.random() * (FROGGER_BAND_H_MAX - FROGGER_BAND_H_MIN + 1));
+    const kind = pickFroggerSectionKind(room.froggerBandsGenerated);
+    room.froggerBandsGenerated++;
+    let band;
+    if (kind === "grass")
+        band = createGrassBand(y0, h, room.froggerBandsGenerated);
+    else if (kind === "street")
+        band = createStreetBand(y0, h);
+    else
+        band = createWaterBand(y0, h);
+    room.froggerBands.push(band);
+}
+function ensureFroggerBands(room) {
+    const target = room.froggerScroll + WORLD_H + 420;
+    let safety = 0;
+    while (froggerWorldTop(room) < target && safety++ < 80) {
+        appendFroggerBand(room);
+    }
+}
+function pruneFroggerBands(room) {
+    const margin = 320;
+    const threshold = room.froggerScroll - margin;
+    while (room.froggerBands.length > 0 && room.froggerBands[0].y0 + room.froggerBands[0].h < threshold) {
+        room.froggerBands.shift();
+    }
+}
+function spawnStreetCar(room, band) {
+    const li = Math.floor(Math.random() * band.laneYs.length);
+    const laneY = band.laneYs[li] ?? band.y0 + band.h * 0.5;
+    const laneCars = band.cars.filter((c) => Math.abs(c.laneY - laneY) < 0.1);
+    const canFast = laneCars.length === 0;
+    const fast = canFast &&
+        room.froggerBandsGenerated > FROGGER_FAST_CAR_AFTER_BANDS &&
+        Math.random() < FROGGER_FAST_CAR_CHANCE;
+    const base = band.laneSpeeds[li] ?? FROGGER_CAR_SPEED_MIN;
+    const speed = (fast ? base * FROGGER_FAST_CAR_MULT : base) * band.dir;
+    const w = 52 + Math.random() * 28;
+    const hh = 22 + Math.random() * 14;
+    const x = band.dir > 0 ? -w - 8 : WORLD_W + 8;
+    const gap = 28;
+    for (const c of laneCars) {
+        const cLeft = c.x;
+        const cRight = c.x + c.w;
+        const nLeft = x;
+        const nRight = x + w;
+        if (nLeft < cRight + gap && nRight > cLeft - gap)
+            return false;
+    }
+    band.cars.push({ x, laneY, w, h: hh, vx: speed, fast });
+    return true;
+}
+function spawnWaterPlatform(band) {
+    const isLog = Math.random() < 0.45;
+    const w = isLog
+        ? FROGGER_LOG_W_MIN + Math.random() * (FROGGER_LOG_W_MAX - FROGGER_LOG_W_MIN)
+        : FROGGER_LILY_W;
+    const hh = isLog ? 26 : 22;
+    const laneY = band.y0 + band.h * (0.22 + Math.random() * 0.56);
+    const base = band.platforms[0]
+        ? Math.abs(band.platforms[0].vx)
+        : FROGGER_PLATFORM_SPEED_MIN + Math.random() * (FROGGER_PLATFORM_SPEED_MAX - FROGGER_PLATFORM_SPEED_MIN);
+    const vx = base * band.dir;
+    const x = band.dir > 0 ? -w - 6 : WORLD_W + 6;
+    const y = laneY - hh / 2;
+    const gap = 22;
+    for (const p of band.platforms) {
+        const py = p.laneY - p.h / 2;
+        if (overlapAx(x - gap, y - gap, w + gap * 2, hh + gap * 2, p.x, py, p.w, p.h))
+            return false;
+    }
+    band.platforms.push({ x, laneY, w, h: hh, vx, kind: isLog ? "log" : "lily" });
+    return true;
+}
+function grassBlocksPosition(room, nx, ny) {
+    const s = FROGGER_FROG_SIZE;
+    const nr = { x: nx - s / 2, y: ny - s / 2, w: s, h: s };
+    for (const b of room.froggerBands) {
+        if (b.kind !== "grass")
+            continue;
+        for (const o of b.obstacles) {
+            if (overlapAx(nr.x, nr.y, nr.w, nr.h, o.x, o.y, o.w, o.h))
+                return true;
+        }
+    }
+    return false;
+}
+function platformUnderFrog(f, band) {
+    const fr = frogFrogRect(f);
+    for (const p of band.platforms) {
+        const py = p.laneY - p.h / 2;
+        if (overlapAx(fr.x, fr.y, fr.w, fr.h, p.x, py, p.w, p.h))
+            return p;
+    }
+    return null;
+}
+function carHitsFrog(f, band) {
+    const fr = frogFrogRect(f);
+    for (const c of band.cars) {
+        const cy = c.laneY - c.h / 2;
+        if (overlapAx(fr.x, fr.y, fr.w, fr.h, c.x, cy, c.w, c.h))
+            return true;
+    }
+    return false;
+}
+function checkFroggerGameOver(room) {
+    if (room.phase !== "frogger")
+        return;
+    const alive = [];
+    for (const [pid, fr] of room.froggerFrogs) {
+        if (fr.alive)
+            alive.push(pid);
+    }
+    const total = room.froggerFrogs.size;
+    if (alive.length > 1)
+        return;
+    if (alive.length === 1 && total === 1)
+        return;
+    if (alive.length === 1) {
+        room.froggerWinnerId = alive[0];
+    }
+    else {
+        let best = -1;
+        let bestId = null;
+        for (const [pid, fr] of room.froggerFrogs) {
+            const sc = Math.floor(fr.maxY / FROGGER_DISTANCE_UNIT);
+            if (sc > best) {
+                best = sc;
+                bestId = pid;
+            }
+        }
+        room.froggerWinnerId = bestId;
+    }
+    if (room.froggerWinnerId !== null) {
+        const wid = room.froggerWinnerId;
+        const w = room.seriesWins.get(wid) ?? 0;
+        room.seriesWins.set(wid, w + 1);
+    }
+    room.phase = "frogger_results";
+    room.menuIndex = 0;
+}
+function froggerBandAt(room, y) {
+    for (const bd of room.froggerBands) {
+        if (y >= bd.y0 && y < bd.y0 + bd.h)
+            return bd;
+    }
+    return null;
+}
+function killFroggerPlayer(room, playerId) {
+    const f = room.froggerFrogs.get(playerId);
+    if (!f || !f.alive)
+        return;
+    f.alive = false;
+    const d = Math.max(0, Math.floor(f.maxY / FROGGER_DISTANCE_UNIT));
+    const text = `You died — You got ${d} m`;
+    room.froggerDeathNotices.set(playerId, { text, untilTick: room.tick + FROGGER_DEATH_NOTICE_TICKS });
+    pushFroggerBanner(room, `Player ${playerId} is out (${d} m)`, 3.2);
+    checkFroggerGameOver(room);
 }
 function anyRaceWalkCrosshairHasAmmo(room) {
     for (const s of room.raceWalkShooters.values()) {
@@ -121,12 +355,12 @@ export function resetRaceWalk(room) {
     room.raceWalkNpcAi = Array.from({ length: RACE_WALK_LANES }, (_, lane) => {
         const r = room.raceWalkRunners[lane];
         if (r?.controllerId === null) {
-            const startWalk = Math.random() < 0.2;
+            const startWalk = Math.random() < 0.26;
             return {
                 mode: (startWalk ? "walk" : "stop"),
                 timer: startWalk
-                    ? 0.25 + Math.random() * 0.85
-                    : 1.2 + Math.random() * 3.4,
+                    ? 0.3 + Math.random() * 1.2
+                    : 0.9 + Math.random() * 2.9,
             };
         }
         return { mode: "stop", timer: 9999 };
@@ -141,6 +375,7 @@ export function startRaceWalkFromMenu(room) {
     room.kartCountdown = null;
     room.kartPaused = false;
     room.kartPausedByPlayerId = null;
+    clearFroggerState(room);
     resetRaceWalk(room);
 }
 function tickRaceWalk(room, dt) {
@@ -185,7 +420,10 @@ function tickRaceWalk(room, dt) {
                 if (victim.controllerId !== null) {
                     const vid = victim.controllerId;
                     pushRaceWalkBanner(room, `Player ${vid} was eliminated`, 3.2);
-                    shooter.crosshairDisabled = true;
+                    const victimShooter = room.raceWalkShooters.get(vid);
+                    if (victimShooter) {
+                        victimShooter.crosshairDisabled = true;
+                    }
                 }
             }
         }
@@ -219,11 +457,11 @@ function tickRaceWalk(room, dt) {
                 if (ai.timer <= 0) {
                     if (ai.mode === "walk") {
                         ai.mode = "stop";
-                        ai.timer = 1.1 + Math.random() * 3.6;
+                        ai.timer = 0.9 + Math.random() * 3.0;
                     }
                     else {
                         ai.mode = "walk";
-                        ai.timer = 0.2 + Math.random() * 1.0;
+                        ai.timer = 0.25 + Math.random() * 1.75;
                     }
                 }
                 if (ai.mode === "walk") {
@@ -253,6 +491,241 @@ function tickRaceWalk(room, dt) {
             return;
         }
     }
+}
+export function startFroggerFromMenu(room) {
+    room.phase = "frogger";
+    room.stubId = null;
+    room.showQr = false;
+    room.kartCars.clear();
+    room.kartWinnerId = null;
+    room.kartCountdown = null;
+    room.kartPaused = false;
+    room.kartPausedByPlayerId = null;
+    clearRaceWalkState(room);
+    clearFroggerState(room);
+    room.froggerCountdown = FROGGER_COUNTDOWN_SEC;
+    room.froggerScroll = 0;
+    room.froggerScrollSpeed = FROGGER_SCROLL_BASE;
+    room.froggerScrollDelaySec = FROGGER_SCROLL_DELAY_SEC;
+    room.froggerGameTimeSec = 0;
+    room.froggerBandsGenerated = 0;
+    room.froggerBands = [];
+    const h0 = 110;
+    room.froggerBands.push(createGrassBand(0, h0, 0));
+    room.froggerBandsGenerated = 1;
+    ensureFroggerBands(room);
+    const ids = Array.from(room.players.keys()).sort((a, b) => a - b);
+    const n = ids.length;
+    for (let i = 0; i < n; i++) {
+        const pid = ids[i];
+        const x = n === 1 ? WORLD_W * 0.5 : 90 + (i * (WORLD_W - 180)) / Math.max(1, n - 1);
+        const y = FROGGER_KILL_MARGIN + 28;
+        room.froggerFrogs.set(pid, {
+            x: froggerClampX(x),
+            y,
+            alive: true,
+            maxY: y,
+            prevPauseHeld: false,
+            prevAimUp: false,
+            prevAimDown: false,
+            prevH: 0,
+            moveCooldown: 0,
+        });
+    }
+}
+function tickFrogger(room, dt) {
+    pruneFroggerBanners(room);
+    if (room.froggerCountdown !== null && room.froggerCountdown > 0) {
+        room.froggerCountdown -= dt;
+        if (room.froggerCountdown <= 0)
+            room.froggerCountdown = null;
+        ensureFroggerBands(room);
+        return;
+    }
+    if (room.froggerScrollDelaySec > 0) {
+        room.froggerScrollDelaySec = Math.max(0, room.froggerScrollDelaySec - dt);
+    }
+    else {
+        room.froggerGameTimeSec += dt;
+        room.froggerScrollSpeed = Math.min(FROGGER_SCROLL_MAX, FROGGER_SCROLL_BASE + room.froggerGameTimeSec * FROGGER_SCROLL_RAMP);
+        room.froggerScroll += room.froggerScrollSpeed * dt;
+    }
+    ensureFroggerBands(room);
+    pruneFroggerBands(room);
+    for (const band of room.froggerBands) {
+        if (band.kind === "street") {
+            for (const c of band.cars) {
+                c.x += c.vx * dt;
+            }
+            band.cars = band.cars.filter((c) => c.x > -120 && c.x < WORLD_W + 120);
+            for (let li = 0; li < band.laneSpawnAccum.length; li++) {
+                band.laneSpawnAccum[li] -= dt;
+                if (band.laneSpawnAccum[li] <= 0) {
+                    const spawned = spawnStreetCar(room, band);
+                    band.laneSpawnAccum[li] = spawned
+                        ? FROGGER_CAR_SPAWN_MIN + Math.random() * (FROGGER_CAR_SPAWN_MAX - FROGGER_CAR_SPAWN_MIN)
+                        : 0.2 + Math.random() * 0.2;
+                }
+            }
+        }
+        else if (band.kind === "water") {
+            for (const p of band.platforms) {
+                p.x += p.vx * dt;
+            }
+            band.platforms = band.platforms.filter((p) => p.x > -200 && p.x < WORLD_W + 200);
+            band.spawnAccum -= dt;
+            if (band.spawnAccum <= 0) {
+                const spawned = spawnWaterPlatform(band);
+                band.spawnAccum = spawned
+                    ? FROGGER_PLATFORM_SPAWN_MIN + Math.random() * (FROGGER_PLATFORM_SPAWN_MAX - FROGGER_PLATFORM_SPAWN_MIN)
+                    : 0.18 + Math.random() * 0.22;
+            }
+        }
+    }
+    if (room.phase !== "frogger")
+        return;
+    for (const [playerId, f] of room.froggerFrogs) {
+        if (!f.alive)
+            continue;
+        const player = room.players.get(playerId);
+        if (!player)
+            continue;
+        const b = player.input.buttons;
+        const aimUp = (b & Btn.AimUp) !== 0;
+        const aimDown = (b & Btn.AimDown) !== 0;
+        const h = player.input.h;
+        const leftHeld = h < -40;
+        const rightHeld = h > 40;
+        const edgeUp = aimUp && !f.prevAimUp;
+        const edgeDown = aimDown && !f.prevAimDown;
+        const edgeLeft = leftHeld && !(f.prevH < -40);
+        const edgeRight = rightHeld && !(f.prevH > 40);
+        f.prevAimUp = aimUp;
+        f.prevAimDown = aimDown;
+        f.prevH = h;
+        if (f.moveCooldown > 0) {
+            f.moveCooldown -= dt;
+        }
+        else {
+            const tryMove = (dx, dy) => {
+                const nx = froggerClampX(f.x + dx);
+                const ny = f.y + dy;
+                if (grassBlocksPosition(room, nx, ny))
+                    return;
+                f.x = nx;
+                f.y = ny;
+                f.maxY = Math.max(f.maxY, f.y);
+                f.moveCooldown = FROGGER_MOVE_COOLDOWN;
+            };
+            if (edgeUp)
+                tryMove(0, FROGGER_TILE);
+            else if (edgeDown)
+                tryMove(0, -FROGGER_TILE);
+            else if (edgeLeft)
+                tryMove(-FROGGER_TILE, 0);
+            else if (edgeRight)
+                tryMove(FROGGER_TILE, 0);
+        }
+        const curBand = froggerBandAt(room, f.y);
+        if (curBand?.kind === "water") {
+            const plat = platformUnderFrog(f, curBand);
+            if (plat)
+                f.x = froggerClampX(f.x + plat.vx * dt);
+        }
+    }
+    if (room.phase !== "frogger")
+        return;
+    for (const [playerId, f] of room.froggerFrogs) {
+        if (!f.alive)
+            continue;
+        const curBand = froggerBandAt(room, f.y);
+        if (curBand?.kind === "water" && !platformUnderFrog(f, curBand)) {
+            killFroggerPlayer(room, playerId);
+            continue;
+        }
+        if (curBand?.kind === "street" && carHitsFrog(f, curBand)) {
+            killFroggerPlayer(room, playerId);
+        }
+    }
+    if (room.phase !== "frogger")
+        return;
+    for (const [playerId, f] of room.froggerFrogs) {
+        if (!f.alive)
+            continue;
+        if (f.y < room.froggerScroll + FROGGER_KILL_MARGIN) {
+            killFroggerPlayer(room, playerId);
+        }
+    }
+}
+function buildFroggerHostJson(room) {
+    if (room.phase !== "frogger" &&
+        room.phase !== "frogger_paused" &&
+        room.phase !== "frogger_results") {
+        return null;
+    }
+    const bands = room.froggerBands.map((band) => {
+        if (band.kind === "grass") {
+            return {
+                kind: "grass",
+                y0: band.y0,
+                h: band.h,
+                obstacles: band.obstacles.map((o) => ({ x: o.x, y: o.y, w: o.w, h: o.h })),
+            };
+        }
+        if (band.kind === "street") {
+            return {
+                kind: "street",
+                y0: band.y0,
+                h: band.h,
+                dir: band.dir,
+                cars: band.cars.map((c) => ({
+                    x: c.x,
+                    y: c.laneY - c.h / 2,
+                    w: c.w,
+                    h: c.h,
+                    fast: c.fast,
+                })),
+            };
+        }
+        return {
+            kind: "water",
+            y0: band.y0,
+            h: band.h,
+            dir: band.dir,
+            platforms: band.platforms.map((p) => ({
+                x: p.x,
+                y: p.laneY - p.h / 2,
+                w: p.w,
+                h: p.h,
+                kind: p.kind,
+            })),
+        };
+    });
+    const frogs = [];
+    for (const [playerId, fr] of room.froggerFrogs) {
+        const pl = room.players.get(playerId);
+        frogs.push({
+            playerId,
+            hue: pl?.hue ?? fallbackPlayerHue(playerId),
+            x: fr.x,
+            y: fr.y,
+            alive: fr.alive,
+            distance: Math.max(0, Math.floor(fr.maxY / FROGGER_DISTANCE_UNIT)),
+        });
+    }
+    frogs.sort((a, b) => a.playerId - b.playerId);
+    return {
+        countdown: room.froggerCountdown,
+        scroll: room.froggerScroll,
+        scrollSpeed: room.froggerScrollSpeed,
+        bands,
+        frogs,
+        winnerId: room.froggerWinnerId,
+        seriesWins: Object.fromEntries(room.seriesWins),
+        paused: room.phase === "frogger_paused",
+        pausedByPlayerId: room.froggerPausedByPlayerId,
+        banners: room.froggerBanners.filter((b) => b.untilTick > room.tick),
+    };
 }
 function buildRaceWalkHostJson(room) {
     if (room.phase !== "race_walk" &&
@@ -298,7 +771,7 @@ function buildRaceWalkHostJson(room) {
 function menuItemsList() {
     return MINIGAME_IDS.map((id) => ({ id, label: MINIGAME_LABELS[id] }));
 }
-export function buildHostState(room, roomId) {
+export function buildHostState(room, roomId, reconnectingPlayers = []) {
     const lobbyPlayers = [];
     for (const p of room.players.values())
         lobbyPlayers.push(snapshot(p));
@@ -339,6 +812,7 @@ export function buildHostState(room, roomId) {
         phase: room.phase,
         tick: room.tick,
         roomId,
+        reconnectingPlayers,
         showQr: room.showQr,
         lobbyPlayers,
         menuIndex: room.menuIndex,
@@ -348,6 +822,7 @@ export function buildHostState(room, roomId) {
         stubId: room.stubId,
         kart,
         raceWalk: buildRaceWalkHostJson(room),
+        frogger: buildFroggerHostJson(room),
     };
 }
 export function buildControllerState(room, playerId) {
@@ -370,8 +845,24 @@ export function buildControllerState(room, playerId) {
             paused: room.phase === "race_walk_paused",
         }
         : null;
+    const fr = room.froggerFrogs.get(playerId);
+    const froggerDist = fr ? Math.max(0, Math.floor(fr.maxY / FROGGER_DISTANCE_UNIT)) : 0;
+    const froggerAlive = fr?.alive ?? false;
+    const frogNotice = room.froggerDeathNotices.get(playerId);
+    const froggerHud = room.phase === "frogger" || room.phase === "frogger_paused" || room.phase === "frogger_results"
+        ? {
+            alive: froggerAlive,
+            distance: froggerDist,
+            deathNotice: frogNotice && room.tick < frogNotice.untilTick
+                ? { text: frogNotice.text, untilTick: frogNotice.untilTick }
+                : undefined,
+            seriesWins: Object.fromEntries(room.seriesWins),
+            paused: room.phase === "frogger_paused",
+        }
+        : null;
     return {
         type: "controller_state",
+        tick: room.tick,
         phase: room.phase,
         playerId,
         menuIndex: room.menuIndex,
@@ -388,6 +879,7 @@ export function buildControllerState(room, playerId) {
             }
             : null,
         raceWalk: raceWalkHud,
+        frogger: froggerHud,
     };
 }
 export function resetKartRace(room) {
@@ -418,6 +910,7 @@ export function startKartFromMenu(room) {
     room.stubId = null;
     room.showQr = false;
     clearRaceWalkState(room);
+    clearFroggerState(room);
     resetKartRace(room);
 }
 export function ensureKartCar(room, playerId) {
@@ -458,6 +951,18 @@ export function tickSimulation(room, dt) {
     }
     if (room.phase === "race_walk") {
         tickRaceWalk(room, dt);
+        return;
+    }
+    if (room.phase === "frogger_results") {
+        pruneFroggerBanners(room);
+        return;
+    }
+    if (room.phase === "frogger_paused") {
+        pruneFroggerBanners(room);
+        return;
+    }
+    if (room.phase === "frogger") {
+        tickFrogger(room, dt);
         return;
     }
     if (room.phase !== "kart" || room.kartPaused)
@@ -613,6 +1118,17 @@ export function handleRaceWalkPauseEdge(room, playerId, shooter, pauseHeld) {
         room.raceWalkPausedByPlayerId = playerId;
     }
 }
+/** Call when binary input arrives for Frogger pause edge. */
+export function handleFroggerPauseEdge(room, playerId, frog, pauseHeld) {
+    const edge = pauseHeld && !frog.prevPauseHeld;
+    frog.prevPauseHeld = pauseHeld;
+    if (!edge)
+        return;
+    if (room.phase === "frogger" && room.froggerCountdown === null) {
+        room.phase = "frogger_paused";
+        room.froggerPausedByPlayerId = playerId;
+    }
+}
 export function applyIntent(room, _playerId, intent) {
     switch (intent.type) {
         case "all_ready":
@@ -623,7 +1139,9 @@ export function applyIntent(room, _playerId, intent) {
             }
             break;
         case "menu_nav": {
-            if (room.phase === "kart_results" || room.phase === "race_walk_results") {
+            if (room.phase === "kart_results" ||
+                room.phase === "race_walk_results" ||
+                room.phase === "frogger_results") {
                 const n = 3;
                 if (intent.dir === "up")
                     room.menuIndex = (room.menuIndex - 1 + n) % n;
@@ -654,6 +1172,7 @@ export function applyIntent(room, _playerId, intent) {
                     room.kartCountdown = null;
                     room.kartPaused = false;
                     room.kartPausedByPlayerId = null;
+                    clearFroggerState(room);
                     room.showQr = false;
                 }
                 else {
@@ -665,6 +1184,7 @@ export function applyIntent(room, _playerId, intent) {
                     room.kartCountdown = null;
                     room.kartPaused = false;
                     room.kartPausedByPlayerId = null;
+                    clearFroggerState(room);
                     room.showQr = true;
                 }
                 break;
@@ -678,6 +1198,7 @@ export function applyIntent(room, _playerId, intent) {
                     room.phase = "menu";
                     room.stubId = null;
                     clearRaceWalkState(room);
+                    clearFroggerState(room);
                     room.showQr = false;
                 }
                 else {
@@ -685,6 +1206,27 @@ export function applyIntent(room, _playerId, intent) {
                     room.menuIndex = 0;
                     room.stubId = null;
                     clearRaceWalkState(room);
+                    clearFroggerState(room);
+                    room.showQr = true;
+                }
+                break;
+            }
+            if (room.phase === "frogger_results") {
+                const actions = ["play_again", "minigame_menu", "add_controllers"];
+                const action = actions[room.menuIndex % 3];
+                if (action === "play_again")
+                    startFroggerFromMenu(room);
+                else if (action === "minigame_menu") {
+                    room.phase = "menu";
+                    room.stubId = null;
+                    clearFroggerState(room);
+                    room.showQr = false;
+                }
+                else {
+                    room.phase = "lobby";
+                    room.menuIndex = 0;
+                    room.stubId = null;
+                    clearFroggerState(room);
                     room.showQr = true;
                 }
                 break;
@@ -695,6 +1237,8 @@ export function applyIntent(room, _playerId, intent) {
                     startKartFromMenu(room);
                 else if (id === "race_walk")
                     startRaceWalkFromMenu(room);
+                else if (id === "frogger")
+                    startFroggerFromMenu(room);
                 else {
                     room.phase = "stub";
                     room.stubId = id;
@@ -715,6 +1259,7 @@ export function applyIntent(room, _playerId, intent) {
                 room.kartPaused = false;
                 room.kartPausedByPlayerId = null;
                 clearRaceWalkState(room);
+                clearFroggerState(room);
                 room.showQr = true;
             }
             else {
@@ -757,6 +1302,7 @@ export function applyIntent(room, _playerId, intent) {
                 room.kartCountdown = null;
                 room.kartPaused = false;
                 room.kartPausedByPlayerId = null;
+                clearFroggerState(room);
                 room.showQr = false;
             }
             else if (intent.action === "add_controllers") {
@@ -768,6 +1314,7 @@ export function applyIntent(room, _playerId, intent) {
                 room.kartCountdown = null;
                 room.kartPaused = false;
                 room.kartPausedByPlayerId = null;
+                clearFroggerState(room);
                 room.showQr = true;
             }
             break;
@@ -781,6 +1328,7 @@ export function applyIntent(room, _playerId, intent) {
                 room.phase = "menu";
                 room.stubId = null;
                 clearRaceWalkState(room);
+                clearFroggerState(room);
                 room.showQr = false;
             }
             else if (intent.action === "add_controllers") {
@@ -788,6 +1336,27 @@ export function applyIntent(room, _playerId, intent) {
                 room.menuIndex = 0;
                 room.stubId = null;
                 clearRaceWalkState(room);
+                clearFroggerState(room);
+                room.showQr = true;
+            }
+            break;
+        case "frogger_results":
+            if (room.phase !== "frogger_results")
+                break;
+            if (intent.action === "play_again") {
+                startFroggerFromMenu(room);
+            }
+            else if (intent.action === "minigame_menu") {
+                room.phase = "menu";
+                room.stubId = null;
+                clearFroggerState(room);
+                room.showQr = false;
+            }
+            else if (intent.action === "add_controllers") {
+                room.phase = "lobby";
+                room.menuIndex = 0;
+                room.stubId = null;
+                clearFroggerState(room);
                 room.showQr = true;
             }
             break;
@@ -807,6 +1376,13 @@ export function applyIntent(room, _playerId, intent) {
                     s.prevGamePauseHeld = false;
                 }
             }
+            else if (room.phase === "frogger_paused") {
+                room.phase = "frogger";
+                room.froggerPausedByPlayerId = null;
+                for (const fr of room.froggerFrogs.values()) {
+                    fr.prevPauseHeld = false;
+                }
+            }
             break;
         case "pause_to_menu":
             if (room.phase === "kart_paused" || room.phase === "kart") {
@@ -822,6 +1398,12 @@ export function applyIntent(room, _playerId, intent) {
                 room.phase = "menu";
                 room.stubId = null;
                 clearRaceWalkState(room);
+                room.showQr = false;
+            }
+            else if (room.phase === "frogger" || room.phase === "frogger_paused") {
+                room.phase = "menu";
+                room.stubId = null;
+                clearFroggerState(room);
                 room.showQr = false;
             }
             break;
