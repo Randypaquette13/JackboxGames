@@ -72,6 +72,20 @@ input.pj-name {
   max-width: none;
   margin-inline: 0;
 }
+#panel-kart .kart-boost-btn {
+  width: 100%;
+  max-width: none;
+  padding: 14px 20px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+#panel-kart .kart-boost-btn:disabled {
+  opacity: 0.42;
+}
+#panel-kart .kart-boost-hint {
+  margin-bottom: 4px;
+  min-height: 1.25em;
+}
 #panel-kart .kart-push {
   flex: 1 1 auto;
   min-height: 24px;

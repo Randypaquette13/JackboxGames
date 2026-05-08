@@ -4,7 +4,7 @@
  * Menu / results: arrows navigate, Enter = confirm, F2/F3 = Back to lobby / Game settings (panel buttons too).
  * Settings overlay: Esc or F4 close, −/+ adjust kart speed (slider on panel).
  * Stub: Esc or panel “Back to menu”.
- * Kart: A/D steer, P or Esc = pause edge.
+ * Kart: A/D steer, B = boost, P or Esc = pause edge.
  * Race Walk: J/L walk-run, I/K aim, F fire.
  * Frogger: WASD or arrows move, P/Esc pause.
  */
@@ -46,7 +46,7 @@ function devHintForScreen(ph: GamePhase, snap: DevHostSnapshot): string {
     case "stub":
       return "Esc or Back to menu · Tab: target player";
     case "kart":
-      return "A/D or ←/→: steer · P or Esc: pause · Tab: target player";
+      return "A/D or ←/→: steer · B: boost · P or Esc: pause · Tab: target player";
     case "kart_paused":
       return "Enter: resume · Esc: to menu · Tab: target player";
     case "kart_results":
@@ -119,6 +119,7 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
     rwFire: false,
     fgAimUp: false,
     fgAimDown: false,
+    kartBoost: false,
   };
 
   function activeWs(): WebSocket | null {
@@ -143,6 +144,9 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
         break;
       case "KeyP":
         keys.pause = down;
+        break;
+      case "KeyB":
+        keys.kartBoost = down;
         break;
       default:
         return;
@@ -341,7 +345,9 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
       }
 
       if (ph !== "frogger" && ph !== "frogger_paused") {
-        if (["ArrowLeft", "ArrowRight", "ArrowUp", "Space", "KeyA", "KeyD", "KeyW", "KeyP"].includes(e.code)) {
+        if (
+          ["ArrowLeft", "ArrowRight", "ArrowUp", "Space", "KeyA", "KeyD", "KeyW", "KeyP", "KeyB"].includes(e.code)
+        ) {
           e.preventDefault();
         }
         setKey(e.code, true);
@@ -379,6 +385,7 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
     keys.rwFire = false;
     keys.fgAimUp = false;
     keys.fgAimDown = false;
+    keys.kartBoost = false;
   });
 
   function syncSelectOptions(): void {
@@ -423,7 +430,12 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
     let h = 0;
     if (keys.left && !keys.right) h = -127;
     else if (keys.right && !keys.left) h = 127;
-    if (ph === "kart" || ph === "kart_paused") {
+    if (ph === "kart") {
+      let buttons = keys.pause ? Btn.Pause : 0;
+      if (keys.kartBoost) buttons |= Btn.Boost;
+      return { h, buttons };
+    }
+    if (ph === "kart_paused") {
       return { h, buttons: keys.pause ? Btn.Pause : 0 };
     }
     if (ph === "race_walk") {

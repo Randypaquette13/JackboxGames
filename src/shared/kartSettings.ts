@@ -13,3 +13,12 @@ export function resolveKartForwardSpeed(gameSettings: Record<string, unknown>): 
   if (typeof v === "number" && Number.isFinite(v)) return clampKartForwardSpeed(v);
   return KART_FORWARD_SPEED_DEFAULT;
 }
+
+/** Boost charges per race (server + UI). */
+export const KART_BOOST_USES_PER_RACE = 2;
+/** Target cruise multiplier while boost timer is active. */
+export const KART_BOOST_SPEED_MULT = 1.55;
+/** How long each boost lasts (seconds). */
+export const KART_BOOST_DURATION_SEC = 2.25;
+/** Immediate forward-speed bump on activation, as a fraction of base cruise. */
+export const KART_BOOST_INITIAL_KICK_FRAC = 0.32;

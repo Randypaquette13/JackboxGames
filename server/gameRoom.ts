@@ -13,7 +13,14 @@ import type {
 } from "../src/shared/messages.js";
 import { MINIGAME_IDS, MINIGAME_LABELS } from "../src/shared/messages.js";
 import { TICK_RATE, WORLD_H, WORLD_W } from "../src/shared/constants.js";
-import { clampKartForwardSpeed, resolveKartForwardSpeed } from "../src/shared/kartSettings.js";
+import {
+  clampKartForwardSpeed,
+  KART_BOOST_DURATION_SEC,
+  KART_BOOST_INITIAL_KICK_FRAC,
+  KART_BOOST_SPEED_MULT,
+  KART_BOOST_USES_PER_RACE,
+  resolveKartForwardSpeed,
+} from "../src/shared/kartSettings.js";
 import { fallbackPlayerHue } from "../src/shared/playerColors.js";
 import {
   FROGGER_CAR_SPEED_MAX,
@@ -136,6 +143,10 @@ export type KartCar = {
   speed: number;
   /** edge-detected pause button */
   prevPauseHeld: boolean;
+  /** edge-detected boost tap */
+  prevBoostHeld: boolean;
+  boostsRemaining: number;
+  boostTimerSec: number;
   /** Crossing lane lock while inside bridge polygon */
   crossingMode: "bridge" | "underpass" | null;
   /** Velocity carries slight lateral drift through turns */
@@ -1105,6 +1116,8 @@ export function buildHostState(
         y: c.y,
         angle: c.angle,
         laps: Math.min(LAPS_TO_WIN, c.laps),
+        boostsRemaining: c.boostsRemaining,
+        boosting: c.boostTimerSec > 0,
       };
     });
     kart = {
@@ -1180,6 +1193,7 @@ export function buildControllerState(room: Room, playerId: number): ControllerSt
           paused: room.phase === "frogger_paused",
         }
       : null;
+  const myKart = room.kartCars.get(playerId);
   return {
     type: "controller_state",
     tick: room.tick,
@@ -1194,9 +1208,12 @@ export function buildControllerState(room: Room, playerId: number): ControllerSt
       room.phase === "kart" || room.phase === "kart_paused" || room.phase === "kart_results"
         ? {
             paused: room.kartPaused,
+            countdown: room.kartCountdown,
             laps,
             winnerId: room.kartWinnerId,
             seriesWins: Object.fromEntries(room.seriesWins),
+            boostsRemaining: myKart?.boostsRemaining ?? KART_BOOST_USES_PER_RACE,
+            boosting: (myKart?.boostTimerSec ?? 0) > 0,
           }
         : null,
     raceWalk: raceWalkHud,
@@ -1227,6 +1244,9 @@ export function resetKartRace(room: Room): void {
       crossingMode: null,
       velX: Math.cos(sp.angle) * cruise,
       velY: Math.sin(sp.angle) * cruise,
+      prevBoostHeld: false,
+      boostsRemaining: KART_BOOST_USES_PER_RACE,
+      boostTimerSec: 0,
     });
   }
 }
@@ -1262,6 +1282,9 @@ export function ensureKartCar(room: Room, playerId: number): void {
       crossingMode: null,
       velX: Math.cos(sp.angle) * cruise,
       velY: Math.sin(sp.angle) * cruise,
+      prevBoostHeld: false,
+      boostsRemaining: KART_BOOST_USES_PER_RACE,
+      boostTimerSec: 0,
     });
   }
 }
@@ -1304,12 +1327,20 @@ export function tickSimulation(room: Room, dt: number): void {
     room.kartCountdown -= dt;
     if (room.kartCountdown <= 0) {
       room.kartCountdown = null;
+      for (const [pid, car] of room.kartCars) {
+        const pl = room.players.get(pid);
+        car.prevBoostHeld = pl ? (pl.input.buttons & Btn.Boost) !== 0 : false;
+      }
     }
     return;
   }
   for (const [pid, car] of room.kartCars) {
     const player = room.players.get(pid);
     if (!player) continue;
+    const boostHeld = (player.input.buttons & Btn.Boost) !== 0;
+    const boostEdge = boostHeld && !car.prevBoostHeld;
+    const boostMult = car.boostTimerSec > 0 ? KART_BOOST_SPEED_MULT : 1;
+    const effectiveCruise = kartCruise * boostMult;
     const h = Math.max(-1, Math.min(1, player.input.h / 127));
     const prev = { x: car.x, y: car.y };
     car.angle += h * KART_TURN_SPEED * dt;
@@ -1402,10 +1433,21 @@ export function tickSimulation(room: Room, dt: number): void {
       car.velX *= retained;
       car.velY *= retained;
     } else {
-      car.speed += (kartCruise - car.speed) * Math.min(1, KART_SPEED_RECOVER * dt);
+      car.speed += (effectiveCruise - car.speed) * Math.min(1, KART_SPEED_RECOVER * dt);
     }
     car.x = clamped.x;
     car.y = clamped.y;
+
+    if (boostEdge && car.boostsRemaining > 0) {
+      car.boostsRemaining--;
+      car.boostTimerSec = KART_BOOST_DURATION_SEC;
+      const cap = kartCruise * KART_BOOST_SPEED_MULT * 1.12;
+      car.speed = Math.min(car.speed + kartCruise * KART_BOOST_INITIAL_KICK_FRAC, cap);
+    }
+    car.prevBoostHeld = boostHeld;
+    if (car.boostTimerSec > 0) {
+      car.boostTimerSec = Math.max(0, car.boostTimerSec - dt);
+    }
 
     // Arm lap counting once the car has clearly left the finish line region.
     if (!car.lapArmed) {

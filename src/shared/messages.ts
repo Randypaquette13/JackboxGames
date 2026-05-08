@@ -129,6 +129,8 @@ export type KartCarState = {
   /** Heading radians; +x = 0, +y = π/2 (y-down) */
   angle: number;
   laps: number;
+  boostsRemaining: number;
+  boosting: boolean;
 };
 
 export type HostStateJson = {
@@ -208,9 +210,12 @@ export type ControllerStateJson = {
   stubId: MinigameId | null;
   kart: null | {
     paused: boolean;
+    countdown: number | null;
     laps: Record<number, number>;
     winnerId: number | null;
     seriesWins: Record<number, number>;
+    boostsRemaining: number;
+    boosting: boolean;
   };
   raceWalk: null | {
     assignedLane: number | null;

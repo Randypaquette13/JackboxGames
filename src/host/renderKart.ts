@@ -113,7 +113,7 @@ function isInUnderpassTunnel(
 
 function drawKartCar(
   ctx: CanvasRenderingContext2D,
-  car: { playerId: number; hue: number; x: number; y: number; angle: number },
+  car: { playerId: number; hue: number; x: number; y: number; angle: number; boosting?: boolean },
   scale: number,
   inTunnel: boolean
 ): void {
@@ -121,6 +121,29 @@ function drawKartCar(
   ctx.translate(car.x, car.y);
   ctx.rotate(car.angle);
   const hue = car.hue ?? fallbackPlayerHue(car.playerId);
+  const boosting = car.boosting === true;
+  const flicker = boosting ? 0.82 + 0.18 * Math.sin(performance.now() / 42) : 1;
+
+  if (boosting) {
+    const gx = -CAR_R - 10;
+    const gy = 0;
+    const grad = ctx.createRadialGradient(gx, gy, 1, gx - 6 * flicker, gy, CAR_R * 1.35);
+    grad.addColorStop(0, "rgba(255,252,220,0.95)");
+    grad.addColorStop(0.35, "rgba(255,160,48,0.75)");
+    grad.addColorStop(0.65, "rgba(255,90,20,0.35)");
+    grad.addColorStop(1, "rgba(255,60,0,0)");
+    ctx.fillStyle = grad;
+    ctx.globalAlpha = inTunnel ? 0.55 : 0.92;
+    ctx.beginPath();
+    ctx.ellipse(gx - 2 * flicker, gy, CAR_R * 1.05 * flicker, CAR_R * 0.62, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(gx - CAR_R * 0.35 * flicker, gy * 0.85, CAR_R * 0.45 * flicker, CAR_R * 0.28, 0.2, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,220,120,0.5)";
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
   if (inTunnel) {
     ctx.globalAlpha = 0.94;
     ctx.shadowColor = "rgba(0,0,0,0.55)";
@@ -128,6 +151,8 @@ function drawKartCar(
     ctx.fillStyle = `hsl(${hue} 42% 36%)`;
     ctx.strokeStyle = "#15151c";
   } else {
+    ctx.shadowColor = boosting ? "rgba(255,140,40,0.55)" : "transparent";
+    ctx.shadowBlur = boosting ? 10 / scale : 0;
     ctx.fillStyle = `hsl(${hue} 70% 52%)`;
     ctx.strokeStyle = "#2a2a38";
   }
@@ -403,9 +428,20 @@ export function drawKart(
     ctx.arc(bulletCx, bulletCy, bulletR, 0, Math.PI * 2);
     ctx.fillStyle = `hsl(${hue} 70% 52%)`;
     ctx.fill();
-    ctx.strokeStyle = "rgba(0,0,0,0.4)";
-    ctx.lineWidth = 1;
-    ctx.stroke();
+    if (car.boosting) {
+      ctx.strokeStyle = "rgba(255,160,48,0.9)";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(bulletCx, bulletCy, bulletR + 3, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(255,200,80,0.45)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    } else {
+      ctx.strokeStyle = "rgba(0,0,0,0.4)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
 
     ctx.textBaseline = "alphabetic";
     ctx.textAlign = "left";
@@ -422,6 +458,16 @@ export function drawKart(
     ctx.font = "600 17px system-ui,sans-serif";
     ctx.fillStyle = "#d8d8ea";
     ctx.fillText(` — Lap ${lapDisplay}/${totalLaps}`, tx, lineY);
+    if (car.boosting) {
+      const lapTail = ` — Lap ${lapDisplay}/${totalLaps}`;
+      tx += ctx.measureText(lapTail).width;
+      ctx.font = "700 14px system-ui,sans-serif";
+      ctx.fillStyle = "#ffb347";
+      ctx.shadowColor = "rgba(255,120,20,0.5)";
+      ctx.shadowBlur = 6;
+      ctx.fillText(" BOOST", tx, lineY);
+      ctx.shadowBlur = 0;
+    }
 
     y += 22;
   }

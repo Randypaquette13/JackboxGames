@@ -80,6 +80,8 @@ const resultsHintEl = document.querySelector<HTMLElement>("#results-hint")!;
 const resultsListEl = document.querySelector<HTMLElement>("#results-list")!;
 const rwFireBtn = document.querySelector<HTMLButtonElement>("#rw-fire")!;
 const rwStatusEl = document.querySelector<HTMLElement>("#rw-status")!;
+const ktBoostBtn = document.querySelector<HTMLButtonElement>("#kt-boost")!;
+const ktBoostHint = document.querySelector<HTMLElement>("#kt-boost-hint")!;
 
 const RESULT_LABELS = ["Play again", "Back to minigame select", "Add more controllers"];
 
@@ -148,6 +150,7 @@ if (!roomId) {
   let kLeft = false;
   let kRight = false;
   let kPause = false;
+  let kBoost = false;
   bindHold(
     document.querySelector("#kt-left")!,
     () => {
@@ -171,6 +174,13 @@ if (!roomId) {
     kPause = true;
     setTimeout(() => {
       kPause = false;
+    }, 100);
+  });
+  ktBoostBtn.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    kBoost = true;
+    setTimeout(() => {
+      kBoost = false;
     }, 100);
   });
 
@@ -422,6 +432,30 @@ if (!roomId) {
     }
   }
 
+  function syncKartPanelState(st: ControllerStateJson | null): void {
+    const kart = st?.kart;
+    const ph = st?.phase;
+    if (!kart || ph !== "kart") {
+      ktBoostBtn.disabled = true;
+      ktBoostHint.textContent = "";
+      return;
+    }
+    const countdownActive = kart.countdown !== null && kart.countdown > 0;
+    const canUse =
+      !kart.paused && !countdownActive && kart.boostsRemaining > 0;
+    ktBoostBtn.disabled = !canUse;
+    if (kart.boosting) {
+      ktBoostHint.textContent = "Boosting!";
+      ktBoostHint.style.color = "#ffb347";
+    } else if (countdownActive) {
+      ktBoostHint.textContent = "Boost unlocks after GO!";
+      ktBoostHint.style.color = "";
+    } else {
+      ktBoostHint.textContent = `Boosts left: ${kart.boostsRemaining}`;
+      ktBoostHint.style.color = "";
+    }
+  }
+
   function syncRaceWalkPanelState(st: ControllerStateJson | null): void {
     const rw = st?.raceWalk;
     if (!rw) {
@@ -446,6 +480,7 @@ if (!roomId) {
 
   function refreshUI(): void {
     const st = ctrlState;
+    syncKartPanelState(st);
     syncRaceWalkPanelState(st);
     syncFroggerPanelState(st);
     hideAll();
@@ -692,7 +727,9 @@ if (!roomId) {
         let h = 0;
         if (kLeft && !kRight) h = -127;
         else if (kRight && !kLeft) h = 127;
-        const buttons = kPause ? Btn.Pause : 0;
+        let buttons = 0;
+        if (kPause) buttons |= Btn.Pause;
+        if (kBoost) buttons |= Btn.Boost;
         ws.send(encodeInput(seq, h, buttons));
       } else if (ph === "race_walk") {
         let buttons = 0;

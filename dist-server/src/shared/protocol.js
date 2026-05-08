@@ -22,6 +22,8 @@ export const Btn = {
     Fire: 1 << 4,
     /** Race Walk: run (faster than walk); Pause is reserved for game pause */
     Run: 1 << 5,
+    /** Kart: short speed boost (limited uses per race); ignored outside kart */
+    Boost: 1 << 6,
 };
 export function encodeJoin(role, roomId) {
     const room = new TextEncoder().encode(roomId);
