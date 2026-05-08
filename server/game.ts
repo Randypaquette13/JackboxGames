@@ -23,6 +23,8 @@ export type PlayerInput = {
 
 export type SimPlayer = {
   id: number;
+  /** Display name (max 4 chars). */
+  name: string;
   /** HSL hue 0–359; set at join (distinct from existing players). */
   hue: number;
   x: number;
@@ -57,6 +59,7 @@ function aabbOverlap(
 export function createPlayer(id: number, spawnX: number, spawnY: number, hue: number): SimPlayer {
   return {
     id,
+    name: `P${id}`,
     hue,
     x: spawnX,
     y: spawnY,

@@ -389,14 +389,47 @@ export function drawKart(
     ctx.fillText("PAUSED", 16, y);
     y += 26;
   }
-  ctx.fillStyle = "#e8e8f0";
   for (const car of kart.cars) {
-    ctx.fillText(`P${car.playerId}: lap ${car.laps}/${3}`, 16, y);
+    const totalLaps = 2;
+    const lapDisplay = Math.max(0, Math.min(totalLaps, car.laps));
+    const hue = car.hue ?? fallbackPlayerHue(car.playerId);
+    const displayName = (car.name && car.name.trim()) ? car.name.trim() : `P${car.playerId}`;
+    const lineY = y;
+    const bulletR = 5;
+    const bulletCx = 16 + bulletR;
+    const bulletCy = lineY - 9;
+
+    ctx.beginPath();
+    ctx.arc(bulletCx, bulletCy, bulletR, 0, Math.PI * 2);
+    ctx.fillStyle = `hsl(${hue} 70% 52%)`;
+    ctx.fill();
+    ctx.strokeStyle = "rgba(0,0,0,0.4)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.textBaseline = "alphabetic";
+    ctx.textAlign = "left";
+    let tx = bulletCx + bulletR + 8;
+    ctx.font = "bold 18px system-ui,sans-serif";
+    ctx.fillStyle = `hsl(${hue} 78% 62%)`;
+    ctx.shadowColor = "rgba(0,0,0,0.65)";
+    ctx.shadowBlur = 4;
+    ctx.fillText(displayName, tx, lineY);
+    const nameW = ctx.measureText(displayName).width;
+    ctx.shadowBlur = 0;
+
+    tx += nameW;
+    ctx.font = "600 17px system-ui,sans-serif";
+    ctx.fillStyle = "#d8d8ea";
+    ctx.fillText(` — Lap ${lapDisplay}/${totalLaps}`, tx, lineY);
+
     y += 22;
   }
   if (kart.winnerId !== null) {
+    ctx.font = "bold 18px system-ui,sans-serif";
     ctx.fillStyle = "#8f8";
-    ctx.fillText(`Winner: Player ${kart.winnerId}`, 16, y);
+    const winnerName = kart.cars.find((c) => c.playerId === kart.winnerId)?.name ?? `P${kart.winnerId}`;
+    ctx.fillText(`Winner: ${winnerName}`, 16, y);
   }
   ctx.fillStyle = "#aaa";
   ctx.font = "14px system-ui,sans-serif";

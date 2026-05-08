@@ -37,6 +37,7 @@ function wsUrl(): string {
 
 const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
 const ctx = canvas.getContext("2d")!;
+const hudEl = document.querySelector<HTMLElement>("#hud")!;
 const roomCodeEl = document.querySelector<HTMLElement>("#room-code")!;
 const rttEl = document.querySelector<HTMLElement>("#rtt")!;
 const tickEl = document.querySelector<HTMLElement>("#tick")!;
@@ -53,7 +54,7 @@ QRCode.toCanvas(qrCanvas, joinUrl, { width: 140, margin: 1, color: { dark: "#0a0
 
 let hostState: HostStateJson | null = null;
 const phaseRef: { current: GamePhase } = { current: "lobby" };
-let latestLobby: { tick: number; players: PlayerSnapshot[] } = { tick: 0, players: [] };
+let latestLobby: { tick: number; players: HostStateJson["lobbyPlayers"] } = { tick: 0, players: [] };
 let rttMs = 0;
 const enableDevControllers =
   import.meta.env.DEV && import.meta.env.VITE_ENABLE_DEV_CONTROLLERS === "true";
@@ -78,7 +79,7 @@ function drawLobby(w: number, h: number, scale: number, ox: number, oy: number):
     ctx.fillRect(pl.x, pl.y, pl.w, pl.h);
   }
   for (const p of latestLobby.players) {
-    const hue = p.hue ?? fallbackPlayerHue(p.id);
+    const hue = p.hue ?? fallbackPlayerHue(p.playerId);
     ctx.fillStyle = `hsl(${hue} 72% 58%)`;
     ctx.strokeStyle = "#0a0a12";
     ctx.lineWidth = 2;
@@ -88,7 +89,8 @@ function drawLobby(w: number, h: number, scale: number, ox: number, oy: number):
     ctx.font = "bold 14px system-ui,sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(String(p.id), p.x + PLAYER_W / 2, p.y + PLAYER_H / 2);
+    const label = p.name ?? `P${p.playerId}`;
+    ctx.fillText(label, p.x + PLAYER_W / 2, p.y + PLAYER_H / 2);
   }
   ctx.restore();
 }
@@ -191,7 +193,8 @@ function drawReconnectOverlay(w: number): void {
   ctx.fillStyle = "#e8e8f0";
   ctx.font = "14px system-ui,sans-serif";
   for (const p of reconnecting) {
-    ctx.fillText(`P${p.playerId} (${p.secondsLeft}s left)`, x, y);
+    const nm = hostState?.lobbyPlayers.find((lp) => lp.playerId === p.playerId)?.name ?? `P${p.playerId}`;
+    ctx.fillText(`${nm} (${p.secondsLeft}s left)`, x, y);
     y += 20;
   }
   ctx.restore();
@@ -230,8 +233,12 @@ function draw(): void {
   drawSettingsOverlay(w, h);
   drawReconnectOverlay(w);
 
-  tickEl.textContent = hostState ? `tick ${hostState.tick}` : "…";
-  rttEl.textContent = rttMs > 0 ? `RTT ${rttMs.toFixed(0)} ms` : "";
+  const lobbyHud = phase === "lobby";
+  hudEl.hidden = !lobbyHud;
+  if (lobbyHud) {
+    tickEl.textContent = hostState ? `tick ${hostState.tick}` : "…";
+    rttEl.textContent = rttMs > 0 ? `RTT ${rttMs.toFixed(0)} ms` : "";
+  }
   requestAnimationFrame(draw);
 }
 

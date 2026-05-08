@@ -15,6 +15,19 @@ export function parseClientIntent(raw) {
     const t = o.type;
     if (t === "all_ready")
         return { type: "all_ready" };
+    if (t === "prejoin_create") {
+        const name = typeof o.name === "string" ? o.name : "";
+        const hue = typeof o.hue === "number" ? o.hue : NaN;
+        if (!Number.isFinite(hue))
+            return null;
+        return { type: "prejoin_create", name, hue };
+    }
+    if (t === "prejoin_claim") {
+        const pid = o.playerId;
+        if (typeof pid === "number" && Number.isFinite(pid) && pid > 0) {
+            return { type: "prejoin_claim", playerId: pid | 0 };
+        }
+    }
     if (t === "menu_nav" && (o.dir === "up" || o.dir === "down"))
         return { type: "menu_nav", dir: o.dir };
     if (t === "menu_confirm")

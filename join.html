@@ -9,20 +9,48 @@
   </head>
   <body>
     <div id="status">Connecting…</div>
-    <div id="debug-phase" class="debug-phase" hidden></div>
+
+    <div id="panel-prejoin" class="panel" hidden>
+      <p id="pj-hint" class="hint">Join game</p>
+      <div id="pj-resume" class="pj-section" hidden>
+        <p id="pj-resume-hint" class="subhint">Resume a disconnected player, or create a new one.</p>
+        <div id="pj-resume-list" class="pj-list"></div>
+      </div>
+      <div id="pj-create" class="pj-section" hidden>
+        <p id="pj-create-hint" class="subhint">Create new player</p>
+        <div class="pj-row">
+          <label for="pj-name">Name (max 4)</label>
+          <input id="pj-name" class="pj-name" type="text" inputmode="text" maxlength="4" />
+        </div>
+        <div class="pj-row">
+          <label for="pj-hue">Color</label>
+          <input id="pj-hue" type="range" min="0" max="359" />
+          <span id="pj-hue-val" class="pj-hue-val"></span>
+        </div>
+        <div id="pj-color-preview" class="pj-color-preview"></div>
+        <div class="pj-actions">
+          <button type="button" id="pj-back" class="secondary">Back</button>
+          <button type="button" id="pj-join" class="primary">Join</button>
+        </div>
+      </div>
+    </div>
 
     <div id="panel-lobby" class="panel" hidden>
-      <div class="dpad">
-        <button type="button" id="lb-left" class="pad" aria-label="Left">◀</button>
-        <button type="button" id="lb-right" class="pad" aria-label="Right">▶</button>
-      </div>
-      <button type="button" id="lb-jump" class="jump">Jump</button>
       <button type="button" id="lb-ready" class="primary">All players have joined</button>
+      <div class="lobby-push" aria-hidden="true"></div>
+      <div class="lobby-controls">
+        <div class="dpad">
+          <button type="button" id="lb-left" class="pad" aria-label="Left">◀</button>
+          <button type="button" id="lb-right" class="pad" aria-label="Right">▶</button>
+        </div>
+        <button type="button" id="lb-jump" class="jump">Jump</button>
+      </div>
     </div>
 
     <div id="panel-menu" class="panel" hidden>
-      <p class="hint">Minigame</p>
-      <div id="menu-preview" class="menu-preview"></div>
+      <p class="hint menu-title">Minigames</p>
+      <div id="menu-list" class="menu-list" aria-live="polite"></div>
+      <p class="subhint menu-footer-hint">↑↓ navigate · Select</p>
       <div class="menu-nav">
         <button type="button" id="mn-up" class="pad sm">▲</button>
         <button type="button" id="mn-down" class="pad sm">▼</button>
@@ -53,28 +81,32 @@
     </div>
 
     <div id="panel-frogger" class="panel" hidden>
+      <button type="button" id="fg-pause" class="secondary small-pause">Pause</button>
       <div id="fg-death-banner" class="frogger-death-banner" hidden>
         <p class="fg-death-title">You died</p>
         <p id="fg-death-sub" class="fg-death-sub"></p>
       </div>
-      <p class="hint">Frogger — move up to stay ahead of the scroll</p>
-      <div class="dpad frogger-pad">
-        <button type="button" id="fg-up" class="pad sm" aria-label="Up">▲</button>
-        <div class="frogger-mid-row">
-          <button type="button" id="fg-left" class="pad" aria-label="Left">◀</button>
-          <button type="button" id="fg-right" class="pad" aria-label="Right">▶</button>
+      <p class="hint">Frogger — hop forward one row at a time; farthest distance wins</p>
+      <div class="frogger-push" aria-hidden="true"></div>
+      <div class="frogger-controls">
+        <div class="dpad frogger-pad">
+          <button type="button" id="fg-up" class="pad sm frogger-arrow" aria-label="Up">▲</button>
+          <button type="button" id="fg-left" class="pad sm frogger-arrow" aria-label="Left">◀</button>
+          <button type="button" id="fg-down" class="pad sm frogger-arrow" aria-label="Down">▼</button>
+          <button type="button" id="fg-right" class="pad sm frogger-arrow" aria-label="Right">▶</button>
         </div>
-        <button type="button" id="fg-down" class="pad sm" aria-label="Down">▼</button>
       </div>
-      <button type="button" id="fg-pause" class="secondary small-pause">Pause</button>
     </div>
 
     <div id="panel-kart" class="panel" hidden>
-      <div class="dpad">
-        <button type="button" id="kt-left" class="pad" aria-label="Steer left">◀</button>
-        <button type="button" id="kt-right" class="pad" aria-label="Steer right">▶</button>
-      </div>
       <button type="button" id="kt-pause" class="secondary small-pause">Pause</button>
+      <div class="kart-push" aria-hidden="true"></div>
+      <div class="kart-steer">
+        <div class="dpad">
+          <button type="button" id="kt-left" class="pad" aria-label="Steer left">◀</button>
+          <button type="button" id="kt-right" class="pad" aria-label="Steer right">▶</button>
+        </div>
+      </div>
     </div>
 
     <div id="panel-kart-pause" class="panel" hidden>
@@ -84,8 +116,9 @@
     </div>
 
     <div id="panel-results" class="panel" hidden>
-      <p class="hint">Race over</p>
-      <div id="results-preview" class="menu-preview"></div>
+      <p id="results-hint" class="hint">Game finished</p>
+      <div id="results-list" class="menu-list" aria-live="polite"></div>
+      <p class="subhint menu-footer-hint">↑↓ navigate · Choose</p>
       <div class="menu-nav">
         <button type="button" id="rs-up" class="pad sm">▲</button>
         <button type="button" id="rs-down" class="pad sm">▼</button>

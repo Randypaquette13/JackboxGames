@@ -151,7 +151,9 @@ export function drawRaceWalk(
     ctx.beginPath();
     ctx.arc(cx, cy, s + 4, 0, Math.PI * 2);
     ctx.stroke();
-    const idLabel = playerIds.map((id) => `P${id}`).join(" · ");
+    const nameById = new Map<number, string>();
+    for (const p of state.lobbyPlayers ?? []) nameById.set(p.playerId, p.name);
+    const idLabel = playerIds.map((id) => nameById.get(id) ?? `P${id}`).join(" · ");
     ctx.fillStyle = stroke;
     ctx.font = "bold 13px system-ui,sans-serif";
     ctx.textAlign = "left";
@@ -177,7 +179,9 @@ export function drawRaceWalk(
     ctx.fillRect(0, 0, canvasW, canvasH);
 
     const pausedBy = rw.pausedByPlayerId;
-    const byText = pausedBy !== null ? `Player ${pausedBy} paused the game` : "Paused";
+    const nameById2 = new Map<number, string>();
+    for (const p of state.lobbyPlayers ?? []) nameById2.set(p.playerId, p.name);
+    const byText = pausedBy !== null ? `${nameById2.get(pausedBy) ?? `P${pausedBy}`} paused the game` : "Paused";
     ctx.save();
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";

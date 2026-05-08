@@ -135,7 +135,7 @@ export function drawFrogger(
     ctx.font = "bold 12px system-ui,sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(String(fr.playerId), fr.x, ry + sh / 2);
+    ctx.fillText(fr.name, fr.x, ry + sh / 2);
   }
 
   ctx.fillStyle = "#aab0c8";
@@ -236,13 +236,18 @@ export function drawFrogger(
     let y = 36;
     const wid = fg.winnerId;
     ctx.font = "bold 28px system-ui,sans-serif";
-    ctx.fillText(wid !== null ? `Player ${wid} wins!` : "Round over", cx, y);
-    y += 44;
+    const wname = wid !== null ? fg.frogs.find((f) => f.playerId === wid)?.name ?? `P${wid}` : null;
+    ctx.fillText(wid !== null ? `${wname} wins!` : "Round over", cx, y);
+    y += 36;
+    ctx.font = "15px system-ui,sans-serif";
+    ctx.fillStyle = "#98a2c0";
+    ctx.fillText("Winner is whoever reached the farthest row", cx, y);
+    y += 34;
     ctx.font = "18px system-ui,sans-serif";
     ctx.fillStyle = "#c8d0e8";
-    const sorted = [...fg.frogs].sort((a, b) => a.playerId - b.playerId);
+    const sorted = [...fg.frogs].sort((a, b) => b.distance - a.distance || a.playerId - b.playerId);
     for (const f of sorted) {
-      ctx.fillText(`Player ${f.playerId}: ${f.distance} m${f.alive ? " (survived)" : ""}`, cx, y);
+      ctx.fillText(`${f.name}: ${f.distance} m`, cx, y);
       y += 26;
     }
     ctx.restore();

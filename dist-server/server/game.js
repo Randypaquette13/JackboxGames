@@ -11,6 +11,7 @@ function aabbOverlap(ax, ay, aw, ah, bx, by, bw, bh) {
 export function createPlayer(id, spawnX, spawnY, hue) {
     return {
         id,
+        name: `P${id}`,
         hue,
         x: spawnX,
         y: spawnY,

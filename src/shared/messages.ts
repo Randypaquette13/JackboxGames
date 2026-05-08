@@ -3,7 +3,24 @@
  * Binary join/input/ping stays in protocol.ts.
  */
 
-import type { PlayerSnapshot } from "./protocol.js";
+// Note: binary `PlayerSnapshot` is intentionally not used for lobby/host UI JSON.
+
+export type LobbyPlayerJson = {
+  playerId: number;
+  name: string;
+  /** HSL hue 0–359; chosen at join to be visually distinct from other players in the room. */
+  hue: number;
+  x: number;
+  y: number;
+};
+
+export type PrejoinResumablePlayerJson = {
+  playerId: number;
+  name: string;
+  hue: number;
+  /** Seconds remaining before this player is removed (optional; can be omitted for persistent rejoin). */
+  secondsLeft?: number;
+};
 
 export type GamePhase =
   | "lobby"
@@ -75,6 +92,7 @@ export type FroggerBandJson =
 
 export type FroggerFrogHostJson = {
   playerId: number;
+  name: string;
   hue: number;
   x: number;
   y: number;
@@ -86,6 +104,8 @@ export type FroggerFrogHostJson = {
 /** Client → server (controller or dev; some allowed from host in dev only — server validates). */
 export type ClientIntent =
   | { type: "all_ready" }
+  | { type: "prejoin_create"; name: string; hue: number }
+  | { type: "prejoin_claim"; playerId: number }
   | { type: "menu_nav"; dir: "up" | "down" }
   | { type: "menu_confirm" }
   | { type: "menu_add_players" }
@@ -101,6 +121,7 @@ export type ClientIntent =
 
 export type KartCarState = {
   playerId: number;
+  name: string;
   /** HSL hue 0–359 */
   hue: number;
   x: number;
@@ -117,7 +138,7 @@ export type HostStateJson = {
   roomId: string;
   reconnectingPlayers: { playerId: number; secondsLeft: number }[];
   showQr: boolean;
-  lobbyPlayers: PlayerSnapshot[];
+  lobbyPlayers: LobbyPlayerJson[];
   menuIndex: number;
   menuItems: { id: MinigameId; label: string }[];
   settingsOpen: boolean;
@@ -173,7 +194,13 @@ export type ControllerStateJson = {
   /** Authoritative tick (for timed UI like Frogger death notice). */
   tick: number;
   phase: GamePhase;
+  /** 0 when not yet joined as a player (pre-join menu). */
   playerId: number;
+  prejoin?: {
+    suggestedName: string;
+    suggestedHue: number;
+    resumablePlayers: PrejoinResumablePlayerJson[];
+  };
   menuIndex: number;
   menuItems: { id: MinigameId; label: string }[];
   settingsOpen: boolean;
@@ -208,6 +235,18 @@ export function parseClientIntent(raw: unknown): ClientIntent | null {
   const o = raw as Record<string, unknown>;
   const t = o.type;
   if (t === "all_ready") return { type: "all_ready" };
+  if (t === "prejoin_create") {
+    const name = typeof o.name === "string" ? o.name : "";
+    const hue = typeof o.hue === "number" ? o.hue : NaN;
+    if (!Number.isFinite(hue)) return null;
+    return { type: "prejoin_create", name, hue };
+  }
+  if (t === "prejoin_claim") {
+    const pid = o.playerId;
+    if (typeof pid === "number" && Number.isFinite(pid) && pid > 0) {
+      return { type: "prejoin_claim", playerId: pid | 0 };
+    }
+  }
   if (t === "menu_nav" && (o.dir === "up" || o.dir === "down")) return { type: "menu_nav", dir: o.dir };
   if (t === "menu_confirm") return { type: "menu_confirm" };
   if (t === "menu_add_players") return { type: "menu_add_players" };

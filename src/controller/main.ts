@@ -1,4 +1,9 @@
-import type { ClientIntent, ControllerStateJson } from "@shared/messages";
+import {
+  MINIGAME_IDS,
+  MINIGAME_LABELS,
+  type ClientIntent,
+  type ControllerStateJson,
+} from "@shared/messages";
 import {
   KART_FORWARD_SPEED_MAX,
   KART_FORWARD_SPEED_MIN,
@@ -41,8 +46,8 @@ const params = new URLSearchParams(window.location.search);
 const roomId = params.get("room")?.trim();
 
 const statusEl = document.querySelector<HTMLElement>("#status")!;
-const debugPhaseEl = document.querySelector<HTMLElement>("#debug-phase");
 const panels = {
+  prejoin: document.querySelector<HTMLElement>("#panel-prejoin")!,
   lobby: document.querySelector<HTMLElement>("#panel-lobby")!,
   menu: document.querySelector<HTMLElement>("#panel-menu")!,
   stub: document.querySelector<HTMLElement>("#panel-stub")!,
@@ -57,8 +62,22 @@ const panels = {
 const fgDeathBanner = document.querySelector<HTMLElement>("#fg-death-banner")!;
 const fgDeathSub = document.querySelector<HTMLElement>("#fg-death-sub")!;
 
-const menuPreview = document.querySelector<HTMLElement>("#menu-preview")!;
-const resultsPreview = document.querySelector<HTMLElement>("#results-preview")!;
+const pjHint = document.querySelector<HTMLElement>("#pj-hint")!;
+const pjResumeHint = document.querySelector<HTMLElement>("#pj-resume-hint")!;
+const pjCreateHint = document.querySelector<HTMLElement>("#pj-create-hint")!;
+const pjResume = document.querySelector<HTMLElement>("#pj-resume")!;
+const pjResumeList = document.querySelector<HTMLElement>("#pj-resume-list")!;
+const pjCreate = document.querySelector<HTMLElement>("#pj-create")!;
+const pjName = document.querySelector<HTMLInputElement>("#pj-name")!;
+const pjHue = document.querySelector<HTMLInputElement>("#pj-hue")!;
+const pjHueVal = document.querySelector<HTMLElement>("#pj-hue-val")!;
+const pjColorPreview = document.querySelector<HTMLElement>("#pj-color-preview")!;
+const pjBackBtn = document.querySelector<HTMLButtonElement>("#pj-back")!;
+const pjJoinBtn = document.querySelector<HTMLButtonElement>("#pj-join")!;
+
+const menuListEl = document.querySelector<HTMLElement>("#menu-list")!;
+const resultsHintEl = document.querySelector<HTMLElement>("#results-hint")!;
+const resultsListEl = document.querySelector<HTMLElement>("#results-list")!;
 const rwFireBtn = document.querySelector<HTMLButtonElement>("#rw-fire")!;
 const rwStatusEl = document.querySelector<HTMLElement>("#rw-status")!;
 
@@ -80,6 +99,8 @@ if (!roomId) {
   let jump = false;
   let seq = 0;
   let forcedControllerPhase: ControllerStateJson["phase"] | null = null;
+  let prejoinMode: "resume" | "create" = "resume";
+  let prejoinTouched = { name: false, hue: false };
 
   function bindHold(el: HTMLElement, onDown: () => void, onUp: () => void): void {
     el.addEventListener(
@@ -274,6 +295,107 @@ if (!roomId) {
     });
   }
 
+  const fallbackMenuItems = MINIGAME_IDS.map((id) => ({ id, label: MINIGAME_LABELS[id] }));
+
+  function renderMinigameMenu(st: ControllerStateJson | null): void {
+    const items =
+      st && Array.isArray(st.menuItems) && st.menuItems.length > 0 ? st.menuItems : fallbackMenuItems;
+    const n = items.length;
+    const idxRaw = st?.menuIndex ?? 0;
+    const idx = n <= 0 ? 0 : ((idxRaw % n) + n) % n;
+    menuListEl.textContent = "";
+    items.forEach((item, i) => {
+      const row = document.createElement("div");
+      row.className = `menu-list-row${i === idx ? " selected" : ""}`;
+      row.textContent = `${i === idx ? "› " : "  "}${item.label}`;
+      menuListEl.appendChild(row);
+    });
+  }
+
+  function resultsFinishedTitle(phase: ControllerStateJson["phase"]): string {
+    switch (phase) {
+      case "kart_results":
+        return "Race finished";
+      case "race_walk_results":
+        return "Race Walk finished";
+      case "frogger_results":
+        return "Frogger finished";
+      default:
+        return "Game finished";
+    }
+  }
+
+  function renderResultsMenu(st: ControllerStateJson): void {
+    resultsHintEl.textContent = resultsFinishedTitle(st.phase);
+    const n = RESULT_LABELS.length;
+    const idx = ((st.menuIndex % n) + n) % n;
+    resultsListEl.textContent = "";
+    RESULT_LABELS.forEach((label, i) => {
+      const row = document.createElement("div");
+      row.className = `menu-list-row${i === idx ? " selected" : ""}`;
+      row.textContent = `${i === idx ? "› " : "  "}${label}`;
+      resultsListEl.appendChild(row);
+    });
+  }
+
+  function setHueUi(hue: number): void {
+    const h = ((Math.round(hue) % 360) + 360) % 360;
+    pjHue.value = String(h);
+    pjHueVal.textContent = `hue ${h}`;
+    pjColorPreview.style.background = `linear-gradient(180deg, hsl(${h} 75% 58%), hsl(${h} 75% 42%))`;
+    pjHue.style.accentColor = `hsl(${h} 75% 58%)`;
+  }
+
+  function renderPrejoin(st: ControllerStateJson): void {
+    const pj = st.prejoin;
+    if (!pj) return;
+    if (!prejoinTouched.name) pjName.value = pj.suggestedName;
+    if (!prejoinTouched.hue) setHueUi(pj.suggestedHue);
+
+    const resumables = pj.resumablePlayers ?? [];
+    const hasResumables = resumables.length > 0;
+
+    pjHint.textContent = hasResumables ? "Join game" : "";
+    pjResumeHint.textContent = hasResumables ? "Resume a disconnected player, or create a new one." : "";
+    pjCreateHint.textContent = "Create new player";
+
+    pjResumeList.textContent = "";
+    if (hasResumables) {
+      const createBtn = document.createElement("button");
+      createBtn.type = "button";
+      createBtn.className = "primary";
+      createBtn.textContent = "Create new player";
+      createBtn.addEventListener("click", () => {
+        prejoinMode = "create";
+        refreshUI();
+      });
+      pjResumeList.appendChild(createBtn);
+
+      for (const p of resumables) {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "secondary";
+        b.textContent =
+          p.secondsLeft !== undefined ? `Join as ${p.name} (${p.secondsLeft}s)` : `Join as ${p.name}`;
+        b.addEventListener("click", () => {
+          sendJson(ws, { type: "prejoin_claim", playerId: p.playerId });
+        });
+        pjResumeList.appendChild(b);
+      }
+      pjResume.hidden = false;
+      pjCreate.hidden = true;
+    } else {
+      prejoinMode = "create";
+      pjResume.hidden = true;
+      pjCreate.hidden = false;
+    }
+
+    if (prejoinMode === "create") {
+      pjResume.hidden = true;
+      pjCreate.hidden = false;
+    }
+  }
+
   function syncFroggerPanelState(st: ControllerStateJson | null): void {
     const fg = st?.frogger;
     const tick = st?.tick ?? 0;
@@ -327,18 +449,16 @@ if (!roomId) {
     syncRaceWalkPanelState(st);
     syncFroggerPanelState(st);
     hideAll();
-    if (debugPhaseEl) {
-      debugPhaseEl.hidden = false;
-      const serverPhase = st?.phase ?? "none";
-      const forced = forcedControllerPhase ?? "none";
-      const shown = forcedControllerPhase ?? serverPhase;
-      debugPhaseEl.textContent = `server: ${serverPhase}\nforced: ${forced}\nshown:  ${shown}`;
-    }
     if (!st) {
       statusEl.textContent = "Connecting…";
       return;
     }
     statusEl.textContent = "";
+    if (st.playerId === 0 && st.prejoin) {
+      panels.prejoin.hidden = false;
+      renderPrejoin(st);
+      return;
+    }
     if (st.settingsOpen) {
       syncKartSettingsFromState(st);
       panels.settings.hidden = false;
@@ -349,8 +469,7 @@ if (!roomId) {
       panels.lobby.hidden = false;
     } else if (ph === "menu") {
       panels.menu.hidden = false;
-      const cur = st.menuItems[st.menuIndex];
-      menuPreview.textContent = cur ? cur.label : "";
+      renderMinigameMenu(st);
     } else if (ph === "stub") {
       panels.stub.hidden = false;
     } else if (ph === "race_walk") {
@@ -363,19 +482,14 @@ if (!roomId) {
       panels.kartPause.hidden = false;
     } else if (ph === "kart_results" || ph === "race_walk_results" || ph === "frogger_results") {
       panels.results.hidden = false;
-      resultsPreview.textContent = RESULT_LABELS[st.menuIndex % 3] ?? "";
+      renderResultsMenu(st);
     }
   }
 
   function showMenuPanelImmediately(): void {
     hideAll();
     panels.menu.hidden = false;
-    if (ctrlState) {
-      const cur = ctrlState.menuItems[ctrlState.menuIndex];
-      menuPreview.textContent = cur ? cur.label : "Minigame menu";
-    } else {
-      menuPreview.textContent = "Minigame menu";
-    }
+    renderMinigameMenu(ctrlState);
     statusEl.textContent = "";
   }
 
@@ -443,13 +557,51 @@ if (!roomId) {
     sendAllReady();
   });
 
-  document.querySelector("#mn-up")!.addEventListener("click", () => {
+  pjName.addEventListener("input", () => {
+    prejoinTouched.name = true;
+    pjName.value = pjName.value.toUpperCase().slice(0, 4);
+  });
+  pjHue.addEventListener("input", () => {
+    prejoinTouched.hue = true;
+    setHueUi(Number(pjHue.value));
+  });
+  pjBackBtn.addEventListener("click", () => {
+    prejoinMode = "resume";
+    refreshUI();
+  });
+  pjJoinBtn.addEventListener("click", () => {
+    const name = pjName.value.toUpperCase().slice(0, 4);
+    const hue = Number(pjHue.value);
+    sendJson(ws, { type: "prejoin_create", name, hue });
+  });
+
+  /** Touch/mouse: pointerdown + optional click (keyboard Enter/Space uses click only). Debounce avoids double sends on mouse. */
+  function bindPointerTap(el: HTMLElement, fn: () => void): void {
+    let last = 0;
+    const run = () => {
+      const t = performance.now();
+      if (t - last < 120) return;
+      last = t;
+      fn();
+    };
+    el.addEventListener(
+      "pointerdown",
+      (e) => {
+        e.preventDefault();
+        run();
+      },
+      { passive: false }
+    );
+    el.addEventListener("click", () => run());
+  }
+
+  bindPointerTap(document.querySelector("#mn-up")!, () => {
     sendJson(ws, { type: "menu_nav", dir: "up" });
   });
-  document.querySelector("#mn-down")!.addEventListener("click", () => {
+  bindPointerTap(document.querySelector("#mn-down")!, () => {
     sendJson(ws, { type: "menu_nav", dir: "down" });
   });
-  document.querySelector("#mn-confirm")!.addEventListener("click", () => {
+  bindPointerTap(document.querySelector("#mn-confirm")!, () => {
     sendJson(ws, { type: "menu_confirm" });
   });
   document.querySelector("#mn-add")!.addEventListener("click", () => {
@@ -470,14 +622,46 @@ if (!roomId) {
     sendJson(ws, { type: "pause_to_menu" });
   });
 
-  document.querySelector("#rs-up")!.addEventListener("click", () => {
+  bindPointerTap(document.querySelector("#rs-up")!, () => {
     sendJson(ws, { type: "menu_nav", dir: "up" });
   });
-  document.querySelector("#rs-down")!.addEventListener("click", () => {
+  bindPointerTap(document.querySelector("#rs-down")!, () => {
     sendJson(ws, { type: "menu_nav", dir: "down" });
   });
-  document.querySelector("#rs-confirm")!.addEventListener("click", () => {
+  bindPointerTap(document.querySelector("#rs-confirm")!, () => {
     sendJson(ws, { type: "menu_confirm" });
+  });
+
+  /** Minigame menu + post-game results: physical ↑↓/Enter (no listeners existed before). */
+  window.addEventListener("keydown", (e: KeyboardEvent) => {
+    if (!ctrlState || ws.readyState !== WebSocket.OPEN) return;
+    if (ctrlState.settingsOpen) return;
+    const ph = forcedControllerPhase ?? ctrlState.phase;
+    const menuLike =
+      ph === "menu" ||
+      ph === "kart_results" ||
+      ph === "race_walk_results" ||
+      ph === "frogger_results";
+    if (!menuLike) return;
+    const el = e.target as HTMLElement | null;
+    if (el?.closest("input, textarea, select")) return;
+    if (e.repeat) return;
+
+    if (e.code === "ArrowUp") {
+      e.preventDefault();
+      sendJson(ws, { type: "menu_nav", dir: "up" });
+      return;
+    }
+    if (e.code === "ArrowDown") {
+      e.preventDefault();
+      sendJson(ws, { type: "menu_nav", dir: "down" });
+      return;
+    }
+    if (e.code === "Enter") {
+      if (el?.closest("button, a[href]")) return;
+      e.preventDefault();
+      sendJson(ws, { type: "menu_confirm" });
+    }
   });
 
   document.querySelector("#set-close")!.addEventListener("click", () => {

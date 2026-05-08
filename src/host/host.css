@@ -31,6 +31,10 @@ body {
   z-index: 2;
   text-shadow: 0 1px 2px #000a;
 }
+/* `hidden` alone loses to `#hud { display: flex }` (same specificity, author wins). */
+#hud[hidden] {
+  display: none !important;
+}
 #hud-row {
   display: flex;
   align-items: center;

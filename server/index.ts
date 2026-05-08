@@ -5,7 +5,7 @@ import http from "node:http";
 import path from "node:path";
 import { WebSocketServer, type WebSocket } from "ws";
 import { TICK_DT } from "../src/shared/constants.js";
-import { parseClientIntent } from "../src/shared/messages.js";
+import { parseClientIntent, type ControllerStateJson } from "../src/shared/messages.js";
 import { pickPlayerHue } from "../src/shared/playerColors.js";
 import {
   Btn,
@@ -52,6 +52,49 @@ type GraceEntry = {
 const rooms = new Map<string, Room>();
 const reconnectGraceByRoom = new Map<string, Map<string, GraceEntry>>();
 const clientIdByPlayerByRoom = new Map<string, Map<number, string>>();
+const prejoinControllersByRoom = new Map<string, Set<WebSocket>>();
+
+function prejoinSet(roomId: string): Set<WebSocket> {
+  let s = prejoinControllersByRoom.get(roomId);
+  if (!s) {
+    s = new Set<WebSocket>();
+    prejoinControllersByRoom.set(roomId, s);
+  }
+  return s;
+}
+
+function sanitizePlayerName(raw: string, fallback: string): string {
+  const s = (raw || "").trim().toUpperCase().slice(0, 4);
+  return s ? s : fallback;
+}
+
+function buildPrejoinState(room: Room): ControllerStateJson {
+  const connectedIds = new Set<number>(room.controllers.values());
+  const resumablePlayers = [...room.players.values()]
+    .filter((p) => !connectedIds.has(p.id))
+    .map((p) => ({ playerId: p.id, name: p.name ?? `P${p.id}`, hue: p.hue }))
+    .sort((a, b) => a.playerId - b.playerId);
+
+  const suggestedName = `P${room.nextPlayerId}`;
+  const existingHues = [...room.players.values()].map((p) => p.hue);
+  const suggestedHue = pickPlayerHue(existingHues);
+
+  return {
+    type: "controller_state",
+    tick: room.tick,
+    phase: room.phase,
+    playerId: 0,
+    prejoin: { suggestedName, suggestedHue, resumablePlayers },
+    menuIndex: room.menuIndex,
+    menuItems: [],
+    settingsOpen: room.settingsOpen,
+    gameSettings: { ...room.gameSettings },
+    stubId: room.stubId,
+    kart: null,
+    raceWalk: null,
+    frogger: null,
+  };
+}
 
 function setTcpNoDelay(ws: WebSocket): void {
   const sock = (ws as unknown as { _socket?: { setNoDelay?: (v: boolean) => void } })._socket;
@@ -163,6 +206,19 @@ export function broadcastRoom(roomId: string): void {
       /* ignore */
     }
   }
+
+  const pre = prejoinControllersByRoom.get(roomId);
+  if (pre && pre.size > 0) {
+    const st = JSON.stringify(buildPrejoinState(room));
+    for (const ws of pre) {
+      if (ws.readyState !== 1) continue;
+      try {
+        ws.send(st);
+      } catch {
+        /* ignore */
+      }
+    }
+  }
 }
 
 function gameLoop(): void {
@@ -176,7 +232,7 @@ function gameLoop(): void {
 
 function handleTextMessage(ws: WebSocket, raw: string): void {
   const att = getAttached(ws);
-  if (!att || att.role !== "controller" || att.playerId === undefined) return;
+  if (!att || att.role !== "controller") return;
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
@@ -187,6 +243,45 @@ function handleTextMessage(ws: WebSocket, raw: string): void {
   if (!intent) return;
   const room = rooms.get(att.roomId);
   if (!room) return;
+
+  if (att.playerId === undefined) {
+    // Pre-join flow.
+    if (intent.type === "prejoin_create") {
+      const playerId = room.nextPlayerId++;
+      const spawnX = 80 + (playerId - 1) * 72;
+      const spawnY = 200;
+      const hue = Math.max(0, Math.min(359, Math.round(intent.hue)));
+      const sim = createPlayer(playerId, spawnX, spawnY, hue);
+      sim.name = sanitizePlayerName(intent.name, `P${playerId}`);
+      room.players.set(playerId, sim);
+      room.controllers.set(ws, playerId);
+      prejoinSet(att.roomId).delete(ws);
+      setAttached(ws, { role: "controller", roomId: att.roomId, playerId });
+      const wsCid = getClientId(ws);
+      if (wsCid) clientMap(att.roomId).set(playerId, wsCid);
+      ensureKartCar(room, playerId);
+      ws.send(encodeWelcome(playerId, att.roomId));
+      broadcastRoom(att.roomId);
+    } else if (intent.type === "prejoin_claim") {
+      const pid = intent.playerId;
+      const pl = room.players.get(pid);
+      if (!pl) return;
+      // Only allow claiming players that are currently disconnected (no controller WS attached).
+      const connectedIds = new Set<number>(room.controllers.values());
+      if (connectedIds.has(pid)) return;
+
+      room.controllers.set(ws, pid);
+      prejoinSet(att.roomId).delete(ws);
+      setAttached(ws, { role: "controller", roomId: att.roomId, playerId: pid });
+      const wsCid = getClientId(ws);
+      if (wsCid) clientMap(att.roomId).set(pid, wsCid);
+      ensureKartCar(room, pid);
+      ws.send(encodeWelcome(pid, att.roomId));
+      broadcastRoom(att.roomId);
+    }
+    return;
+  }
+
   applyIntent(room, att.playerId, intent);
   broadcastRoom(att.roomId);
 }
@@ -261,18 +356,15 @@ function handleBinaryMessage(ws: WebSocket, data: Buffer): void {
       }
     }
 
-    const playerId = room.nextPlayerId++;
-    const spawnX = 80 + (playerId - 1) * 72;
-    const spawnY = 200;
-    const existingHues = [...room.players.values()].map((p) => p.hue);
-    const hue = pickPlayerHue(existingHues);
-    const sim = createPlayer(playerId, spawnX, spawnY, hue);
-    room.players.set(playerId, sim);
-    room.controllers.set(ws, playerId);
-    setAttached(ws, { role: "controller", roomId, playerId });
-    if (wsCid) clientMap(roomId).set(playerId, wsCid);
-    ensureKartCar(room, playerId);
-    ws.send(encodeWelcome(playerId, roomId));
+    // Controller pre-join: choose to resume a disconnected player or create a new player.
+    setAttached(ws, { role: "controller", roomId });
+    prejoinSet(roomId).add(ws);
+    ws.send(encodeWelcome(0, roomId));
+    try {
+      ws.send(JSON.stringify(buildPrejoinState(room)));
+    } catch {
+      /* ignore */
+    }
     broadcastRoom(roomId);
     return;
   }
@@ -426,10 +518,18 @@ wss.on("connection", (ws, req) => {
         if (!cur || cur.playerId !== pid) return;
         graceMap(att.roomId).delete(cid);
         clientMap(att.roomId).delete(pid);
-        removePlayerFromRoom(r, pid);
         broadcastRoom(att.roomId);
       }, CONTROLLER_GRACE_MS);
       gm.set(cid, { playerId: pid, expiresAt, timeout });
+      broadcastRoom(att.roomId);
+    }
+
+    if (att.role === "controller" && att.playerId === undefined) {
+      const s = prejoinControllersByRoom.get(att.roomId);
+      if (s) {
+        s.delete(ws);
+        if (s.size === 0) prejoinControllersByRoom.delete(att.roomId);
+      }
       broadcastRoom(att.roomId);
     }
   });

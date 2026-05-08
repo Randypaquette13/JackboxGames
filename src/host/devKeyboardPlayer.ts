@@ -21,6 +21,7 @@ type Slot = {
   ws: WebSocket;
   seq: number;
   playerId: number | null;
+  didPrejoin: boolean;
 };
 
 export type DevHostSnapshot = {
@@ -39,7 +40,7 @@ function devHintForScreen(ph: GamePhase, snap: DevHostSnapshot): string {
   }
   switch (ph) {
     case "lobby":
-      return "A/D or ←/→: move · Space/W/↑: jump · R or All ready · Tab: target player";
+      return "A/D or ←/→: move · Space/W/↑: jump · Enter/R or All ready · Tab: target player";
     case "menu":
       return "↑↓: navigate · Enter: confirm · F2: Back to lobby · F3: Game settings · Tab: target";
     case "stub":
@@ -241,7 +242,7 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
             return;
           }
         }
-        if (ph === "lobby" && e.code === "KeyR") {
+        if (ph === "lobby" && (e.code === "KeyR" || e.code === "Enter")) {
           e.preventDefault();
           sendIntent(ws, { type: "all_ready" });
           return;
@@ -453,10 +454,26 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
     });
 
     ws.addEventListener("message", (ev) => {
+      if (typeof ev.data === "string") {
+        // Pre-join controller_state: auto-create a player using the server's suggested defaults.
+        try {
+          const st = JSON.parse(ev.data) as { type?: string; playerId?: number; prejoin?: { suggestedName: string; suggestedHue: number } };
+          if (st.type === "controller_state" && st.playerId === 0 && st.prejoin && !slot.didPrejoin) {
+            slot.didPrejoin = true;
+            sendIntent(ws, { type: "prejoin_create", name: st.prejoin.suggestedName, hue: st.prejoin.suggestedHue });
+          }
+        } catch {
+          /* ignore */
+        }
+        return;
+      }
+
       const data = ev.data as ArrayBuffer;
       if (new DataView(data).getUint8(0) !== Op.ServerWelcome) return;
       try {
         const { playerId } = parseWelcome(data);
+        // Ignore the initial welcome(0) for pre-join.
+        if (playerId === 0) return;
         slot.playerId = playerId;
         if (activePlayerId === null) activePlayerId = playerId;
         syncSelectOptions();
@@ -480,7 +497,7 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
 
   function addController(): void {
     const ws = new WebSocket(url);
-    const slot: Slot = { ws, seq: 0, playerId: null };
+    const slot: Slot = { ws, seq: 0, playerId: null, didPrejoin: false };
     slots.push(slot);
     attachControllerSocket(ws, slot);
     syncSelectOptions();
