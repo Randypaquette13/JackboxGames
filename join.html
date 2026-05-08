@@ -66,18 +66,22 @@
     </div>
 
     <div id="panel-race-walk" class="panel" hidden>
-      <p class="hint">Race Walk</p>
-      <p id="rw-status" class="rw-status" hidden></p>
-      <div class="dpad">
-        <button type="button" id="rw-walk" class="pad" aria-label="Walk">Walk</button>
-        <button type="button" id="rw-run" class="pad" aria-label="Run">Run</button>
-      </div>
-      <div class="menu-nav">
-        <button type="button" id="rw-aim-up" class="pad sm" aria-label="Aim up">▲</button>
-        <button type="button" id="rw-aim-down" class="pad sm" aria-label="Aim down">▼</button>
-      </div>
-      <button type="button" id="rw-fire" class="jump">Fire</button>
       <button type="button" id="rw-pause" class="secondary small-pause">Pause</button>
+      <p class="hint">Race Walk</p>
+      <div class="rw-fire-row">
+        <button type="button" id="rw-fire" class="jump rw-fire-main" aria-label="Fire">Fire</button>
+      </div>
+      <p id="rw-status" class="rw-status" hidden></p>
+      <div class="rw-main-controls">
+        <div class="rw-stack rw-stack-left">
+          <button type="button" id="rw-walk" class="pad" aria-label="Walk">Walk</button>
+          <button type="button" id="rw-run" class="pad" aria-label="Run">Run</button>
+        </div>
+        <div class="rw-stack rw-stack-right">
+          <button type="button" id="rw-aim-up" class="pad sm" aria-label="Aim up">▲</button>
+          <button type="button" id="rw-aim-down" class="pad sm" aria-label="Aim down">▼</button>
+        </div>
+      </div>
     </div>
 
     <div id="panel-frogger" class="panel" hidden>

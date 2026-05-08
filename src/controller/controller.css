@@ -12,6 +12,25 @@ body {
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
+  -moz-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+/**
+ * Buttons still get label selection / gray highlights on double-tap on some mobile browsers.
+ * Override UA defaults; keep name field selectable below.
+ */
+button {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+}
+input.pj-name {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
 }
 #status {
   padding: 16px;
@@ -60,6 +79,20 @@ body {
 #panel-kart .kart-steer {
   flex-shrink: 0;
   width: 100%;
+}
+#panel-kart .kart-steer .dpad {
+  gap: 20px;
+}
+#panel-kart .kart-steer .pad {
+  flex: 1;
+  min-height: clamp(168px, 36vmin, 300px);
+  font-size: clamp(2.75rem, 12vmin, 4.25rem);
+  font-weight: 800;
+  border-radius: 20px;
+  box-shadow: 0 8px 0 #151520, 0 12px 28px #0007;
+}
+#panel-kart .kart-steer .pad:active {
+  box-shadow: 0 3px 0 #151520, 0 6px 14px #0005;
 }
 .panel[hidden] {
   display: none !important;
@@ -135,6 +168,63 @@ body {
   background: rgba(120, 34, 34, 0.35);
   color: #ffd8d8;
   font-weight: 700;
+}
+/* Race Walk: pause top, centered fire, walk/run left stack, aim arrows right stack */
+#panel-race-walk.panel {
+  justify-content: flex-start;
+  padding-top: max(16px, env(safe-area-inset-top));
+}
+#panel-race-walk #rw-pause.small-pause {
+  width: 100%;
+  max-width: none;
+  margin-inline: 0;
+  touch-action: manipulation;
+}
+#panel-race-walk .rw-fire-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  margin: 14px 0 10px;
+}
+#panel-race-walk .rw-fire-main.jump {
+  width: min(92%, 340px);
+  margin: 0 auto;
+  touch-action: manipulation;
+}
+#panel-race-walk .hint {
+  margin-bottom: 6px;
+}
+#panel-race-walk .rw-main-controls {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: stretch;
+  gap: clamp(12px, 4vw, 24px);
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 140px;
+  margin-top: 8px;
+}
+#panel-race-walk .rw-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  flex: 1;
+  min-width: 0;
+  max-width: calc(50% - 8px);
+}
+#panel-race-walk .rw-stack .pad {
+  flex: 1 1 auto;
+  min-height: 104px;
+}
+#panel-race-walk .rw-stack-right .pad.sm {
+  flex: 1 1 auto;
+  min-height: 104px;
+  max-width: none;
+  width: 100%;
+  font-size: 2rem;
+  font-weight: 800;
 }
 .frogger-death-banner {
   text-align: center;

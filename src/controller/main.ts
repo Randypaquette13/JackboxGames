@@ -575,24 +575,28 @@ if (!roomId) {
     sendJson(ws, { type: "prejoin_create", name, hue });
   });
 
-  /** Touch/mouse: pointerdown + optional click (keyboard Enter/Space uses click only). Debounce avoids double sends on mouse. */
+  /**
+   * Menu arrow / confirm pads: fire once on press only (pointerdown).
+   * Do not also listen to click — it fires after release and doubles navigation on touch/mouse.
+   * Keyboard: Space/Enter on focused button (window Enter skips focused buttons for confirm).
+   */
   function bindPointerTap(el: HTMLElement, fn: () => void): void {
-    let last = 0;
-    const run = () => {
-      const t = performance.now();
-      if (t - last < 120) return;
-      last = t;
-      fn();
-    };
     el.addEventListener(
       "pointerdown",
       (e) => {
+        if (e.button !== 0 && e.button !== -1) return;
         e.preventDefault();
-        run();
+        fn();
       },
       { passive: false }
     );
-    el.addEventListener("click", () => run());
+    el.addEventListener("keydown", (e: KeyboardEvent) => {
+      if (e.repeat) return;
+      if (e.code === "Space" || e.code === "Enter") {
+        e.preventDefault();
+        fn();
+      }
+    });
   }
 
   bindPointerTap(document.querySelector("#mn-up")!, () => {

@@ -37,10 +37,11 @@ export const FROGGER_OBSTACLE_CHANCE = 0.35;
 /** Street car spawn cadence ramps up as bands increase. */
 export const FROGGER_CAR_SPAWN_INTERVAL_START_SEC = 6.4;
 export const FROGGER_CAR_SPAWN_INTERVAL_END_SEC = 2.8;
-export const FROGGER_CAR_SPAWN_RAMP_BANDS = 58;
+export const FROGGER_CAR_SPAWN_RAMP_BANDS = 64;
 export const FROGGER_CAR_SPEED_MIN = 50;
 export const FROGGER_CAR_SPEED_MAX = 130;
-export const FROGGER_FAST_CAR_AFTER_BANDS = 8;
+/** Red (fast) street cars: server rolls these only while `froggerBandsGenerated >` this value (first eligible band is the 25th). */
+export const FROGGER_FAST_CAR_AFTER_BANDS = 24;
 export const FROGGER_FAST_CAR_CHANCE = 0.12;
 export const FROGGER_FAST_CAR_MULT = 2.35;
 

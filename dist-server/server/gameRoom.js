@@ -3,7 +3,7 @@ import { TICK_RATE, WORLD_H, WORLD_W } from "../src/shared/constants.js";
 import { clampKartForwardSpeed, resolveKartForwardSpeed } from "../src/shared/kartSettings.js";
 import { fallbackPlayerHue } from "../src/shared/playerColors.js";
 import { FROGGER_CAR_SPEED_MAX, FROGGER_CAR_SPEED_MIN, FROGGER_COUNTDOWN_SEC, FROGGER_DEATH_NOTICE_TICKS, FROGGER_DISTANCE_UNIT, FROGGER_FAST_CAR_AFTER_BANDS, FROGGER_FAST_CAR_CHANCE, FROGGER_FAST_CAR_MULT, FROGGER_FROG_SIZE, FROGGER_KILL_MARGIN, FROGGER_LILY_W, FROGGER_LOG_W_MAX, FROGGER_LOG_W_MIN, FROGGER_LATERAL_SPEED, FROGGER_MOVE_COOLDOWN, FROGGER_OBSTACLE_AFTER_BANDS, FROGGER_OBSTACLE_CHANCE, FROGGER_PLATFORM_GAP, FROGGER_PLATFORM_SPEED_MAX, FROGGER_PLATFORM_SPEED_MIN, FROGGER_PLATFORM_SPAWN_INTERVAL_SEC, FROGGER_ROW_H, FROGGER_SCROLL_BASE, FROGGER_SCROLL_DELAY_SEC, FROGGER_SCROLL_MAX, FROGGER_SCROLL_RAMP, FROGGER_START_GRASS_ROWS, froggerClampX, froggerCarSpawnIntervalSec, pickFroggerSectionKind, } from "../src/shared/froggerSettings.js";
-import { RACE_WALK_FINISH_X, RACE_WALK_LANES, RACE_WALK_START_X } from "../src/shared/raceWalk.js";
+import { RACE_WALK_FINISH_X, RACE_WALK_LANES, RACE_WALK_NPC_RUN_SPEED, RACE_WALK_NPC_STOP_DURATION_MIN, RACE_WALK_NPC_STOP_DURATION_RANDOM, RACE_WALK_NPC_WALK_BURST_MIN, RACE_WALK_NPC_WALK_BURST_RANDOM, RACE_WALK_RUN_SPEED, RACE_WALK_START_X, RACE_WALK_WALK_SPEED, } from "../src/shared/raceWalk.js";
 import { Btn } from "../src/shared/protocol.js";
 import { chooseCrossingModeByHeading, constrainToCrossingLane, KART_SPEED_MIN, KART_SPEED_RECOVER, KART_TURN_SPEED, KART_WALL_IMPACT_FRICTION, KART_WALL_SCRAPE_FRICTION, checkFinishLineCross, clampToRing, finishLineSegment, getBridgePolygon, getInnerIslands, getOuterWall, getUnderpassPolygon, isInsideCrossing, normalIntoTrack, spawnPosition, wallScrapeAndImpact, wallViolated, } from "../src/shared/kartTrack.js";
 import { stepPlayer } from "./game.js";
@@ -13,10 +13,6 @@ export const LAPS_TO_WIN = 3;
 export const KART_COUNTDOWN_SEC = 3;
 export { RACE_WALK_LANES } from "../src/shared/raceWalk.js";
 export const RACE_WALK_COUNTDOWN_SEC = KART_COUNTDOWN_SEC;
-/** Shared walk speed for humans (walk button) and NPCs in walk segments */
-const RACE_WALK_WALK_SPEED = 32;
-/** Shared run speed for humans (run button) and NPCs when allowed to run */
-const RACE_WALK_RUN_SPEED = 82;
 const KART_DRIFT_BASE_GRIP = 6.4;
 const KART_DRIFT_TURN_LOSS = 1.2;
 export function createRoom(host, platforms) {
@@ -393,14 +389,19 @@ export function resetRaceWalk(room) {
         const r = room.raceWalkRunners[lane];
         if (r?.controllerId === null) {
             const startWalk = Math.random() < 0.26;
+            const firstWait = true;
+            const firstWalkBurst = true;
             return {
                 mode: (startWalk ? "walk" : "stop"),
                 timer: startWalk
-                    ? 0.3 + Math.random() * 1.2
-                    : 0.9 + Math.random() * 2.9,
+                    ? RACE_WALK_NPC_WALK_BURST_MIN + Math.random() * (RACE_WALK_NPC_WALK_BURST_RANDOM * 0.5)
+                    : RACE_WALK_NPC_STOP_DURATION_MIN +
+                        Math.random() * (RACE_WALK_NPC_STOP_DURATION_RANDOM * 1.5),
+                firstWait,
+                firstWalkBurst: startWalk ? false : firstWalkBurst,
             };
         }
-        return { mode: "stop", timer: 9999 };
+        return { mode: "stop", timer: 9999, firstWait: false, firstWalkBurst: false };
     });
 }
 export function startRaceWalkFromMenu(room) {
@@ -494,15 +495,25 @@ function tickRaceWalk(room, dt) {
                 if (ai.timer <= 0) {
                     if (ai.mode === "walk") {
                         ai.mode = "stop";
-                        ai.timer = 0.9 + Math.random() * 3.0;
+                        const ammoScale = npcsMayRun ? 0.25 : 1.0;
+                        const firstScale = ai.firstWait ? 1.5 : 1.0;
+                        const stopMin = RACE_WALK_NPC_STOP_DURATION_MIN * ammoScale;
+                        const stopRand = RACE_WALK_NPC_STOP_DURATION_RANDOM * ammoScale * firstScale;
+                        ai.timer = stopMin + Math.random() * stopRand;
+                        ai.firstWait = false;
                     }
                     else {
                         ai.mode = "walk";
-                        ai.timer = 0.25 + Math.random() * 1.75;
+                        const walkRand = ai.firstWalkBurst
+                            ? RACE_WALK_NPC_WALK_BURST_RANDOM * 0.5
+                            : RACE_WALK_NPC_WALK_BURST_RANDOM;
+                        ai.timer = RACE_WALK_NPC_WALK_BURST_MIN + Math.random() * walkRand;
+                        ai.firstWalkBurst = false;
+                        ai.firstWait = false;
                     }
                 }
                 if (ai.mode === "walk") {
-                    speed = npcsMayRun ? RACE_WALK_RUN_SPEED : RACE_WALK_WALK_SPEED;
+                    speed = npcsMayRun ? RACE_WALK_NPC_RUN_SPEED : RACE_WALK_WALK_SPEED;
                 }
             }
         }
