@@ -7,6 +7,8 @@ import { WebSocketServer, type WebSocket } from "ws";
 import { TICK_DT } from "../src/shared/constants.js";
 import { parseClientIntent, type ControllerStateJson } from "../src/shared/messages.js";
 import { pickPlayerHue } from "../src/shared/playerColors.js";
+import { FOOTBALL_MAX_PLAYER_SPEED } from "../src/shared/footballSettings.js";
+import { packedAxisToVelocity } from "../src/shared/footballPackedInput.js";
 import {
   Btn,
   encodeError,
@@ -23,6 +25,7 @@ import {
   buildHostState,
   createRoom,
   ensureKartCar,
+  handleFootballPauseEdge,
   handleFroggerPauseEdge,
   handleKartPauseEdge,
   handleRaceWalkPauseEdge,
@@ -87,12 +90,14 @@ function buildPrejoinState(room: Room): ControllerStateJson {
     prejoin: { suggestedName, suggestedHue, resumablePlayers },
     menuIndex: room.menuIndex,
     menuItems: [],
+    menuHelpOpen: false,
     settingsOpen: room.settingsOpen,
     gameSettings: { ...room.gameSettings },
     stubId: room.stubId,
     kart: null,
     raceWalk: null,
     frogger: null,
+    football: null,
   };
 }
 
@@ -141,12 +146,19 @@ function removePlayerFromRoom(room: Room, playerId: number): void {
   room.raceWalkShooters.delete(playerId);
   room.froggerFrogs.delete(playerId);
   room.froggerDeathNotices.delete(playerId);
+  room.footballTeamPick.delete(playerId);
+  room.footballTeamAssignment.delete(playerId);
+  room.footballAthletes.delete(playerId);
+  if (room.footballBall.carrierId === playerId) {
+    room.footballBall.carrierId = null;
+  }
   for (const runner of room.raceWalkRunners) {
     if (runner.controllerId === playerId) runner.controllerId = null;
   }
   if (room.kartPausedByPlayerId === playerId) room.kartPausedByPlayerId = null;
   if (room.raceWalkPausedByPlayerId === playerId) room.raceWalkPausedByPlayerId = null;
   if (room.froggerPausedByPlayerId === playerId) room.froggerPausedByPlayerId = null;
+  if (room.footballPausedByPlayerId === playerId) room.footballPausedByPlayerId = null;
 }
 
 function destroyRoom(roomId: string): void {
@@ -395,7 +407,13 @@ function handleBinaryMessage(ws: WebSocket, data: Buffer): void {
       } catch {
         return;
       }
-      player.input = { h: inp.h, buttons: inp.buttons, seq: inp.seq };
+      const axisU8 = new DataView(buf).getUint8(5);
+      if (room.phase === "football" || room.phase === "football_paused") {
+        const { vx, vy } = packedAxisToVelocity(axisU8, FOOTBALL_MAX_PLAYER_SPEED);
+        player.input = { h: 0, buttons: inp.buttons, seq: inp.seq, footballVx: vx, footballVy: vy };
+      } else {
+        player.input = { h: inp.h, buttons: inp.buttons, seq: inp.seq };
+      }
       const car = room.kartCars.get(att.playerId);
       if (car && (room.phase === "kart" || room.phase === "kart_paused")) {
         const pauseHeld = (inp.buttons & Btn.Pause) !== 0;
@@ -410,6 +428,11 @@ function handleBinaryMessage(ws: WebSocket, data: Buffer): void {
       if (fgFrog && (room.phase === "frogger" || room.phase === "frogger_paused")) {
         const pauseHeld = (inp.buttons & Btn.Pause) !== 0;
         handleFroggerPauseEdge(room, att.playerId, fgFrog, pauseHeld);
+      }
+      const fbAth = room.footballAthletes.get(att.playerId);
+      if (fbAth && (room.phase === "football" || room.phase === "football_paused")) {
+        const pauseHeld = (inp.buttons & Btn.Pause) !== 0;
+        handleFootballPauseEdge(room, att.playerId, fbAth, pauseHeld);
       }
       return;
     }

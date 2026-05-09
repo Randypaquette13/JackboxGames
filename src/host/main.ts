@@ -1,7 +1,8 @@
 import QRCode from "qrcode";
 import { PLAYER_H, PLAYER_W, WORLD_H, WORLD_W } from "@shared/constants";
-import type { GamePhase, HostStateJson } from "@shared/messages";
-import { MINIGAME_LABELS } from "@shared/messages";
+import type { GamePhase, HostStateJson, MinigameId } from "@shared/messages";
+import { MINIGAME_IDS, MINIGAME_LABELS } from "@shared/messages";
+import { MINIGAME_HELP } from "@shared/minigameHelp";
 import { fallbackPlayerHue } from "@shared/playerColors";
 import { resolveKartForwardSpeed } from "@shared/kartSettings";
 import { PLATFORMS } from "@shared/level";
@@ -17,6 +18,7 @@ import {
 import { drawKart } from "./renderKart";
 import { drawFrogger } from "./renderFrogger";
 import { drawRaceWalk } from "./renderRaceWalk";
+import { drawFootball } from "./renderFootball";
 
 function publicBaseUrl(): string {
   const raw = import.meta.env.VITE_PUBLIC_BASE_URL?.trim() || window.location.origin;
@@ -65,9 +67,21 @@ if (!enableDevControllers) {
   if (devDock) devDock.hidden = false;
 }
 
+function isMinigamePausedPhase(phase: GamePhase): boolean {
+  return (
+    phase === "kart_paused" ||
+    phase === "race_walk_paused" ||
+    phase === "frogger_paused" ||
+    phase === "football_paused"
+  );
+}
+
 function updateQrVisibility(): void {
   if (!hostState) return;
-  qrWrap.hidden = !hostState.showQr;
+  const paused = isMinigamePausedPhase(hostState.phase);
+  const visible = hostState.showQr || paused;
+  qrWrap.hidden = !visible;
+  qrWrap.classList.toggle("qr-wrap-pause", visible && paused);
 }
 
 function drawLobby(w: number, h: number, scale: number, ox: number, oy: number): void {
@@ -95,8 +109,79 @@ function drawLobby(w: number, h: number, scale: number, ox: number, oy: number):
   ctx.restore();
 }
 
+function wrapUiLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let line = "";
+  for (const word of words) {
+    const test = line ? `${line} ${word}` : word;
+    if (ctx.measureText(test).width <= maxWidth) line = test;
+    else {
+      if (line) lines.push(line);
+      line = word;
+    }
+  }
+  if (line) lines.push(line);
+  return lines.length ? lines : [""];
+}
+
+function drawMinigameMenuHelp(w: number, h: number): void {
+  if (!hostState) return;
+  const pad = Math.max(28, Math.floor(w * 0.06));
+  const maxTextW = w - pad * 2;
+  const n = MINIGAME_IDS.length;
+  const idx = n <= 0 ? 0 : ((hostState.menuIndex % n) + n) % n;
+  const id = MINIGAME_IDS[idx] as MinigameId;
+  const copy = MINIGAME_HELP[id];
+
+  ctx.fillStyle = "rgba(0,0,0,0.82)";
+  ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = "#e8e8f0";
+  ctx.textAlign = "center";
+  ctx.font = `bold ${Math.max(26, Math.min(42, Math.floor(h * 0.048)))}px system-ui,sans-serif`;
+  ctx.fillText(`${MINIGAME_LABELS[id]} — How to play`, w / 2, Math.max(72, Math.floor(h * 0.12)));
+
+  let y = Math.max(112, Math.floor(h * 0.2));
+  const bodyFont = `${Math.max(15, Math.min(19, Math.floor(h * 0.024)))}px system-ui,sans-serif`;
+  const sectionFont = `bold ${Math.max(17, Math.min(22, Math.floor(h * 0.026)))}px system-ui,sans-serif`;
+  const lineGap = Math.max(20, Math.floor(h * 0.028));
+  const footerH = 52;
+
+  ctx.textAlign = "left";
+  const flushSection = (title: string, bullets: string[]) => {
+    ctx.font = sectionFont;
+    ctx.fillStyle = "#d8c8ff";
+    ctx.fillText(title, pad, y);
+    y += lineGap + 4;
+    ctx.font = bodyFont;
+    ctx.fillStyle = "#dce0ec";
+    for (const b of bullets) {
+      const wrapped = wrapUiLines(ctx, `• ${b}`, maxTextW - 12);
+      for (const ln of wrapped) {
+        if (y > h - footerH - lineGap) return;
+        ctx.fillText(ln, pad + 6, y);
+        y += lineGap;
+      }
+      y += 4;
+    }
+    y += 8;
+  };
+
+  flushSection("Rules", copy.rules);
+  if (y <= h - footerH - lineGap * 3) flushSection("Controls (phone)", copy.controls);
+
+  ctx.textAlign = "center";
+  ctx.font = "16px system-ui,sans-serif";
+  ctx.fillStyle = "#889";
+  ctx.fillText("↑↓ switch game · OK or Back closes this screen", w / 2, h - 28);
+}
+
 function drawMenu(w: number, h: number): void {
   if (!hostState) return;
+  if (hostState.menuHelpOpen) {
+    drawMinigameMenuHelp(w, h);
+    return;
+  }
   ctx.fillStyle = "rgba(0,0,0,0.75)";
   ctx.fillRect(0, 0, w, h);
   ctx.fillStyle = "#e8e8f0";
@@ -117,7 +202,11 @@ function drawMenu(w: number, h: number): void {
   });
   ctx.font = "18px system-ui,sans-serif";
   ctx.fillStyle = "#888";
-  ctx.fillText("↑↓ navigate · OK select · Back to lobby / Settings on controller", w / 2, h - 48);
+  ctx.fillText(
+    "↑↓ navigate · OK select · How to play on controller · Lobby / Settings on controller",
+    w / 2,
+    h - 48
+  );
 }
 
 function drawStub(w: number, h: number): void {
@@ -159,6 +248,8 @@ function drawResultsMenu(w: number, h: number): void {
     title = "Race Walk finished — choose on controller:";
   } else if (hostState.phase === "frogger_results" && hostState.frogger) {
     title = "Frogger finished — choose on controller:";
+  } else if (hostState.phase === "football_results" && hostState.football) {
+    title = "Football finished — choose on controller:";
   } else {
     return;
   }
@@ -228,14 +319,25 @@ function draw(): void {
   } else if (phase === "frogger" || phase === "frogger_paused" || phase === "frogger_results") {
     if (hostState) drawFrogger(ctx, hostState, w, h, scale, ox, oy);
     drawResultsMenu(w, h);
+  } else if (
+    phase === "football_team_select" ||
+    phase === "football_summary" ||
+    phase === "football" ||
+    phase === "football_paused" ||
+    phase === "football_results"
+  ) {
+    if (hostState) drawFootball(ctx, hostState, w, h, scale, ox, oy);
+    drawResultsMenu(w, h);
   }
 
   drawSettingsOverlay(w, h);
   drawReconnectOverlay(w);
 
   const lobbyHud = phase === "lobby";
-  hudEl.hidden = !lobbyHud;
-  if (lobbyHud) {
+  const pausedMinigameHud = isMinigamePausedPhase(phase);
+  /** Keep HUD mounted during paused minigames so #qr-wrap (inside #hud) can show join QR. */
+  hudEl.hidden = !(lobbyHud || pausedMinigameHud);
+  if (lobbyHud || pausedMinigameHud) {
     tickEl.textContent = hostState ? `tick ${hostState.tick}` : "…";
     rttEl.textContent = rttMs > 0 ? `RTT ${rttMs.toFixed(0)} ms` : "";
   }

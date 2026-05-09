@@ -24,6 +24,8 @@ export const Btn = {
     Run: 1 << 5,
     /** Kart: short speed boost (limited uses per race); ignored outside kart */
     Boost: 1 << 6,
+    /** Football: pass while carrying (direction from movement); ignored outside football play */
+    Pass: 1 << 7,
 };
 export function encodeJoin(role, roomId) {
     const room = new TextEncoder().encode(roomId);
@@ -45,6 +47,16 @@ export function encodeInput(seq, horizontal, buttons) {
     v.setUint8(0, Op.ClientInput);
     v.setUint32(1, seq >>> 0, true);
     v.setInt8(5, h);
+    v.setUint8(6, buttons & 0xff);
+    return buf;
+}
+/** Football: byte 5 is uint8 packed direction (6-bit) + magnitude (2-bit). Same 7-byte packet. */
+export function encodeFootballAxis(seq, axisPacked, buttons) {
+    const buf = new ArrayBuffer(7);
+    const v = new DataView(buf);
+    v.setUint8(0, Op.ClientInput);
+    v.setUint32(1, seq >>> 0, true);
+    v.setUint8(5, axisPacked & 0xff);
     v.setUint8(6, buttons & 0xff);
     return buf;
 }

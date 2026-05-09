@@ -154,7 +154,13 @@ export function drawFrogger(
     ctx.fillStyle = "rgba(8, 10, 14, 0.34)";
     ctx.fillRect(0, 0, canvasW, canvasH);
     const pausedBy = fg.pausedByPlayerId;
-    const byText = pausedBy !== null ? `Player ${pausedBy} paused the game` : "Paused";
+    const nameById = new Map<number, string>();
+    for (const p of state.lobbyPlayers ?? []) {
+      const label = p.name?.trim() ? p.name.trim() : `P${p.playerId}`;
+      nameById.set(p.playerId, label);
+    }
+    const byText =
+      pausedBy !== null ? `${nameById.get(pausedBy) ?? `P${pausedBy}`} paused the game` : "Paused";
     ctx.save();
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";

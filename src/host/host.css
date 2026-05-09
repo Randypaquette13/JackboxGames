@@ -159,6 +159,16 @@ body {
   border-radius: 8px;
   box-shadow: 0 4px 24px #0006;
 }
+/** Pause overlay: tuck QR bottom-right so new players can join without blocking gameplay UI */
+#qr-wrap.qr-wrap-pause {
+  position: fixed;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  right: max(16px, env(safe-area-inset-right));
+  top: auto;
+  left: auto;
+  z-index: 12;
+  margin: 0;
+}
 #qr {
   display: block;
   width: 140px;

@@ -180,8 +180,12 @@ export function drawRaceWalk(
 
     const pausedBy = rw.pausedByPlayerId;
     const nameById2 = new Map<number, string>();
-    for (const p of state.lobbyPlayers ?? []) nameById2.set(p.playerId, p.name);
-    const byText = pausedBy !== null ? `${nameById2.get(pausedBy) ?? `P${pausedBy}`} paused the game` : "Paused";
+    for (const p of state.lobbyPlayers ?? []) {
+      const label = p.name?.trim() ? p.name.trim() : `P${p.playerId}`;
+      nameById2.set(p.playerId, label);
+    }
+    const byText =
+      pausedBy !== null ? `${nameById2.get(pausedBy) ?? `P${pausedBy}`} paused the game` : "Paused";
     ctx.save();
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";

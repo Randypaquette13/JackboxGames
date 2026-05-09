@@ -7,6 +7,7 @@
  * Kart: A/D steer, B = boost, P or Esc = pause edge.
  * Race Walk: J/L walk-run, I/K aim, F fire.
  * Frogger: WASD or arrows move, P/Esc pause.
+ * Football team select: 1 Red / 2 Blue, Enter START. Play: WASD or arrows move, E pass while carrying, P/Esc pause edge.
  */
 import type { ClientIntent, GamePhase } from "@shared/messages";
 import {
@@ -15,7 +16,8 @@ import {
   KART_FORWARD_SPEED_MIN,
   resolveKartForwardSpeed,
 } from "@shared/kartSettings";
-import { Btn, encodeInput, encodeJoin, Op, parseWelcome } from "@shared/protocol";
+import { joystickToPackedFootballAxis } from "@shared/footballPackedInput";
+import { Btn, encodeFootballAxis, encodeInput, encodeJoin, Op, parseWelcome } from "@shared/protocol";
 
 type Slot = {
   ws: WebSocket;
@@ -42,7 +44,7 @@ function devHintForScreen(ph: GamePhase, snap: DevHostSnapshot): string {
     case "lobby":
       return "A/D or ←/→: move · Space/W/↑: jump · Enter/R or All ready · Tab: target player";
     case "menu":
-      return "↑↓: navigate · Enter: confirm · F2: Back to lobby · F3: Game settings · Tab: target";
+      return "↑↓: navigate · Enter: confirm · H: How to play · Esc: close help · F2: lobby · F3: settings · Tab: target";
     case "stub":
       return "Esc or Back to menu · Tab: target player";
     case "kart":
@@ -62,10 +64,18 @@ function devHintForScreen(ph: GamePhase, snap: DevHostSnapshot): string {
       return "Enter: resume · Esc: to menu · Tab: target player";
     case "frogger_results":
       return "↑↓: navigate · Enter: confirm · Tab: target player";
-    default: {
-      const _exhaustive: never = ph;
-      return _exhaustive;
-    }
+    case "football_team_select":
+      return "1 Red · 2 Blue · Enter START (2+ players) · Tab: target";
+    case "football_summary":
+      return "Watch TV — kickoff soon · Tab: target player";
+    case "football":
+      return "WASD or arrows: move · E: pass (when carrying) · P/Esc: pause · Tab: target player";
+    case "football_paused":
+      return "Enter: resume · Esc: to menu · Tab: target player";
+    case "football_results":
+      return "↑↓: navigate · Enter: confirm · Tab: target player";
+    default:
+      return `${String(ph)} · Tab: target`;
   }
 }
 
@@ -120,7 +130,23 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
     fgAimUp: false,
     fgAimDown: false,
     kartBoost: false,
+    footUp: false,
+    footDown: false,
+    footLeft: false,
+    footRight: false,
+    footPass: false,
   };
+
+  function footballStickVector(forActive: boolean): { x: number; y: number } {
+    if (!forActive) return { x: 0, y: 0 };
+    let x = 0;
+    let y = 0;
+    if (keys.footRight) x += 1;
+    if (keys.footLeft) x -= 1;
+    if (keys.footDown) y += 1;
+    if (keys.footUp) y -= 1;
+    return { x, y };
+  }
 
   function activeWs(): WebSocket | null {
     const slot = slots.find((s) => s.playerId === activePlayerId);
@@ -226,9 +252,26 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
           }
         }
 
+        if (!snap.settingsOpen && ph === "menu") {
+          if (e.code === "Escape") {
+            e.preventDefault();
+            sendIntent(ws, { type: "menu_help_close" });
+            return;
+          }
+          if (e.code === "KeyH") {
+            e.preventDefault();
+            sendIntent(ws, { type: "menu_help_open" });
+            return;
+          }
+        }
+
         if (
           !snap.settingsOpen &&
-          (ph === "menu" || ph === "kart_results" || ph === "race_walk_results" || ph === "frogger_results")
+          (ph === "menu" ||
+            ph === "kart_results" ||
+            ph === "race_walk_results" ||
+            ph === "frogger_results" ||
+            ph === "football_results")
         ) {
           if (e.code === "ArrowUp") {
             e.preventDefault();
@@ -280,7 +323,44 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
           }, 100);
           return;
         }
+        if (ph === "football" && (e.code === "KeyP" || e.code === "Escape")) {
+          e.preventDefault();
+          keys.pause = true;
+          setTimeout(() => {
+            keys.pause = false;
+          }, 100);
+          return;
+        }
+        if (ph === "football_team_select" && !snap.settingsOpen) {
+          if (e.code === "Digit1" || e.code === "Numpad1") {
+            e.preventDefault();
+            sendIntent(ws, { type: "football_pick_team", team: "red" });
+            return;
+          }
+          if (e.code === "Digit2" || e.code === "Numpad2") {
+            e.preventDefault();
+            sendIntent(ws, { type: "football_pick_team", team: "blue" });
+            return;
+          }
+          if (e.code === "Enter") {
+            e.preventDefault();
+            sendIntent(ws, { type: "football_start" });
+            return;
+          }
+        }
         if (ph === "kart_paused" || ph === "race_walk_paused" || ph === "frogger_paused") {
+          if (e.code === "Enter") {
+            e.preventDefault();
+            sendIntent(ws, { type: "pause_resume" });
+            return;
+          }
+          if (e.code === "Escape") {
+            e.preventDefault();
+            sendIntent(ws, { type: "pause_to_menu" });
+            return;
+          }
+        }
+        if (ph === "football_paused") {
           if (e.code === "Enter") {
             e.preventDefault();
             sendIntent(ws, { type: "pause_resume" });
@@ -296,7 +376,14 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
 
       if (e.repeat) return;
 
-      if (ph === "menu" || ph === "kart_results" || ph === "race_walk_results" || ph === "frogger_results") {
+      if (
+        ph === "menu" ||
+        ph === "kart_results" ||
+        ph === "race_walk_results" ||
+        ph === "frogger_results" ||
+        ph === "football_results" ||
+        ph === "football_team_select"
+      ) {
         return;
       }
 
@@ -344,7 +431,38 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
         }
       }
 
-      if (ph !== "frogger" && ph !== "frogger_paused") {
+      if (ph === "football") {
+        if (e.code === "KeyE") {
+          e.preventDefault();
+          keys.footPass = true;
+          setTimeout(() => {
+            keys.footPass = false;
+          }, 100);
+          return;
+        }
+        if (e.code === "KeyW" || e.code === "ArrowUp") {
+          e.preventDefault();
+          keys.footUp = true;
+          return;
+        }
+        if (e.code === "KeyS" || e.code === "ArrowDown") {
+          e.preventDefault();
+          keys.footDown = true;
+          return;
+        }
+        if (e.code === "KeyA" || e.code === "ArrowLeft") {
+          e.preventDefault();
+          keys.footLeft = true;
+          return;
+        }
+        if (e.code === "KeyD" || e.code === "ArrowRight") {
+          e.preventDefault();
+          keys.footRight = true;
+          return;
+        }
+      }
+
+      if (ph !== "frogger" && ph !== "frogger_paused" && ph !== "football" && ph !== "football_paused") {
         if (
           ["ArrowLeft", "ArrowRight", "ArrowUp", "Space", "KeyA", "KeyD", "KeyW", "KeyP", "KeyB"].includes(e.code)
         ) {
@@ -368,6 +486,10 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
       if (e.code === "KeyK") keys.rwAimDown = false;
       if (e.code === "ArrowUp" || e.code === "KeyW") keys.fgAimUp = false;
       if (e.code === "ArrowDown" || e.code === "KeyS") keys.fgAimDown = false;
+      if (e.code === "KeyW" || e.code === "ArrowUp") keys.footUp = false;
+      if (e.code === "KeyS" || e.code === "ArrowDown") keys.footDown = false;
+      if (e.code === "KeyA" || e.code === "ArrowLeft") keys.footLeft = false;
+      if (e.code === "KeyD" || e.code === "ArrowRight")     keys.footRight = false;
       setKey(e.code, false);
     },
     true
@@ -386,6 +508,11 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
     keys.fgAimUp = false;
     keys.fgAimDown = false;
     keys.kartBoost = false;
+    keys.footUp = false;
+    keys.footDown = false;
+    keys.footLeft = false;
+    keys.footRight = false;
+    keys.footPass = false;
   });
 
   function syncSelectOptions(): void {
@@ -574,12 +701,27 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
         ph === "kart_results" ||
         ph === "race_walk_results" ||
         ph === "frogger_results" ||
+        ph === "football_team_select" ||
+        ph === "football_summary" ||
+        ph === "football_results" ||
         ph === "kart_paused" ||
         ph === "race_walk_paused" ||
         ph === "frogger_paused" ||
         snap.settingsOpen
       ) {
         slot.ws.send(encodeInput(slot.seq, 0, 0));
+        continue;
+      }
+      if (ph === "football") {
+        const { x, y } = footballStickVector(forActive);
+        const packed = joystickToPackedFootballAxis(x, y);
+        let buttons = keys.pause ? Btn.Pause : 0;
+        if (keys.footPass) buttons |= Btn.Pass;
+        slot.ws.send(encodeFootballAxis(slot.seq, packed, buttons));
+        continue;
+      }
+      if (ph === "football_paused") {
+        slot.ws.send(encodeFootballAxis(slot.seq, joystickToPackedFootballAxis(0, 0), 0));
         continue;
       }
       const { h, buttons } = sampleBinary(forActive);

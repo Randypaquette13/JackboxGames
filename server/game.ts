@@ -19,6 +19,9 @@ export type PlayerInput = {
   h: number;
   buttons: number;
   seq: number;
+  /** Football only: unpacked target velocity from packed axis byte. */
+  footballVx?: number;
+  footballVy?: number;
 };
 
 export type SimPlayer = {

@@ -2,11 +2,12 @@
  * JSON WebSocket messages (orchestration + host/controller state).
  * Binary join/input/ping stays in protocol.ts.
  */
-export const MINIGAME_IDS = ["kart", "race_walk", "frogger"];
+export const MINIGAME_IDS = ["kart", "race_walk", "frogger", "football"];
 export const MINIGAME_LABELS = {
     kart: "Kart Racing",
     race_walk: "Race Walk",
     frogger: "Frogger",
+    football: "Football",
 };
 export function parseClientIntent(raw) {
     if (!raw || typeof raw !== "object")
@@ -32,6 +33,10 @@ export function parseClientIntent(raw) {
         return { type: "menu_nav", dir: o.dir };
     if (t === "menu_confirm")
         return { type: "menu_confirm" };
+    if (t === "menu_help_open")
+        return { type: "menu_help_open" };
+    if (t === "menu_help_close")
+        return { type: "menu_help_close" };
     if (t === "menu_add_players")
         return { type: "menu_add_players" };
     if (t === "menu_game_settings")
@@ -64,6 +69,19 @@ export function parseClientIntent(raw) {
             return { type: "frogger_results", action: a };
         }
     }
+    if (t === "football_results") {
+        const a = o.action;
+        if (a === "play_again" || a === "minigame_menu" || a === "add_controllers") {
+            return { type: "football_results", action: a };
+        }
+    }
+    if (t === "football_pick_team") {
+        const tm = o.team;
+        if (tm === "red" || tm === "blue")
+            return { type: "football_pick_team", team: tm };
+    }
+    if (t === "football_start")
+        return { type: "football_start" };
     if (t === "pause_resume")
         return { type: "pause_resume" };
     if (t === "pause_to_menu")

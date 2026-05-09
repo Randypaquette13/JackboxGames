@@ -7,6 +7,8 @@ import { RACE_WALK_FINISH_X, RACE_WALK_LANES, RACE_WALK_NPC_RUN_SPEED, RACE_WALK
 import { Btn } from "../src/shared/protocol.js";
 import { chooseCrossingModeByHeading, constrainToCrossingLane, KART_SPEED_MIN, KART_SPEED_RECOVER, KART_TURN_SPEED, KART_WALL_IMPACT_FRICTION, KART_WALL_SCRAPE_FRICTION, checkFinishLineCross, clampToRing, finishLineSegment, getBridgePolygon, getInnerIslands, getOuterWall, getUnderpassPolygon, isInsideCrossing, normalIntoTrack, spawnPosition, wallScrapeAndImpact, wallViolated, } from "../src/shared/kartTrack.js";
 import { stepPlayer } from "./game.js";
+import { bootstrapFootballFromMenu, buildFootballHostJson, clearFootballState, footballTryStart, tickFootballPlay, tickFootballSummary, } from "./footballRoom.js";
+export { handleFootballPauseEdge } from "./footballRoom.js";
 // Laps are tracked as forward finish-line crossings:
 // 0 = not started, 1 = lap 1 started, 2 = lap 2 started, 3 = finished (2 full laps completed).
 export const LAPS_TO_WIN = 3;
@@ -26,6 +28,7 @@ export function createRoom(host, platforms) {
         phase: "lobby",
         showQr: true,
         menuIndex: 0,
+        menuHelpOpen: false,
         settingsOpen: false,
         gameSettings: {},
         stubId: null,
@@ -55,6 +58,23 @@ export function createRoom(host, platforms) {
         froggerPausedByPlayerId: null,
         froggerBanners: [],
         froggerDeathNotices: new Map(),
+        footballTeamPick: new Map(),
+        footballTeamAssignment: new Map(),
+        footballAthletes: new Map(),
+        footballBall: { x: 480, y: 270, vx: 0, vy: 0, carrierId: null },
+        footballRedScore: 0,
+        footballBlueScore: 0,
+        footballTimeLeftSec: 0,
+        footballTimerExpired: false,
+        footballPickupLockTeam: null,
+        footballPickupLockUntilTick: 0,
+        footballOpponentPickupLockTeam: null,
+        footballOpponentPickupLockUntilTick: 0,
+        footballPickupFreezeUntilTick: 0,
+        footballSummaryEndTick: null,
+        footballKickoffCountdown: null,
+        footballPausedByPlayerId: null,
+        footballWinner: null,
     };
 }
 function clearRaceWalkState(room) {
@@ -414,6 +434,7 @@ export function startRaceWalkFromMenu(room) {
     room.kartPaused = false;
     room.kartPausedByPlayerId = null;
     clearFroggerState(room);
+    clearFootballState(room);
     resetRaceWalk(room);
 }
 function tickRaceWalk(room, dt) {
@@ -550,6 +571,7 @@ export function startFroggerFromMenu(room) {
     room.kartPaused = false;
     room.kartPausedByPlayerId = null;
     clearRaceWalkState(room);
+    clearFootballState(room);
     clearFroggerState(room);
     room.froggerCountdown = FROGGER_COUNTDOWN_SEC;
     room.froggerScroll = 0;
@@ -867,12 +889,14 @@ export function buildHostState(room, roomId, reconnectingPlayers = []) {
         lobbyPlayers,
         menuIndex: room.menuIndex,
         menuItems: menuItemsList(),
+        menuHelpOpen: room.phase === "menu" && room.menuHelpOpen,
         settingsOpen: room.settingsOpen,
         gameSettings: { ...room.gameSettings },
         stubId: room.stubId,
         kart,
         raceWalk: buildRaceWalkHostJson(room),
         frogger: buildFroggerHostJson(room),
+        football: buildFootballHostJson(room),
     };
 }
 export function buildControllerState(room, playerId) {
@@ -911,6 +935,35 @@ export function buildControllerState(room, playerId) {
         }
         : null;
     const myKart = room.kartCars.get(playerId);
+    const nPlayers = room.players.size;
+    const canFootballStart = nPlayers >= 2;
+    const teamMapForUi = room.phase === "football_team_select" ? room.footballTeamPick : room.footballTeamAssignment;
+    const footballHud = room.phase === "football_team_select" ||
+        room.phase === "football_summary" ||
+        room.phase === "football" ||
+        room.phase === "football_paused" ||
+        room.phase === "football_results"
+        ? {
+            teamSelect: room.phase === "football_team_select",
+            myTeam: (teamMapForUi.get(playerId) ?? room.footballTeamPick.get(playerId)) ?? null,
+            redIds: [...teamMapForUi.entries()]
+                .filter(([, t]) => t === "red")
+                .map(([id]) => id)
+                .sort((a, b) => a - b),
+            blueIds: [...teamMapForUi.entries()]
+                .filter(([, t]) => t === "blue")
+                .map(([id]) => id)
+                .sort((a, b) => a - b),
+            canStart: canFootballStart && room.phase === "football_team_select",
+            isStarter: room.phase === "football_team_select" && canFootballStart,
+            redScore: room.footballRedScore,
+            blueScore: room.footballBlueScore,
+            timeLeftSec: Math.ceil(room.footballTimeLeftSec),
+            timerExpired: room.footballTimerExpired,
+            seriesWins: Object.fromEntries(room.seriesWins),
+            paused: room.phase === "football_paused",
+        }
+        : null;
     return {
         type: "controller_state",
         tick: room.tick,
@@ -918,6 +971,7 @@ export function buildControllerState(room, playerId) {
         playerId,
         menuIndex: room.menuIndex,
         menuItems: menuItemsList(),
+        menuHelpOpen: room.phase === "menu" && room.menuHelpOpen,
         settingsOpen: room.settingsOpen,
         gameSettings: { ...room.gameSettings },
         stubId: room.stubId,
@@ -934,6 +988,7 @@ export function buildControllerState(room, playerId) {
             : null,
         raceWalk: raceWalkHud,
         frogger: froggerHud,
+        football: footballHud,
     };
 }
 export function resetKartRace(room) {
@@ -971,7 +1026,11 @@ export function startKartFromMenu(room) {
     room.showQr = false;
     clearRaceWalkState(room);
     clearFroggerState(room);
+    clearFootballState(room);
     resetKartRace(room);
+}
+export function startFootballFromMenu(room) {
+    bootstrapFootballFromMenu(room);
 }
 export function ensureKartCar(room, playerId) {
     if (!room.kartCars.has(playerId) &&
@@ -1023,12 +1082,29 @@ export function tickSimulation(room, dt) {
         pruneFroggerBanners(room);
         return;
     }
+    if (room.phase === "football_results") {
+        return;
+    }
     if (room.phase === "frogger_paused") {
         pruneFroggerBanners(room);
         return;
     }
     if (room.phase === "frogger") {
         tickFrogger(room, dt);
+        return;
+    }
+    if (room.phase === "football_team_select") {
+        return;
+    }
+    if (room.phase === "football_summary") {
+        tickFootballSummary(room);
+        return;
+    }
+    if (room.phase === "football_paused") {
+        return;
+    }
+    if (room.phase === "football") {
+        tickFootballPlay(room, dt);
         return;
     }
     if (room.phase !== "kart" || room.kartPaused)
@@ -1227,11 +1303,16 @@ export function handleFroggerPauseEdge(room, playerId, frog, pauseHeld) {
         room.froggerPausedByPlayerId = playerId;
     }
 }
+function goToMinigameMenu(room) {
+    room.phase = "menu";
+    room.menuHelpOpen = false;
+    clearFootballState(room);
+}
 export function applyIntent(room, _playerId, intent) {
     switch (intent.type) {
         case "all_ready":
             if (room.phase === "lobby") {
-                room.phase = "menu";
+                goToMinigameMenu(room);
                 room.showQr = false;
                 room.menuIndex = 0;
             }
@@ -1239,7 +1320,8 @@ export function applyIntent(room, _playerId, intent) {
         case "menu_nav": {
             if (room.phase === "kart_results" ||
                 room.phase === "race_walk_results" ||
-                room.phase === "frogger_results") {
+                room.phase === "frogger_results" ||
+                room.phase === "football_results") {
                 const n = 3;
                 if (intent.dir === "up")
                     room.menuIndex = (room.menuIndex - 1 + n) % n;
@@ -1256,6 +1338,14 @@ export function applyIntent(room, _playerId, intent) {
             }
             break;
         }
+        case "menu_help_open":
+            if (room.phase === "menu" && !room.settingsOpen)
+                room.menuHelpOpen = true;
+            break;
+        case "menu_help_close":
+            if (room.phase === "menu")
+                room.menuHelpOpen = false;
+            break;
         case "menu_confirm": {
             if (room.phase === "kart_results") {
                 const actions = ["play_again", "minigame_menu", "add_controllers"];
@@ -1263,7 +1353,7 @@ export function applyIntent(room, _playerId, intent) {
                 if (action === "play_again")
                     startKartFromMenu(room);
                 else if (action === "minigame_menu") {
-                    room.phase = "menu";
+                    goToMinigameMenu(room);
                     room.stubId = null;
                     room.kartCars.clear();
                     room.kartWinnerId = null;
@@ -1293,7 +1383,7 @@ export function applyIntent(room, _playerId, intent) {
                 if (action === "play_again")
                     startRaceWalkFromMenu(room);
                 else if (action === "minigame_menu") {
-                    room.phase = "menu";
+                    goToMinigameMenu(room);
                     room.stubId = null;
                     clearRaceWalkState(room);
                     clearFroggerState(room);
@@ -1315,7 +1405,7 @@ export function applyIntent(room, _playerId, intent) {
                 if (action === "play_again")
                     startFroggerFromMenu(room);
                 else if (action === "minigame_menu") {
-                    room.phase = "menu";
+                    goToMinigameMenu(room);
                     room.stubId = null;
                     clearFroggerState(room);
                     room.showQr = false;
@@ -1329,7 +1419,31 @@ export function applyIntent(room, _playerId, intent) {
                 }
                 break;
             }
+            if (room.phase === "football_results") {
+                const actions = ["play_again", "minigame_menu", "add_controllers"];
+                const action = actions[room.menuIndex % 3];
+                if (action === "play_again")
+                    startFootballFromMenu(room);
+                else if (action === "minigame_menu") {
+                    goToMinigameMenu(room);
+                    room.stubId = null;
+                    clearFootballState(room);
+                    room.showQr = false;
+                }
+                else {
+                    room.phase = "lobby";
+                    room.menuIndex = 0;
+                    room.stubId = null;
+                    clearFootballState(room);
+                    room.showQr = true;
+                }
+                break;
+            }
             if (room.phase === "menu") {
+                if (room.menuHelpOpen) {
+                    room.menuHelpOpen = false;
+                    break;
+                }
                 const id = MINIGAME_IDS[room.menuIndex];
                 if (id === "kart")
                     startKartFromMenu(room);
@@ -1337,6 +1451,8 @@ export function applyIntent(room, _playerId, intent) {
                     startRaceWalkFromMenu(room);
                 else if (id === "frogger")
                     startFroggerFromMenu(room);
+                else if (id === "football")
+                    startFootballFromMenu(room);
                 else {
                     room.phase = "stub";
                     room.stubId = id;
@@ -1345,6 +1461,16 @@ export function applyIntent(room, _playerId, intent) {
             }
             break;
         }
+        case "football_pick_team":
+            if (room.phase === "football_team_select") {
+                room.footballTeamPick.set(_playerId, intent.team);
+            }
+            break;
+        case "football_start":
+            if (room.phase === "football_team_select") {
+                footballTryStart(room);
+            }
+            break;
         case "menu_add_players":
             if (room.phase === "menu") {
                 room.phase = "lobby";
@@ -1358,6 +1484,7 @@ export function applyIntent(room, _playerId, intent) {
                 room.kartPausedByPlayerId = null;
                 clearRaceWalkState(room);
                 clearFroggerState(room);
+                clearFootballState(room);
                 room.showQr = true;
             }
             else {
@@ -1365,6 +1492,8 @@ export function applyIntent(room, _playerId, intent) {
             }
             break;
         case "menu_game_settings":
+            if (room.phase === "menu")
+                room.menuHelpOpen = false;
             room.settingsOpen = true;
             break;
         case "settings_close":
@@ -1382,7 +1511,7 @@ export function applyIntent(room, _playerId, intent) {
         }
         case "stub_back":
             if (room.phase === "stub") {
-                room.phase = "menu";
+                goToMinigameMenu(room);
                 room.stubId = null;
             }
             break;
@@ -1393,7 +1522,7 @@ export function applyIntent(room, _playerId, intent) {
                 startKartFromMenu(room);
             }
             else if (intent.action === "minigame_menu") {
-                room.phase = "menu";
+                goToMinigameMenu(room);
                 room.stubId = null;
                 room.kartCars.clear();
                 room.kartWinnerId = null;
@@ -1423,7 +1552,7 @@ export function applyIntent(room, _playerId, intent) {
                 startRaceWalkFromMenu(room);
             }
             else if (intent.action === "minigame_menu") {
-                room.phase = "menu";
+                goToMinigameMenu(room);
                 room.stubId = null;
                 clearRaceWalkState(room);
                 clearFroggerState(room);
@@ -1445,7 +1574,7 @@ export function applyIntent(room, _playerId, intent) {
                 startFroggerFromMenu(room);
             }
             else if (intent.action === "minigame_menu") {
-                room.phase = "menu";
+                goToMinigameMenu(room);
                 room.stubId = null;
                 clearFroggerState(room);
                 room.showQr = false;
@@ -1455,6 +1584,26 @@ export function applyIntent(room, _playerId, intent) {
                 room.menuIndex = 0;
                 room.stubId = null;
                 clearFroggerState(room);
+                room.showQr = true;
+            }
+            break;
+        case "football_results":
+            if (room.phase !== "football_results")
+                break;
+            if (intent.action === "play_again") {
+                startFootballFromMenu(room);
+            }
+            else if (intent.action === "minigame_menu") {
+                goToMinigameMenu(room);
+                room.stubId = null;
+                clearFootballState(room);
+                room.showQr = false;
+            }
+            else if (intent.action === "add_controllers") {
+                room.phase = "lobby";
+                room.menuIndex = 0;
+                room.stubId = null;
+                clearFootballState(room);
                 room.showQr = true;
             }
             break;
@@ -1481,10 +1630,18 @@ export function applyIntent(room, _playerId, intent) {
                     fr.prevPauseHeld = false;
                 }
             }
+            else if (room.phase === "football_paused") {
+                room.phase = "football";
+                room.footballPausedByPlayerId = null;
+                for (const a of room.footballAthletes.values()) {
+                    a.prevPauseHeld = false;
+                    a.prevPassHeld = false;
+                }
+            }
             break;
         case "pause_to_menu":
             if (room.phase === "kart_paused" || room.phase === "kart") {
-                room.phase = "menu";
+                goToMinigameMenu(room);
                 room.kartPaused = false;
                 room.kartCountdown = null;
                 room.kartCars.clear();
@@ -1493,15 +1650,21 @@ export function applyIntent(room, _playerId, intent) {
                 room.kartPausedByPlayerId = null;
             }
             else if (room.phase === "race_walk" || room.phase === "race_walk_paused") {
-                room.phase = "menu";
+                goToMinigameMenu(room);
                 room.stubId = null;
                 clearRaceWalkState(room);
                 room.showQr = false;
             }
             else if (room.phase === "frogger" || room.phase === "frogger_paused") {
-                room.phase = "menu";
+                goToMinigameMenu(room);
                 room.stubId = null;
                 clearFroggerState(room);
+                room.showQr = false;
+            }
+            else if (room.phase === "football" || room.phase === "football_paused") {
+                goToMinigameMenu(room);
+                room.stubId = null;
+                clearFootballState(room);
                 room.showQr = false;
             }
             break;

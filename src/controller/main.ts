@@ -3,7 +3,9 @@ import {
   MINIGAME_LABELS,
   type ClientIntent,
   type ControllerStateJson,
+  type MinigameId,
 } from "@shared/messages";
+import { MINIGAME_HELP } from "@shared/minigameHelp";
 import {
   KART_FORWARD_SPEED_MAX,
   KART_FORWARD_SPEED_MIN,
@@ -11,6 +13,7 @@ import {
 } from "@shared/kartSettings";
 import {
   Btn,
+  encodeFootballAxis,
   encodeInput,
   encodeJoin,
   encodePing,
@@ -18,6 +21,13 @@ import {
   parseError,
   parseWelcome,
 } from "@shared/protocol";
+import {
+  FOOTBALL_JOYSTICK_LEN_DEADZONE,
+  FOOTBALL_JOYSTICK_LEN_RUN_END,
+  FOOTBALL_JOYSTICK_LEN_WALK_END,
+  FOOTBALL_JOYSTICK_SURFACE_FRAC,
+  joystickToPackedFootballAxis,
+} from "@shared/footballPackedInput";
 
 function wsUrl(): string {
   const p = location.protocol === "https:" ? "wss:" : "ws:";
@@ -50,9 +60,12 @@ const panels = {
   prejoin: document.querySelector<HTMLElement>("#panel-prejoin")!,
   lobby: document.querySelector<HTMLElement>("#panel-lobby")!,
   menu: document.querySelector<HTMLElement>("#panel-menu")!,
+  menuHelp: document.querySelector<HTMLElement>("#panel-menu-help")!,
   stub: document.querySelector<HTMLElement>("#panel-stub")!,
   raceWalk: document.querySelector<HTMLElement>("#panel-race-walk")!,
   frogger: document.querySelector<HTMLElement>("#panel-frogger")!,
+  footballTeams: document.querySelector<HTMLElement>("#panel-football-teams")!,
+  football: document.querySelector<HTMLElement>("#panel-football")!,
   kart: document.querySelector<HTMLElement>("#panel-kart")!,
   kartPause: document.querySelector<HTMLElement>("#panel-kart-pause")!,
   results: document.querySelector<HTMLElement>("#panel-results")!,
@@ -83,6 +96,45 @@ const rwStatusEl = document.querySelector<HTMLElement>("#rw-status")!;
 const ktBoostBtn = document.querySelector<HTMLButtonElement>("#kt-boost")!;
 const ktBoostHint = document.querySelector<HTMLElement>("#kt-boost-hint")!;
 
+const fbTeamTopEl = document.querySelector<HTMLElement>("#fb-team-top")!;
+const fbTeamSubEl = document.querySelector<HTMLElement>("#fb-team-sub")!;
+const fbTeamRedBtn = document.querySelector<HTMLButtonElement>("#fb-team-red")!;
+const fbTeamBlueBtn = document.querySelector<HTMLButtonElement>("#fb-team-blue")!;
+const fbStartGameBtn = document.querySelector<HTMLButtonElement>("#fb-start-game")!;
+const fbStartHintEl = document.querySelector<HTMLElement>("#fb-start-hint")!;
+const fbPlayHudEl = document.querySelector<HTMLElement>("#fb-play-hud")!;
+const fbJoystickEl = document.querySelector<HTMLElement>("#fb-joystick")!;
+const fbKnobEl = document.querySelector<HTMLElement>("#fb-knob")!;
+
+/** SVG rings aligned to shared speed tiers (same normalization as stick clamp). */
+function injectFootballJoystickZones(base: HTMLElement, knob: HTMLElement): void {
+  if (base.querySelector("svg.vj-zones")) return;
+  const cx = 50;
+  const cy = 50;
+  const rMax = 50 * FOOTBALL_JOYSTICK_SURFACE_FRAC;
+  const tiers: { r: number; className: string }[] = [
+    { r: rMax * FOOTBALL_JOYSTICK_LEN_DEADZONE, className: "vj-ring vj-ring-dead" },
+    { r: rMax * FOOTBALL_JOYSTICK_LEN_WALK_END, className: "vj-ring vj-ring-walk" },
+    { r: rMax * FOOTBALL_JOYSTICK_LEN_RUN_END, className: "vj-ring vj-ring-run" },
+    /** Outer puck rim; annulus outside run ring is full-speed tier */
+    { r: rMax, className: "vj-ring vj-ring-max" },
+  ];
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 100 100");
+  svg.setAttribute("class", "vj-zones");
+  svg.setAttribute("aria-hidden", "true");
+  for (const { r, className } of tiers) {
+    const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    c.setAttribute("cx", String(cx));
+    c.setAttribute("cy", String(cy));
+    c.setAttribute("r", r.toFixed(2));
+    c.setAttribute("class", className);
+    svg.appendChild(c);
+  }
+  base.insertBefore(svg, knob);
+}
+injectFootballJoystickZones(fbJoystickEl, fbKnobEl);
+
 const RESULT_LABELS = ["Play again", "Back to minigame select", "Add more controllers"];
 
 const kartSpeedInput = document.querySelector<HTMLInputElement>("#set-kart-speed")!;
@@ -101,6 +153,9 @@ if (!roomId) {
   let jump = false;
   let seq = 0;
   let forcedControllerPhase: ControllerStateJson["phase"] | null = null;
+  /** Ignore RED/BLUE taps briefly after menu→team UI swap (avoids confirm release “click” hitting a team). */
+  let footballTeamPickLockUntil = 0;
+  let prevWsPhase: ControllerStateJson["phase"] | null = null;
   let prejoinMode: "resume" | "create" = "resume";
   let prejoinTouched = { name: false, hue: false };
 
@@ -290,6 +345,74 @@ if (!roomId) {
     }, 100);
   });
 
+  let fbPause = false;
+  document.querySelector("#fb-pause")!.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    fbPause = true;
+    setTimeout(() => {
+      fbPause = false;
+    }, 100);
+  });
+
+  let fbPass = false;
+  document.querySelector("#fb-pass")!.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    fbPass = true;
+    setTimeout(() => {
+      fbPass = false;
+    }, 100);
+  });
+
+  let fbStickX = 0;
+  let fbStickY = 0;
+
+  function updateFbKnobVisual(): void {
+    const rect = fbJoystickEl.getBoundingClientRect();
+    const radius = Math.max(24, (Math.min(rect.width, rect.height) / 2) * FOOTBALL_JOYSTICK_SURFACE_FRAC);
+    const dx = fbStickX * radius;
+    const dy = fbStickY * radius;
+    fbKnobEl.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+  }
+
+  function centerFbStick(): void {
+    fbStickX = 0;
+    fbStickY = 0;
+    updateFbKnobVisual();
+  }
+
+  function moveFbStickFromClient(clientX: number, clientY: number): void {
+    const r = fbJoystickEl.getBoundingClientRect();
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height / 2;
+    const max = Math.max(24, (Math.min(r.width, r.height) / 2) * FOOTBALL_JOYSTICK_SURFACE_FRAC);
+    let nx = (clientX - cx) / max;
+    let ny = (clientY - cy) / max;
+    const len = Math.hypot(nx, ny);
+    if (len > 1) {
+      nx /= len;
+      ny /= len;
+    }
+    fbStickX = nx;
+    fbStickY = ny;
+    updateFbKnobVisual();
+  }
+
+  fbJoystickEl.addEventListener(
+    "pointerdown",
+    (e) => {
+      e.preventDefault();
+      fbJoystickEl.setPointerCapture(e.pointerId);
+      moveFbStickFromClient(e.clientX, e.clientY);
+    },
+    { passive: false }
+  );
+  fbJoystickEl.addEventListener("pointermove", (e) => {
+    if (!fbJoystickEl.hasPointerCapture(e.pointerId)) return;
+    moveFbStickFromClient(e.clientX, e.clientY);
+  });
+  fbJoystickEl.addEventListener("pointerup", centerFbStick);
+  fbJoystickEl.addEventListener("pointercancel", centerFbStick);
+
   const ws = new WebSocket(`${wsUrl()}?cid=${encodeURIComponent(controllerClientId)}`);
   ws.binaryType = "arraybuffer";
 
@@ -306,6 +429,35 @@ if (!roomId) {
   }
 
   const fallbackMenuItems = MINIGAME_IDS.map((id) => ({ id, label: MINIGAME_LABELS[id] }));
+
+  function renderMenuHelp(st: ControllerStateJson): void {
+    const titleEl = document.querySelector<HTMLElement>("#menu-help-title")!;
+    const bodyEl = document.querySelector<HTMLElement>("#menu-help-body")!;
+    const items =
+      st.menuItems.length > 0 ? st.menuItems : MINIGAME_IDS.map((id) => ({ id, label: MINIGAME_LABELS[id] }));
+    const n = items.length;
+    const idx = n <= 0 ? 0 : ((st.menuIndex % n) + n) % n;
+    const id = items[idx]!.id as MinigameId;
+    const copy = MINIGAME_HELP[id];
+    titleEl.textContent = `${MINIGAME_LABELS[id]} — How to play`;
+    bodyEl.textContent = "";
+    const addSection = (heading: string, bullets: string[]): void => {
+      const h = document.createElement("div");
+      h.className = "menu-help-section-title";
+      h.textContent = heading;
+      bodyEl.appendChild(h);
+      const ul = document.createElement("ul");
+      ul.className = "menu-help-ul";
+      for (const line of bullets) {
+        const li = document.createElement("li");
+        li.textContent = line;
+        ul.appendChild(li);
+      }
+      bodyEl.appendChild(ul);
+    };
+    addSection("Rules", copy.rules);
+    addSection("Controls (phone)", copy.controls);
+  }
 
   function renderMinigameMenu(st: ControllerStateJson | null): void {
     const items =
@@ -330,6 +482,8 @@ if (!roomId) {
         return "Race Walk finished";
       case "frogger_results":
         return "Frogger finished";
+      case "football_results":
+        return "Football finished";
       default:
         return "Game finished";
     }
@@ -456,6 +610,44 @@ if (!roomId) {
     }
   }
 
+  function syncFootballUi(st: ControllerStateJson | null): void {
+    const fb = st?.football;
+    const ph = forcedControllerPhase ?? st?.phase ?? "lobby";
+
+    fbTeamRedBtn.classList.toggle("my-pick", fb?.myTeam === "red");
+    fbTeamBlueBtn.classList.toggle("my-pick", fb?.myTeam === "blue");
+
+    if (ph === "football_team_select" && fb) {
+      fbTeamTopEl.textContent = "Football — pick your team";
+      fbTeamSubEl.textContent = "";
+      fbStartGameBtn.hidden = false;
+      fbStartGameBtn.disabled = !fb.canStart;
+      fbTeamRedBtn.disabled = false;
+      fbTeamBlueBtn.disabled = false;
+      fbStartHintEl.textContent = fb.canStart
+        ? "START locks teams and kicks off on the TV. Unpicked players are auto-balanced."
+        : "Need at least two joined players.";
+    } else if (ph === "football_summary" && fb) {
+      fbTeamTopEl.textContent = "Football — teams locked";
+      fbTeamSubEl.textContent = "Kickoff coming — glance at the host screen.";
+      fbStartGameBtn.hidden = true;
+      fbTeamRedBtn.disabled = true;
+      fbTeamBlueBtn.disabled = true;
+      fbStartHintEl.textContent = "";
+    }
+
+    if (fb && (ph === "football" || ph === "football_paused")) {
+      const m = Math.floor(fb.timeLeftSec / 60);
+      const sec = fb.timeLeftSec % 60;
+      const clk = `${m}:${String(sec).padStart(2, "0")}`;
+      fbPlayHudEl.textContent = fb.timerExpired
+        ? `${clk} — overtime: next tackle or TD ends it · RED ${fb.redScore} — BLUE ${fb.blueScore}`
+        : `${clk} · RED ${fb.redScore} — BLUE ${fb.blueScore}`;
+    } else {
+      fbPlayHudEl.textContent = "";
+    }
+  }
+
   function syncRaceWalkPanelState(st: ControllerStateJson | null): void {
     const rw = st?.raceWalk;
     if (!rw) {
@@ -483,6 +675,7 @@ if (!roomId) {
     syncKartPanelState(st);
     syncRaceWalkPanelState(st);
     syncFroggerPanelState(st);
+    syncFootballUi(st);
     hideAll();
     if (!st) {
       statusEl.textContent = "Connecting…";
@@ -500,22 +693,42 @@ if (!roomId) {
       return;
     }
     const ph = forcedControllerPhase ?? st.phase;
+    if (ph !== "football") centerFbStick();
     if (ph === "lobby") {
       panels.lobby.hidden = false;
     } else if (ph === "menu") {
-      panels.menu.hidden = false;
-      renderMinigameMenu(st);
+      if (st.menuHelpOpen) {
+        panels.menuHelp.hidden = false;
+        renderMenuHelp(st);
+      } else {
+        panels.menu.hidden = false;
+        renderMinigameMenu(st);
+      }
     } else if (ph === "stub") {
       panels.stub.hidden = false;
     } else if (ph === "race_walk") {
       panels.raceWalk.hidden = false;
     } else if (ph === "frogger") {
       panels.frogger.hidden = false;
+    } else if (ph === "football_team_select" || ph === "football_summary") {
+      panels.footballTeams.hidden = false;
+    } else if (ph === "football") {
+      panels.football.hidden = false;
     } else if (ph === "kart") {
       panels.kart.hidden = false;
-    } else if (ph === "kart_paused" || ph === "race_walk_paused" || ph === "frogger_paused") {
+    } else if (
+      ph === "kart_paused" ||
+      ph === "race_walk_paused" ||
+      ph === "frogger_paused" ||
+      ph === "football_paused"
+    ) {
       panels.kartPause.hidden = false;
-    } else if (ph === "kart_results" || ph === "race_walk_results" || ph === "frogger_results") {
+    } else if (
+      ph === "kart_results" ||
+      ph === "race_walk_results" ||
+      ph === "frogger_results" ||
+      ph === "football_results"
+    ) {
       panels.results.hidden = false;
       renderResultsMenu(st);
     }
@@ -541,6 +754,10 @@ if (!roomId) {
           if (forcedControllerPhase && ctrlState.phase !== "lobby") {
             forcedControllerPhase = null;
           }
+          if (ctrlState.phase === "football_team_select" && prevWsPhase !== "football_team_select") {
+            footballTeamPickLockUntil = performance.now() + 420;
+          }
+          prevWsPhase = ctrlState.phase;
           refreshUI();
         }
       } catch {
@@ -643,11 +860,27 @@ if (!roomId) {
   bindPointerTap(document.querySelector("#mn-confirm")!, () => {
     sendJson(ws, { type: "menu_confirm" });
   });
+  document.querySelector("#mn-howto")!.addEventListener("click", () => {
+    sendJson(ws, { type: "menu_help_open" });
+  });
+  document.querySelector("#menu-help-back")!.addEventListener("click", () => {
+    sendJson(ws, { type: "menu_help_close" });
+  });
   document.querySelector("#mn-add")!.addEventListener("click", () => {
     sendJson(ws, { type: "menu_add_players" });
   });
   document.querySelector("#mn-settings")!.addEventListener("click", () => {
     sendJson(ws, { type: "menu_game_settings" });
+  });
+
+  function tryFootballPickTeam(team: "red" | "blue"): void {
+    if (performance.now() < footballTeamPickLockUntil) return;
+    sendJson(ws, { type: "football_pick_team", team });
+  }
+  bindPointerTap(fbTeamRedBtn, () => tryFootballPickTeam("red"));
+  bindPointerTap(fbTeamBlueBtn, () => tryFootballPickTeam("blue"));
+  fbStartGameBtn.addEventListener("click", () => {
+    sendJson(ws, { type: "football_start" });
   });
 
   document.querySelector("#st-back")!.addEventListener("click", () => {
@@ -680,7 +913,8 @@ if (!roomId) {
       ph === "menu" ||
       ph === "kart_results" ||
       ph === "race_walk_results" ||
-      ph === "frogger_results";
+      ph === "frogger_results" ||
+      ph === "football_results";
     if (!menuLike) return;
     const el = e.target as HTMLElement | null;
     if (el?.closest("input, textarea, select")) return;
@@ -723,6 +957,14 @@ if (!roomId) {
         else if (right && !left) h = 127;
         const buttons = jump ? Btn.Jump : 0;
         ws.send(encodeInput(seq, h, buttons));
+      } else if (ph === "football") {
+        const packed = joystickToPackedFootballAxis(fbStickX, fbStickY);
+        let buttons = 0;
+        if (fbPause) buttons |= Btn.Pause;
+        if (fbPass) buttons |= Btn.Pass;
+        ws.send(encodeFootballAxis(seq, packed, buttons));
+      } else if (ph === "football_paused") {
+        ws.send(encodeFootballAxis(seq, joystickToPackedFootballAxis(0, 0), 0));
       } else if (ph === "kart") {
         let h = 0;
         if (kLeft && !kRight) h = -127;

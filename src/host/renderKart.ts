@@ -370,7 +370,15 @@ export function drawKart(
     ctx.fillRect(0, 0, w, h);
 
     const pausedBy = kart.pausedByPlayerId;
-    const byText = pausedBy !== null ? `Player ${pausedBy} paused the race` : "Race paused";
+    const nameById = new Map<number, string>();
+    for (const p of state.lobbyPlayers ?? []) {
+      const label = p.name?.trim() ? p.name.trim() : `P${p.playerId}`;
+      nameById.set(p.playerId, label);
+    }
+    const byText =
+      pausedBy !== null
+        ? `${nameById.get(pausedBy) ?? `P${pausedBy}`} paused the race`
+        : "Race paused";
     ctx.save();
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";

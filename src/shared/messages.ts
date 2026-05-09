@@ -34,15 +34,23 @@ export type GamePhase =
   | "race_walk_results"
   | "frogger"
   | "frogger_paused"
-  | "frogger_results";
+  | "frogger_results"
+  | "football_team_select"
+  | "football_summary"
+  | "football"
+  | "football_paused"
+  | "football_results";
 
-export const MINIGAME_IDS = ["kart", "race_walk", "frogger"] as const;
+export const MINIGAME_IDS = ["kart", "race_walk", "frogger", "football"] as const;
 export type MinigameId = (typeof MINIGAME_IDS)[number];
+
+export type FootballTeam = "red" | "blue";
 
 export const MINIGAME_LABELS: Record<MinigameId, string> = {
   kart: "Kart Racing",
   race_walk: "Race Walk",
   frogger: "Frogger",
+  football: "Football",
 };
 
 export type RaceWalkRunnerJson = {
@@ -101,6 +109,17 @@ export type FroggerFrogHostJson = {
   distance: number;
 };
 
+export type FootballRosterSlotJson = { playerId: number; name: string; hue: number };
+
+export type FootballPlayerHudJson = {
+  playerId: number;
+  name: string;
+  hue: number;
+  team: FootballTeam;
+  x: number;
+  y: number;
+};
+
 /** Client → server (controller or dev; some allowed from host in dev only — server validates). */
 export type ClientIntent =
   | { type: "all_ready" }
@@ -108,6 +127,8 @@ export type ClientIntent =
   | { type: "prejoin_claim"; playerId: number }
   | { type: "menu_nav"; dir: "up" | "down" }
   | { type: "menu_confirm" }
+  | { type: "menu_help_open" }
+  | { type: "menu_help_close" }
   | { type: "menu_add_players" }
   | { type: "menu_game_settings" }
   | { type: "settings_close" }
@@ -116,6 +137,10 @@ export type ClientIntent =
   | { type: "kart_results"; action: "play_again" | "minigame_menu" | "add_controllers" }
   | { type: "race_walk_results"; action: "play_again" | "minigame_menu" | "add_controllers" }
   | { type: "frogger_results"; action: "play_again" | "minigame_menu" | "add_controllers" }
+  | { type: "football_results"; action: "play_again" | "minigame_menu" | "add_controllers" }
+  | { type: "football_pick_team"; team: FootballTeam }
+  /** At least two players required; unpicked players are auto-balanced onto teams. */
+  | { type: "football_start" }
   | { type: "pause_resume" }
   | { type: "pause_to_menu" };
 
@@ -143,6 +168,7 @@ export type HostStateJson = {
   lobbyPlayers: LobbyPlayerJson[];
   menuIndex: number;
   menuItems: { id: MinigameId; label: string }[];
+  menuHelpOpen: boolean;
   settingsOpen: boolean;
   gameSettings: Record<string, unknown>;
   stubId: MinigameId | null;
@@ -189,6 +215,40 @@ export type HostStateJson = {
     pausedByPlayerId: number | null;
     banners: RaceWalkBannerJson[];
   };
+  football: null | {
+    /** team_select | summary use rosters only; play adds positions */
+    red: FootballRosterSlotJson[];
+    blue: FootballRosterSlotJson[];
+    players: FootballPlayerHudJson[];
+    ball: {
+      x: number;
+      y: number;
+      live: boolean;
+      carrierId: number | null;
+      /** Live ball only: which sides may not scoop yet (tackle timers). */
+      pickupBan: { red: boolean; blue: boolean };
+    };
+    redScore: number;
+    blueScore: number;
+    timeLeftSec: number;
+    /** Clock hit 0; game ends after the next tackle or touchdown. */
+    timerExpired: boolean;
+    kickoffCountdown: number | null;
+    paused: boolean;
+    pausedByPlayerId: number | null;
+    seriesWins: Record<number, number>;
+    winner: FootballTeam | "tie" | null;
+    field: {
+      fieldX0: number;
+      fieldX1: number;
+      fieldY0: number;
+      fieldY1: number;
+      redEzX1: number;
+      blueEzX0: number;
+      liveBallX0: number;
+      liveBallX1: number;
+    };
+  };
 };
 
 export type ControllerStateJson = {
@@ -205,6 +265,7 @@ export type ControllerStateJson = {
   };
   menuIndex: number;
   menuItems: { id: MinigameId; label: string }[];
+  menuHelpOpen: boolean;
   settingsOpen: boolean;
   gameSettings: Record<string, unknown>;
   stubId: MinigameId | null;
@@ -233,6 +294,21 @@ export type ControllerStateJson = {
     seriesWins: Record<number, number>;
     paused: boolean;
   };
+  football: null | {
+    teamSelect: boolean;
+    myTeam: FootballTeam | null;
+    redIds: number[];
+    blueIds: number[];
+    canStart: boolean;
+    redScore: number;
+    blueScore: number;
+    timeLeftSec: number;
+    timerExpired: boolean;
+    /** Whether this client may send football_start (any controller once canStart). */
+    isStarter: boolean;
+    seriesWins: Record<number, number>;
+    paused: boolean;
+  };
 };
 
 export function parseClientIntent(raw: unknown): ClientIntent | null {
@@ -254,6 +330,8 @@ export function parseClientIntent(raw: unknown): ClientIntent | null {
   }
   if (t === "menu_nav" && (o.dir === "up" || o.dir === "down")) return { type: "menu_nav", dir: o.dir };
   if (t === "menu_confirm") return { type: "menu_confirm" };
+  if (t === "menu_help_open") return { type: "menu_help_open" };
+  if (t === "menu_help_close") return { type: "menu_help_close" };
   if (t === "menu_add_players") return { type: "menu_add_players" };
   if (t === "menu_game_settings") return { type: "menu_game_settings" };
   if (t === "settings_close") return { type: "settings_close" };
@@ -282,6 +360,17 @@ export function parseClientIntent(raw: unknown): ClientIntent | null {
       return { type: "frogger_results", action: a };
     }
   }
+  if (t === "football_results") {
+    const a = o.action;
+    if (a === "play_again" || a === "minigame_menu" || a === "add_controllers") {
+      return { type: "football_results", action: a };
+    }
+  }
+  if (t === "football_pick_team") {
+    const tm = o.team;
+    if (tm === "red" || tm === "blue") return { type: "football_pick_team", team: tm };
+  }
+  if (t === "football_start") return { type: "football_start" };
   if (t === "pause_resume") return { type: "pause_resume" };
   if (t === "pause_to_menu") return { type: "pause_to_menu" };
   return null;

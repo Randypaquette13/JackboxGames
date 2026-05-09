@@ -47,6 +47,43 @@ input.pj-name {
   max-width: 440px;
   margin: 0 auto;
 }
+#panel-menu-help.panel.panel-menu-help {
+  justify-content: flex-start;
+  padding-top: max(16px, env(safe-area-inset-top));
+}
+#panel-menu-help .menu-help-scroll {
+  flex: 1 1 auto;
+  min-height: 120px;
+  max-height: min(52vh, 440px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.22);
+}
+.menu-help-section-title {
+  font-weight: 700;
+  color: #d8c8ff;
+  margin: 14px 0 8px;
+  font-size: 1rem;
+}
+.menu-help-section-title:first-child {
+  margin-top: 2px;
+}
+.menu-help-ul {
+  margin: 0 0 10px 1.1rem;
+  padding: 0;
+  color: #dce0ec;
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+.menu-help-ul li {
+  margin-bottom: 7px;
+}
+.menu-help-footer-hint {
+  margin-top: 6px;
+}
 /* Lobby: primary action at top of viewport; movement controls stay at bottom. */
 #panel-lobby.panel {
   justify-content: flex-start;
@@ -75,7 +112,9 @@ input.pj-name {
 #panel-kart .kart-boost-btn {
   width: 100%;
   max-width: none;
-  padding: 14px 20px;
+  min-height: 96px;
+  padding: 22px 20px;
+  font-size: 1.35rem;
   font-weight: 800;
   letter-spacing: 0.04em;
 }
@@ -83,7 +122,7 @@ input.pj-name {
   opacity: 0.42;
 }
 #panel-kart .kart-boost-hint {
-  margin-bottom: 4px;
+  margin-bottom: -6px;
   min-height: 1.25em;
 }
 #panel-kart .kart-push {
@@ -466,9 +505,343 @@ input.pj-name {
   color: #d0d0e8;
   border: 1px solid #4a4a62;
 }
+/** Minigame menu: leaving matchmaking — warmer outline + separator from pick/settings actions */
+#panel-menu #mn-add.menu-back-lobby {
+  margin-top: 8px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(255, 200, 140, 0.18);
+  min-height: 52px;
+  font-size: 1.02rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #ffe8c8;
+  background: linear-gradient(180deg, #3a3228, #252018);
+  border: 2px solid rgba(212, 168, 92, 0.65);
+  box-shadow:
+    0 5px 0 rgba(74, 52, 28, 0.85),
+    0 8px 18px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 220, 170, 0.12);
+}
+#panel-menu #mn-add.menu-back-lobby:active {
+  transform: translateY(3px);
+  box-shadow:
+    0 2px 0 rgba(74, 52, 28, 0.85),
+    0 4px 12px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 220, 170, 0.08);
+}
 .small-pause {
   max-width: 200px;
   margin: 0 auto;
   min-height: 44px;
   font-size: 0.95rem;
+}
+.football-teams-panel .football-team-sub {
+  min-height: 1.35em;
+  text-align: center;
+}
+.football-team-btns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  width: 100%;
+}
+button.football-team-btn {
+  min-height: 120px;
+  font-size: 1.65rem;
+  font-weight: 800;
+  border-radius: 16px;
+  border: none;
+  color: #fff;
+  box-shadow:
+    0 6px 0 rgba(12, 10, 20, 0.55),
+    0 8px 20px rgba(0, 0, 0, 0.4);
+}
+button.football-team-red {
+  background: linear-gradient(180deg, #e05858, #a02020);
+}
+button.football-team-blue {
+  background: linear-gradient(180deg, #4f86ff, #1e4596);
+}
+button.football-team-btn:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 rgba(12, 10, 20, 0.55), 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+button.football-team-btn.my-pick {
+  outline: 3px solid rgba(255, 255, 200, 0.95);
+  outline-offset: 2px;
+}
+.football-start-btn:disabled {
+  opacity: 0.45;
+  filter: grayscale(0.35);
+}
+.football-start-hint {
+  text-align: center;
+  font-size: 0.92rem;
+  min-height: 2.8em;
+}
+/** Full width on phone; landscape uses row layout below */
+#panel-football.football-play-panel.panel {
+  justify-content: flex-start;
+  max-width: none;
+  width: 100%;
+  padding-left: max(10px, env(safe-area-inset-left));
+  padding-right: max(10px, env(safe-area-inset-right));
+  gap: 0;
+}
+.football-play-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 0;
+  width: 100%;
+}
+.football-play-col {
+  min-width: 0;
+}
+/** Portrait: HUD fills extra height at top; Pass sits tight above joystick */
+.football-play-col-mid {
+  order: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  justify-content: flex-start;
+  margin-bottom: 12px;
+}
+.football-play-col-pass {
+  order: 2;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  flex: 0 0 auto;
+  margin-bottom: 6px;
+}
+.football-play-col-stick {
+  order: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 0 0 auto;
+  justify-content: flex-start;
+  min-height: 0;
+}
+.football-play-panel .football-play-hint {
+  text-align: center;
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.35;
+}
+.football-play-panel .football-play-hud {
+  text-align: center;
+  margin: -2px 0 0;
+}
+button.football-pass-btn {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  min-height: 72px;
+  padding: 16px 12px;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  border-radius: 16px;
+}
+/** Landscape: stick | compact HUD | wide Pass */
+@media (orientation: landscape) {
+  #panel-football.football-play-panel.panel {
+    justify-content: stretch;
+    padding-top: max(8px, env(safe-area-inset-top));
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+    min-height: 100dvh;
+  }
+  /** Equal outside tracks → HUD truly centered; stick left, pass right */
+  .football-play-main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  .football-play-col-stick {
+    order: 1;
+    grid-column: 1;
+    justify-self: start;
+    align-self: center;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    justify-content: center;
+    align-items: flex-start;
+  }
+  .football-play-col-mid {
+    order: 2;
+    grid-column: 2;
+    justify-self: center;
+    width: min(200px, 30vw);
+    max-width: min(200px, 30vw);
+    justify-content: center;
+    align-items: center;
+    align-self: center;
+    gap: 6px;
+    overflow: hidden;
+    margin-bottom: 0;
+  }
+  /** ~half the old wide pass column: narrow strip on the right */
+  .football-play-col-pass {
+    order: 3;
+    grid-column: 3;
+    justify-self: end;
+    align-self: stretch;
+    width: min(20vw, 136px);
+    min-width: min(68px, 15vw);
+    margin-bottom: 0;
+  }
+  #panel-football .vj-base {
+    width: min(280px, 54vh, 46vw);
+    height: min(280px, 54vh, 46vw);
+    margin: 0;
+    align-self: flex-start;
+  }
+  .football-play-panel .football-play-vj-legend.vj-legend {
+    margin: 6px 0 0;
+    max-width: min(280px, 90%);
+    font-size: 0.65rem;
+    gap: 6px 10px;
+  }
+  .football-play-panel .football-play-pause.small-pause {
+    max-width: 112px;
+    min-height: 36px;
+    margin: 0 auto;
+    padding: 6px 10px;
+    font-size: 0.78rem;
+    border-radius: 10px;
+  }
+  .football-play-panel .football-play-hint.hint {
+    font-size: 0.68rem;
+    line-height: 1.25;
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .football-play-panel .football-play-hud {
+    font-size: 0.68rem;
+    margin: 0;
+    line-height: 1.25;
+  }
+  #panel-football button.football-pass-btn {
+    flex: 1 1 auto;
+    align-self: stretch;
+    width: 100%;
+    min-height: 0;
+    min-width: 0;
+    font-size: clamp(1.1rem, 3.6vh, 1.65rem);
+    padding: 12px 10px;
+  }
+}
+/** Virtual joystick — drag anywhere in the puck */
+.vj-base {
+  position: relative;
+  width: min(240px, 78vw);
+  height: min(240px, 78vw);
+  align-self: center;
+  margin: 12px auto 6px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 40%, rgba(82, 90, 120, 0.55), rgba(18, 18, 32, 0.82));
+  box-shadow:
+    inset 0 8px 24px rgba(0, 0, 0, 0.42),
+    0 4px 0 rgba(255, 255, 255, 0.04);
+  isolation: isolate;
+}
+@media (orientation: portrait) {
+  /** Tuck joystick under Pass — trim default .vj-base vertical margin */
+  #panel-football .vj-base {
+    margin-top: 2px;
+    margin-bottom: 4px;
+  }
+}
+.vj-base svg.vj-zones {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+.vj-base .vj-ring {
+  fill: none;
+  stroke-width: 1.35;
+  vector-effect: non-scaling-stroke;
+}
+.vj-base .vj-ring-dead {
+  stroke: rgba(180, 190, 220, 0.42);
+  stroke-dasharray: 3 3;
+}
+.vj-base .vj-ring-walk {
+  stroke: rgba(120, 200, 140, 0.55);
+}
+.vj-base .vj-ring-run {
+  stroke: rgba(240, 190, 90, 0.62);
+}
+.vj-base .vj-ring-full {
+  stroke: rgba(130, 190, 255, 0.68);
+}
+.vj-base .vj-ring-max {
+  stroke: rgba(255, 255, 255, 0.22);
+  stroke-width: 1.6;
+}
+.vj-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 1;
+  width: clamp(72px, 24vw, 86px);
+  height: clamp(72px, 24vw, 86px);
+  margin: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 32%, rgba(250, 250, 255, 0.95), rgba(160, 170, 200, 0.55));
+  box-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.5),
+    inset 0 2px 6px rgba(255, 255, 255, 0.5);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.vj-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px 14px;
+  margin: 0 auto 16px;
+  max-width: min(280px, 92vw);
+  font-size: 0.78rem;
+  color: rgba(200, 206, 228, 0.82);
+  letter-spacing: 0.02em;
+}
+.vj-leg {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.vj-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+.vj-dot-dead {
+  background: rgba(180, 190, 220, 0.65);
+}
+.vj-dot-walk {
+  background: rgba(120, 200, 140, 0.85);
+}
+.vj-dot-run {
+  background: rgba(240, 190, 90, 0.9);
+}
+.vj-dot-full {
+  background: rgba(130, 190, 255, 0.95);
 }
