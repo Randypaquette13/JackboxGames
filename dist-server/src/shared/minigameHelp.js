@@ -47,7 +47,7 @@ export const MINIGAME_HELP = {
             "While carrying, Pass throws a live ball along your current movement (or straight toward the opponent goal if you aren’t moving).",
             "After a tackle, teammates wait 2s before scooping the loose ball; the tackling side waits 0.5s.",
             "You cannot rush a live loose ball past the sidelines or into either end zone — squeeze it on the grass first.",
-            "Carry across the opposing goal line — first team with 3 touchdowns wins.",
+            "Carry across the opposing goal line — first team to the touchdown total wins (set in Game settings on your phone).",
             "A 5:00 clock runs out to overtime: whoever leads wins — game ends on the next tackle or touchdown (tie if still tied after either).",
         ],
         controls: [

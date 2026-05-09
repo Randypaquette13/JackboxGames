@@ -7,6 +7,17 @@ import {
 } from "@shared/messages";
 import { MINIGAME_HELP } from "@shared/minigameHelp";
 import {
+  FOOTBALL_GAME_PERIOD_SEC_MAX,
+  FOOTBALL_GAME_PERIOD_SEC_MIN,
+  FOOTBALL_GAME_SPEED_MAX,
+  FOOTBALL_GAME_SPEED_MIN,
+  FOOTBALL_GAME_TD_TO_WIN_MAX,
+  FOOTBALL_GAME_TD_TO_WIN_MIN,
+  resolveFootballMaxPlayerSpeed,
+  resolveFootballPeriodSec,
+  resolveFootballTdToWin,
+} from "@shared/footballGameSettings";
+import {
   KART_FORWARD_SPEED_MAX,
   KART_FORWARD_SPEED_MIN,
   resolveKartForwardSpeed,
@@ -142,6 +153,24 @@ const kartSpeedVal = document.querySelector<HTMLElement>("#set-kart-speed-val")!
 kartSpeedInput.min = String(KART_FORWARD_SPEED_MIN);
 kartSpeedInput.max = String(KART_FORWARD_SPEED_MAX);
 kartSpeedInput.step = "5";
+
+const fbPeriodInput = document.querySelector<HTMLInputElement>("#set-football-period")!;
+const fbPeriodVal = document.querySelector<HTMLElement>("#set-football-period-val")!;
+fbPeriodInput.min = String(FOOTBALL_GAME_PERIOD_SEC_MIN);
+fbPeriodInput.max = String(FOOTBALL_GAME_PERIOD_SEC_MAX);
+fbPeriodInput.step = "15";
+
+const fbTdInput = document.querySelector<HTMLInputElement>("#set-football-td")!;
+const fbTdVal = document.querySelector<HTMLElement>("#set-football-td-val")!;
+fbTdInput.min = String(FOOTBALL_GAME_TD_TO_WIN_MIN);
+fbTdInput.max = String(FOOTBALL_GAME_TD_TO_WIN_MAX);
+fbTdInput.step = "1";
+
+const fbSpeedInput = document.querySelector<HTMLInputElement>("#set-football-speed")!;
+const fbSpeedVal = document.querySelector<HTMLElement>("#set-football-speed-val")!;
+fbSpeedInput.min = String(FOOTBALL_GAME_SPEED_MIN);
+fbSpeedInput.max = String(FOOTBALL_GAME_SPEED_MAX);
+fbSpeedInput.step = "5";
 
 if (!roomId) {
   statusEl.textContent = "Missing ?room= in URL. Scan the QR on the host screen.";
@@ -416,10 +445,24 @@ if (!roomId) {
   const ws = new WebSocket(`${wsUrl()}?cid=${encodeURIComponent(controllerClientId)}`);
   ws.binaryType = "arraybuffer";
 
-  function syncKartSettingsFromState(st: ControllerStateJson): void {
-    const v = resolveKartForwardSpeed(st.gameSettings);
-    kartSpeedInput.value = String(v);
-    kartSpeedVal.textContent = String(v);
+  function syncGameSettingsFromState(st: ControllerStateJson): void {
+    const k = resolveKartForwardSpeed(st.gameSettings);
+    kartSpeedInput.value = String(k);
+    kartSpeedVal.textContent = String(k);
+
+    const period = resolveFootballPeriodSec(st.gameSettings);
+    fbPeriodInput.value = String(period);
+    const pm = Math.floor(period / 60);
+    const ps = period % 60;
+    fbPeriodVal.textContent = `${pm}:${String(ps).padStart(2, "0")}`;
+
+    const td = resolveFootballTdToWin(st.gameSettings);
+    fbTdInput.value = String(td);
+    fbTdVal.textContent = String(td);
+
+    const fbs = resolveFootballMaxPlayerSpeed(st.gameSettings);
+    fbSpeedInput.value = String(fbs);
+    fbSpeedVal.textContent = String(fbs);
   }
 
   function hideAll(): void {
@@ -640,9 +683,10 @@ if (!roomId) {
       const m = Math.floor(fb.timeLeftSec / 60);
       const sec = fb.timeLeftSec % 60;
       const clk = `${m}:${String(sec).padStart(2, "0")}`;
+      const td = fb.tdToWin;
       fbPlayHudEl.textContent = fb.timerExpired
-        ? `${clk} — overtime: next tackle or TD ends it · RED ${fb.redScore} — BLUE ${fb.blueScore}`
-        : `${clk} · RED ${fb.redScore} — BLUE ${fb.blueScore}`;
+        ? `${clk} — overtime: next tackle or TD ends it · RED ${fb.redScore}/${td} — BLUE ${fb.blueScore}/${td}`
+        : `${clk} · RED ${fb.redScore}/${td} — BLUE ${fb.blueScore}/${td}`;
     } else {
       fbPlayHudEl.textContent = "";
     }
@@ -688,7 +732,7 @@ if (!roomId) {
       return;
     }
     if (st.settingsOpen) {
-      syncKartSettingsFromState(st);
+      syncGameSettingsFromState(st);
       panels.settings.hidden = false;
       return;
     }
@@ -945,6 +989,26 @@ if (!roomId) {
     const n = Number(kartSpeedInput.value);
     kartSpeedVal.textContent = String(n);
     sendJson(ws, { type: "game_settings_patch", patch: { kartForwardSpeed: n } });
+  });
+
+  fbPeriodInput.addEventListener("input", () => {
+    const n = Number(fbPeriodInput.value);
+    const pm = Math.floor(n / 60);
+    const ps = n % 60;
+    fbPeriodVal.textContent = `${pm}:${String(ps).padStart(2, "0")}`;
+    sendJson(ws, { type: "game_settings_patch", patch: { footballPeriodSec: n } });
+  });
+
+  fbTdInput.addEventListener("input", () => {
+    const n = Number(fbTdInput.value);
+    fbTdVal.textContent = String(n);
+    sendJson(ws, { type: "game_settings_patch", patch: { footballTdToWin: n } });
+  });
+
+  fbSpeedInput.addEventListener("input", () => {
+    const n = Number(fbSpeedInput.value);
+    fbSpeedVal.textContent = String(n);
+    sendJson(ws, { type: "game_settings_patch", patch: { footballMaxPlayerSpeed: n } });
   });
 
   function loop(): void {

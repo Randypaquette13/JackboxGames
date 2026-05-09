@@ -15,6 +15,12 @@ import type {
 import { MINIGAME_IDS, MINIGAME_LABELS } from "../src/shared/messages.js";
 import { TICK_RATE, WORLD_H, WORLD_W } from "../src/shared/constants.js";
 import {
+  clampFootballMaxPlayerSpeed,
+  clampFootballPeriodSec,
+  clampFootballTdToWin,
+  resolveFootballTdToWin,
+} from "../src/shared/footballGameSettings.js";
+import {
   clampKartForwardSpeed,
   KART_BOOST_DURATION_SEC,
   KART_BOOST_INITIAL_KICK_FRAC,
@@ -1275,6 +1281,7 @@ export function buildControllerState(room: Room, playerId: number): ControllerSt
           isStarter: room.phase === "football_team_select" && canFootballStart,
           redScore: room.footballRedScore,
           blueScore: room.footballBlueScore,
+          tdToWin: resolveFootballTdToWin(room.gameSettings),
           timeLeftSec: Math.ceil(room.footballTimeLeftSec),
           timerExpired: room.footballTimerExpired,
           seriesWins: Object.fromEntries(room.seriesWins),
@@ -1828,6 +1835,24 @@ export function applyIntent(room: Room, _playerId: number, intent: ClientIntent)
         const v = p.kartForwardSpeed;
         if (typeof v === "number" && Number.isFinite(v)) {
           room.gameSettings.kartForwardSpeed = clampKartForwardSpeed(v);
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(p, "footballPeriodSec")) {
+        const v = p.footballPeriodSec;
+        if (typeof v === "number" && Number.isFinite(v)) {
+          room.gameSettings.footballPeriodSec = clampFootballPeriodSec(v);
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(p, "footballTdToWin")) {
+        const v = p.footballTdToWin;
+        if (typeof v === "number" && Number.isFinite(v)) {
+          room.gameSettings.footballTdToWin = clampFootballTdToWin(v);
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(p, "footballMaxPlayerSpeed")) {
+        const v = p.footballMaxPlayerSpeed;
+        if (typeof v === "number" && Number.isFinite(v)) {
+          room.gameSettings.footballMaxPlayerSpeed = clampFootballMaxPlayerSpeed(v);
         }
       }
       break;

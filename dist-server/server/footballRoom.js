@@ -1,6 +1,7 @@
 import { TICK_RATE, WORLD_H, WORLD_W } from "../src/shared/constants.js";
 import { fallbackPlayerHue } from "../src/shared/playerColors.js";
-import { FOOTBALL_BALL_R, FOOTBALL_BLUE_EZ_X0, FOOTBALL_FIELD_MARGIN_Y, FOOTBALL_FIELD_X0, FOOTBALL_FIELD_X1, FOOTBALL_KICKOFF_X_INSET, FOOTBALL_KICKOFF_BALL_JITTER, FOOTBALL_KICKOFF_COUNTDOWN_SEC, FOOTBALL_LIVE_BALL_X0, FOOTBALL_LIVE_BALL_X1, FOOTBALL_MAX_PLAYER_SPEED, FOOTBALL_POST_TD_BALL_FRAC_FROM_MID, FOOTBALL_OPPONENT_TACKLE_PICKUP_LOCK_SEC, FOOTBALL_PASS_SPEED, FOOTBALL_POST_PASS_GLOBAL_PICKUP_LOCK_SEC, FOOTBALL_PLAYER_BOUNCE_CONTACT_SPEED_MUL, FOOTBALL_PLAYER_BOUNCE_RECOVERY_PER_SEC, FOOTBALL_PASS_TEAMMATE_LOCK_SEC, FOOTBALL_PERIOD_SEC, FOOTBALL_PLAYER_R, FOOTBALL_RED_EZ_X1, FOOTBALL_TACKLE_PICKUP_LOCK_SEC, FOOTBALL_TD_TO_WIN, } from "../src/shared/footballSettings.js";
+import { resolveFootballMaxPlayerSpeed, resolveFootballPeriodSec, resolveFootballTdToWin, } from "../src/shared/footballGameSettings.js";
+import { FOOTBALL_BALL_R, FOOTBALL_BLUE_EZ_X0, FOOTBALL_FIELD_MARGIN_Y, FOOTBALL_FIELD_X0, FOOTBALL_FIELD_X1, FOOTBALL_KICKOFF_X_INSET, FOOTBALL_KICKOFF_BALL_JITTER, FOOTBALL_KICKOFF_COUNTDOWN_SEC, FOOTBALL_LIVE_BALL_X0, FOOTBALL_LIVE_BALL_X1, FOOTBALL_POST_TD_BALL_FRAC_FROM_MID, FOOTBALL_OPPONENT_TACKLE_PICKUP_LOCK_SEC, FOOTBALL_PASS_SPEED, FOOTBALL_POST_PASS_GLOBAL_PICKUP_LOCK_SEC, FOOTBALL_PLAYER_BOUNCE_CONTACT_SPEED_MUL, FOOTBALL_PLAYER_BOUNCE_RECOVERY_PER_SEC, FOOTBALL_PASS_TEAMMATE_LOCK_SEC, FOOTBALL_PLAYER_R, FOOTBALL_RED_EZ_X1, FOOTBALL_TACKLE_PICKUP_LOCK_SEC, } from "../src/shared/footballSettings.js";
 import { Btn } from "../src/shared/protocol.js";
 const SUMMARY_SEC = 3;
 const BALL_FLING_SPEED = 320;
@@ -87,7 +88,7 @@ export function clearFootballState(room) {
     room.footballBall = { x: MID_X, y: MID_Y, vx: 0, vy: 0, carrierId: null };
     room.footballRedScore = 0;
     room.footballBlueScore = 0;
-    room.footballTimeLeftSec = FOOTBALL_PERIOD_SEC;
+    room.footballTimeLeftSec = resolveFootballPeriodSec(room.gameSettings);
     room.footballTimerExpired = false;
     room.footballPickupLockTeam = null;
     room.footballPickupLockUntilTick = 0;
@@ -373,11 +374,12 @@ function endMatch(room, winner) {
 }
 function checkTouchdown(room, pid, carrierTeam) {
     const b = room.footballBall;
+    const tdNeed = resolveFootballTdToWin(room.gameSettings);
     const ax = room.footballAthletes.get(pid)?.x ?? b.x;
     if (carrierTeam === "red" && ax >= FOOTBALL_BLUE_EZ_X0) {
         room.footballRedScore++;
         b.carrierId = null;
-        if (room.footballRedScore >= FOOTBALL_TD_TO_WIN) {
+        if (room.footballRedScore >= tdNeed) {
             endMatch(room, "red");
             return;
         }
@@ -392,7 +394,7 @@ function checkTouchdown(room, pid, carrierTeam) {
     if (carrierTeam === "blue" && ax <= FOOTBALL_RED_EZ_X1) {
         room.footballBlueScore++;
         b.carrierId = null;
-        if (room.footballBlueScore >= FOOTBALL_TD_TO_WIN) {
+        if (room.footballBlueScore >= tdNeed) {
             endMatch(room, "blue");
             return;
         }
@@ -434,7 +436,7 @@ function maybeTryPass(room, carrierId, carrierAth, carrierTeam) {
     let nx = pl.input.footballVx ?? 0;
     let ny = pl.input.footballVy ?? 0;
     const len = Math.hypot(nx, ny);
-    const moveFloor = FOOTBALL_MAX_PLAYER_SPEED * 0.1;
+    const moveFloor = resolveFootballMaxPlayerSpeed(room.gameSettings) * 0.1;
     if (len < moveFloor) {
         nx = carrierTeam === "red" ? 1 : -1;
         ny = 0;
@@ -597,6 +599,7 @@ export function buildFootballHostJson(room) {
         },
         redScore: room.footballRedScore,
         blueScore: room.footballBlueScore,
+        tdToWin: resolveFootballTdToWin(room.gameSettings),
         timeLeftSec: Math.ceil(room.footballTimeLeftSec),
         timerExpired: room.footballTimerExpired,
         kickoffCountdown: room.footballKickoffCountdown !== null && room.footballKickoffCountdown > 0

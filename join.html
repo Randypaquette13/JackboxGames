@@ -125,7 +125,7 @@
         <div class="football-play-col football-play-col-mid">
           <button type="button" id="fb-pause" class="secondary small-pause football-play-pause">Pause</button>
           <p class="hint football-play-hint">
-            Football — move to steal; score in the far endzone — first team to 3 TDs wins
+            Football — move to steal; score in the far endzone — first team to the TD target wins (Game settings)
           </p>
           <p id="fb-play-hud" class="subhint football-play-hud"></p>
         </div>
@@ -189,6 +189,21 @@
         <label for="set-kart-speed">Kart racing speed</label>
         <input type="range" id="set-kart-speed" />
         <span id="set-kart-speed-val" class="settings-val"></span>
+      </div>
+      <div class="settings-row">
+        <label for="set-football-period">Football match length (sec)</label>
+        <input type="range" id="set-football-period" />
+        <span id="set-football-period-val" class="settings-val"></span>
+      </div>
+      <div class="settings-row">
+        <label for="set-football-td">Football TDs to win</label>
+        <input type="range" id="set-football-td" />
+        <span id="set-football-td-val" class="settings-val"></span>
+      </div>
+      <div class="settings-row">
+        <label for="set-football-speed">Football sprint speed</label>
+        <input type="range" id="set-football-speed" />
+        <span id="set-football-speed-val" class="settings-val"></span>
       </div>
       <button type="button" id="set-close" class="primary">Close</button>
     </div>

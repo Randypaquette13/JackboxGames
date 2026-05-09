@@ -7,7 +7,7 @@ import { WebSocketServer } from "ws";
 import { TICK_DT } from "../src/shared/constants.js";
 import { parseClientIntent } from "../src/shared/messages.js";
 import { pickPlayerHue } from "../src/shared/playerColors.js";
-import { FOOTBALL_MAX_PLAYER_SPEED } from "../src/shared/footballSettings.js";
+import { resolveFootballMaxPlayerSpeed } from "../src/shared/footballGameSettings.js";
 import { packedAxisToVelocity } from "../src/shared/footballPackedInput.js";
 import { Btn, encodeError, encodePong, encodeWelcome, Op, parseInput, parseJoin, parsePing, } from "../src/shared/protocol.js";
 import { applyIntent, buildControllerState, buildHostState, createRoom, ensureKartCar, handleFootballPauseEdge, handleFroggerPauseEdge, handleKartPauseEdge, handleRaceWalkPauseEdge, tickSimulation, } from "./gameRoom.js";
@@ -368,7 +368,7 @@ function handleBinaryMessage(ws, data) {
             }
             const axisU8 = new DataView(buf).getUint8(5);
             if (room.phase === "football" || room.phase === "football_paused") {
-                const { vx, vy } = packedAxisToVelocity(axisU8, FOOTBALL_MAX_PLAYER_SPEED);
+                const { vx, vy } = packedAxisToVelocity(axisU8, resolveFootballMaxPlayerSpeed(room.gameSettings));
                 player.input = { h: 0, buttons: inp.buttons, seq: inp.seq, footballVx: vx, footballVy: vy };
             }
             else {

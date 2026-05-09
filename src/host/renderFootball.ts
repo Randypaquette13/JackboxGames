@@ -74,10 +74,15 @@ function drawAthlete(
   ctx.fill();
   ctx.stroke();
 
+  /** Personal hue: small center dot so team jersey dominates the sprite. */
+  const dotR = pr * 0.26;
   ctx.fillStyle = inner;
   ctx.beginPath();
-  ctx.arc(0, 0, pr * 0.62, 0, Math.PI * 2);
+  ctx.arc(0, 0, dotR, 0, Math.PI * 2);
   ctx.fill();
+  ctx.strokeStyle = "rgba(12, 12, 20, 0.42)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
 
   ctx.fillStyle = "#faf8f2";
   ctx.font = `${Math.max(9, Math.floor(pr * 0.48))}px system-ui,sans-serif`;
@@ -209,9 +214,9 @@ export function drawFootball(
   ctx.font = "bold 18px system-ui,sans-serif";
   ctx.textAlign = "left";
   ctx.textBaseline = "top";
-  ctx.fillText(`RED  ${fb.redScore}`, 14, Math.max(6, yTop - 52));
+  ctx.fillText(`RED  ${fb.redScore}/${fb.tdToWin}`, 14, Math.max(6, yTop - 52));
   ctx.textAlign = "right";
-  ctx.fillText(`${fb.blueScore}  BLUE`, WORLD_W - 14, Math.max(6, yTop - 52));
+  ctx.fillText(`${fb.blueScore}/${fb.tdToWin}  BLUE`, WORLD_W - 14, Math.max(6, yTop - 52));
 
   ctx.textAlign = "center";
   ctx.fillStyle = fb.timerExpired ? "#ffb347" : "#dce6f8";
@@ -349,7 +354,7 @@ export function drawFootball(
     y += 40;
     ctx.font = "16px system-ui,sans-serif";
     ctx.fillStyle = "#98a2c0";
-    ctx.fillText(`${fb.redScore} — ${fb.blueScore}`, canvasW / 2, y);
+    ctx.fillText(`${fb.redScore}/${fb.tdToWin} — ${fb.blueScore}/${fb.tdToWin}`, canvasW / 2, y);
     ctx.restore();
   }
 }

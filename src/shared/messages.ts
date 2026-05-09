@@ -230,6 +230,8 @@ export type HostStateJson = {
     };
     redScore: number;
     blueScore: number;
+    /** Touchdowns needed to win the match (from room settings). */
+    tdToWin: number;
     timeLeftSec: number;
     /** Clock hit 0; game ends after the next tackle or touchdown. */
     timerExpired: boolean;
@@ -302,6 +304,7 @@ export type ControllerStateJson = {
     canStart: boolean;
     redScore: number;
     blueScore: number;
+    tdToWin: number;
     timeLeftSec: number;
     timerExpired: boolean;
     /** Whether this client may send football_start (any controller once canStart). */

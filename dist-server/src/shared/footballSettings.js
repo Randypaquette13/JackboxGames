@@ -42,6 +42,6 @@ export const FOOTBALL_POST_PASS_GLOBAL_PICKUP_LOCK_SEC = 0.1;
 /** After a TD, loose ball sits this fraction of midfield→near-hash toward the receiving team (+x = blue). */
 export const FOOTBALL_POST_TD_BALL_FRAC_FROM_MID = 0.72;
 /** Non-carrier bounce contact: input speed multiplier until recovered (extra friction feel). */
-export const FOOTBALL_PLAYER_BOUNCE_CONTACT_SPEED_MUL = 0.0000001;
+export const FOOTBALL_PLAYER_BOUNCE_CONTACT_SPEED_MUL = 0.12;
 /** Per second, bounce friction multiplier eases back toward 1. */
-export const FOOTBALL_PLAYER_BOUNCE_RECOVERY_PER_SEC = .01;
+export const FOOTBALL_PLAYER_BOUNCE_RECOVERY_PER_SEC = 3;

@@ -1,5 +1,6 @@
 import { MINIGAME_IDS, MINIGAME_LABELS } from "../src/shared/messages.js";
 import { TICK_RATE, WORLD_H, WORLD_W } from "../src/shared/constants.js";
+import { clampFootballMaxPlayerSpeed, clampFootballPeriodSec, clampFootballTdToWin, resolveFootballTdToWin, } from "../src/shared/footballGameSettings.js";
 import { clampKartForwardSpeed, KART_BOOST_DURATION_SEC, KART_BOOST_INITIAL_KICK_FRAC, KART_BOOST_SPEED_MULT, KART_BOOST_USES_PER_RACE, resolveKartForwardSpeed, } from "../src/shared/kartSettings.js";
 import { fallbackPlayerHue } from "../src/shared/playerColors.js";
 import { FROGGER_CAR_SPEED_MAX, FROGGER_CAR_SPEED_MIN, FROGGER_COUNTDOWN_SEC, FROGGER_DEATH_NOTICE_TICKS, FROGGER_DISTANCE_UNIT, FROGGER_FAST_CAR_AFTER_BANDS, FROGGER_FAST_CAR_CHANCE, FROGGER_FAST_CAR_MULT, FROGGER_FROG_SIZE, FROGGER_KILL_MARGIN, FROGGER_LILY_W, FROGGER_LOG_W_MAX, FROGGER_LOG_W_MIN, FROGGER_LATERAL_SPEED, FROGGER_MOVE_COOLDOWN, FROGGER_OBSTACLE_AFTER_BANDS, FROGGER_OBSTACLE_CHANCE, FROGGER_PLATFORM_GAP, FROGGER_PLATFORM_SPEED_MAX, FROGGER_PLATFORM_SPEED_MIN, FROGGER_PLATFORM_SPAWN_INTERVAL_SEC, FROGGER_ROW_H, FROGGER_SCROLL_BASE, FROGGER_SCROLL_DELAY_SEC, FROGGER_SCROLL_MAX, FROGGER_SCROLL_RAMP, FROGGER_START_GRASS_ROWS, froggerClampX, froggerCarSpawnIntervalSec, pickFroggerSectionKind, } from "../src/shared/froggerSettings.js";
@@ -958,6 +959,7 @@ export function buildControllerState(room, playerId) {
             isStarter: room.phase === "football_team_select" && canFootballStart,
             redScore: room.footballRedScore,
             blueScore: room.footballBlueScore,
+            tdToWin: resolveFootballTdToWin(room.gameSettings),
             timeLeftSec: Math.ceil(room.footballTimeLeftSec),
             timerExpired: room.footballTimerExpired,
             seriesWins: Object.fromEntries(room.seriesWins),
@@ -1505,6 +1507,24 @@ export function applyIntent(room, _playerId, intent) {
                 const v = p.kartForwardSpeed;
                 if (typeof v === "number" && Number.isFinite(v)) {
                     room.gameSettings.kartForwardSpeed = clampKartForwardSpeed(v);
+                }
+            }
+            if (Object.prototype.hasOwnProperty.call(p, "footballPeriodSec")) {
+                const v = p.footballPeriodSec;
+                if (typeof v === "number" && Number.isFinite(v)) {
+                    room.gameSettings.footballPeriodSec = clampFootballPeriodSec(v);
+                }
+            }
+            if (Object.prototype.hasOwnProperty.call(p, "footballTdToWin")) {
+                const v = p.footballTdToWin;
+                if (typeof v === "number" && Number.isFinite(v)) {
+                    room.gameSettings.footballTdToWin = clampFootballTdToWin(v);
+                }
+            }
+            if (Object.prototype.hasOwnProperty.call(p, "footballMaxPlayerSpeed")) {
+                const v = p.footballMaxPlayerSpeed;
+                if (typeof v === "number" && Number.isFinite(v)) {
+                    room.gameSettings.footballMaxPlayerSpeed = clampFootballMaxPlayerSpeed(v);
                 }
             }
             break;
