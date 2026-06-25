@@ -176,13 +176,19 @@ export type HostStateJson = {
     countdown: number | null;
     paused: boolean;
     pausedByPlayerId: number | null;
+    /**
+     * Static track geometry. Sent only while the countdown is active (and
+     * omitted during racing/results to avoid re-serializing ~34KB every tick);
+     * the host caches the last received geometry. Always present at least once
+     * per race during the countdown.
+     */
     /** Grass islands (infield) — each closed polygon */
-    innerIslands: { x: number; y: number }[][];
-    outerWall: { x: number; y: number }[];
+    innerIslands?: { x: number; y: number }[][];
+    outerWall?: { x: number; y: number }[];
     /** Figure-8 crossing: bridge deck quad (UL–LR); underpass is the same vertices in reverse winding */
-    bridgePolygon: { x: number; y: number }[];
-    underpassPolygon: { x: number; y: number }[];
-    finishLine: { a: { x: number; y: number }; b: { x: number; y: number } };
+    bridgePolygon?: { x: number; y: number }[];
+    underpassPolygon?: { x: number; y: number }[];
+    finishLine?: { a: { x: number; y: number }; b: { x: number; y: number } };
     cars: KartCarState[];
     winnerId: number | null;
     /** Cumulative race wins per playerId in this room */

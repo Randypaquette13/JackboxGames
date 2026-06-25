@@ -12,7 +12,12 @@ import { packedAxisToVelocity } from "../src/shared/footballPackedInput.js";
 import { Btn, encodeError, encodePong, encodeWelcome, Op, parseInput, parseJoin, parsePing, } from "../src/shared/protocol.js";
 import { applyIntent, buildControllerState, buildHostState, createRoom, ensureKartCar, handleFootballPauseEdge, handleFroggerPauseEdge, handleKartPauseEdge, handleRaceWalkPauseEdge, tickSimulation, } from "./gameRoom.js";
 import { createPlayer, DEFAULT_PLATFORMS } from "./game.js";
+import { counters, logDiagnostics } from "./metrics.js";
 const PORT = Number(process.env.PORT) || 3001;
+/** Heartbeat: ping every interval; reap sockets that missed the prior pong. */
+const HEARTBEAT_MS = 30_000;
+/** Hourly diagnostics log. */
+const METRICS_INTERVAL_MS = 60 * 60 * 1000;
 const CONTROLLER_GRACE_MS = 30_000;
 const rooms = new Map();
 const reconnectGraceByRoom = new Map();
@@ -72,6 +77,12 @@ function setClientId(ws, cid) {
 }
 function getClientId(ws) {
     return ws.__jbCid ?? null;
+}
+function setAlive(ws, v) {
+    ws.__jbAlive = v;
+}
+function isAlive(ws) {
+    return ws.__jbAlive !== false;
 }
 function graceMap(roomId) {
     let m = reconnectGraceByRoom.get(roomId);
@@ -141,7 +152,9 @@ function destroyRoom(roomId) {
         reconnectGraceByRoom.delete(roomId);
     }
     clientIdByPlayerByRoom.delete(roomId);
+    prejoinControllersByRoom.delete(roomId);
     rooms.delete(roomId);
+    counters.roomsDestroyed++;
 }
 function bufferToArrayBuffer(data) {
     const u8 = new Uint8Array(data.byteLength);
@@ -235,6 +248,7 @@ function handleTextMessage(ws, raw) {
             if (wsCid)
                 clientMap(att.roomId).set(playerId, wsCid);
             ensureKartCar(room, playerId);
+            counters.joinsCreate++;
             ws.send(encodeWelcome(playerId, att.roomId));
             broadcastRoom(att.roomId);
         }
@@ -254,6 +268,7 @@ function handleTextMessage(ws, raw) {
             if (wsCid)
                 clientMap(att.roomId).set(pid, wsCid);
             ensureKartCar(room, pid);
+            counters.joinsClaim++;
             ws.send(encodeWelcome(pid, att.roomId));
             broadcastRoom(att.roomId);
         }
@@ -291,6 +306,7 @@ function handleBinaryMessage(ws, data) {
             }
             const room = createRoom(ws, DEFAULT_PLATFORMS);
             rooms.set(roomId, room);
+            counters.roomsCreated++;
             setAttached(ws, { role: "host", roomId });
             ws.send(encodeWelcome(0, roomId));
             broadcastRoom(roomId);
@@ -316,6 +332,7 @@ function handleBinaryMessage(ws, data) {
                 setAttached(ws, { role: "controller", roomId, playerId });
                 clientMap(roomId).set(playerId, wsCid);
                 ensureKartCar(room, playerId);
+                counters.autoResumes++;
                 ws.send(encodeWelcome(playerId, roomId));
                 broadcastRoom(roomId);
                 return;
@@ -458,6 +475,8 @@ const httpServer = http.createServer((req, res) => {
 const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
 wss.on("connection", (ws, req) => {
     setTcpNoDelay(ws);
+    setAlive(ws, true);
+    ws.on("pong", () => setAlive(ws, true));
     const url = new URL(req.url || "/", "http://127.0.0.1");
     const cidRaw = url.searchParams.get("cid")?.trim() ?? "";
     const cid = cidRaw && cidRaw.length <= 128 ? cidRaw : null;
@@ -476,6 +495,7 @@ wss.on("connection", (ws, req) => {
         const att = getAttached(ws);
         if (!att)
             return;
+        counters.disconnects++;
         if (att.role === "host") {
             destroyRoom(att.roomId);
             return;
@@ -506,6 +526,7 @@ wss.on("connection", (ws, req) => {
                     return;
                 graceMap(att.roomId).delete(cid);
                 clientMap(att.roomId).delete(pid);
+                counters.graceExpirations++;
                 broadcastRoom(att.roomId);
             }, CONTROLLER_GRACE_MS);
             gm.set(cid, { playerId: pid, expiresAt, timeout });
@@ -522,7 +543,55 @@ wss.on("connection", (ws, req) => {
         }
     });
 });
-setInterval(gameLoop, 1000 * TICK_DT);
+const gameLoopTimer = setInterval(gameLoop, 1000 * TICK_DT);
+// Heartbeat: reap half-open sockets (e.g. host laptop slept) that never fire
+// a clean `close`. Reaping a dead host -> `close` -> destroyRoom (stops its
+// loop, frees buffered sends); a dead controller flows through the grace path.
+const heartbeatTimer = setInterval(() => {
+    for (const ws of wss.clients) {
+        if (!isAlive(ws)) {
+            counters.zombiesReaped++;
+            ws.terminate();
+            continue;
+        }
+        setAlive(ws, false);
+        try {
+            ws.ping();
+        }
+        catch {
+            /* ignore */
+        }
+    }
+}, HEARTBEAT_MS);
+function collectAndLogMetrics(label) {
+    let players = 0;
+    let controllers = 0;
+    for (const room of rooms.values()) {
+        players += room.players.size;
+        controllers += room.controllers.size;
+    }
+    let prejoin = 0;
+    for (const s of prejoinControllersByRoom.values())
+        prejoin += s.size;
+    let bufferedSum = 0;
+    let bufferedMax = 0;
+    for (const ws of wss.clients) {
+        const b = ws.bufferedAmount;
+        bufferedSum += b;
+        if (b > bufferedMax)
+            bufferedMax = b;
+    }
+    void logDiagnostics(label, {
+        clientCount: wss.clients.size,
+        roomCount: rooms.size,
+        playerCount: players,
+        controllerCount: controllers,
+        prejoinCount: prejoin,
+        bufferedSumBytes: bufferedSum,
+        bufferedMaxBytes: bufferedMax,
+    });
+}
+const metricsTimer = setInterval(() => collectAndLogMetrics("hourly"), METRICS_INTERVAL_MS);
 httpServer.on("error", (err) => {
     if (err.code === "EADDRINUSE") {
         console.error(`[game] Port ${PORT} is already in use. Set a different PORT in .env.`);
@@ -534,4 +603,21 @@ httpServer.on("error", (err) => {
 });
 httpServer.listen(PORT, () => {
     console.log(`[game] http://127.0.0.1:${PORT}/ (static)  ws://127.0.0.1:${PORT}/ws`);
+    collectAndLogMetrics("startup");
 });
+function shutdown() {
+    clearInterval(gameLoopTimer);
+    clearInterval(heartbeatTimer);
+    clearInterval(metricsTimer);
+    for (const ws of wss.clients) {
+        try {
+            ws.close();
+        }
+        catch {
+            /* ignore */
+        }
+    }
+    httpServer.close(() => process.exit(0));
+}
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);

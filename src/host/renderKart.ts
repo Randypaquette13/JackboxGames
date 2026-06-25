@@ -9,6 +9,21 @@ let goFlashUntil = 0;
 const underpassLatchByPlayer = new Map<number, boolean>();
 const inCrossingByPlayer = new Map<number, boolean>();
 
+type Pt = { x: number; y: number };
+type KartGeometry = {
+  outerWall: Pt[];
+  innerIslands: Pt[][];
+  bridgePolygon: Pt[];
+  underpassPolygon: Pt[];
+  finishLine: { a: Pt; b: Pt };
+};
+/**
+ * The server sends static track geometry only during the countdown (to avoid
+ * re-serializing ~34KB every racing tick), so cache the last received copy and
+ * reuse it on frames where it is omitted.
+ */
+let cachedKartGeometry: KartGeometry | null = null;
+
 function addClosedPoly(
   ctx: CanvasRenderingContext2D,
   pts: { x: number; y: number }[]
@@ -280,7 +295,24 @@ export function drawKart(
   const kart = state.kart;
   if (!kart) return;
 
-  const { innerIslands, outerWall, bridgePolygon, underpassPolygon } = kart;
+  if (
+    kart.outerWall &&
+    kart.innerIslands &&
+    kart.bridgePolygon &&
+    kart.underpassPolygon &&
+    kart.finishLine
+  ) {
+    cachedKartGeometry = {
+      outerWall: kart.outerWall,
+      innerIslands: kart.innerIslands,
+      bridgePolygon: kart.bridgePolygon,
+      underpassPolygon: kart.underpassPolygon,
+      finishLine: kart.finishLine,
+    };
+  }
+  const geo = cachedKartGeometry;
+  if (!geo) return;
+  const { innerIslands, outerWall, bridgePolygon, underpassPolygon } = geo;
   if (outerWall.length < 3) return;
 
   const allPts = [
@@ -318,7 +350,7 @@ export function drawKart(
   }
   ctx.fillStyle = sand;
   ctx.fill("evenodd");
-  drawFinishLine(ctx, kart.finishLine.a, kart.finishLine.b, scale);
+  drawFinishLine(ctx, geo.finishLine.a, geo.finishLine.b, scale);
 
   for (const isl of innerIslands) {
     ctx.beginPath();

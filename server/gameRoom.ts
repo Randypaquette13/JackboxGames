@@ -1160,11 +1160,6 @@ export function buildHostState(
 
   let kart: HostStateJson["kart"] = null;
   if (room.phase === "kart" || room.phase === "kart_paused" || room.phase === "kart_results") {
-    const outerWall = getOuterWall().map((p) => ({ x: p.x, y: p.y }));
-    const innerIslands = getInnerIslands().map((island) => island.map((p) => ({ x: p.x, y: p.y })));
-    const bridgePolygon = getBridgePolygon().map((p) => ({ x: p.x, y: p.y }));
-    const underpassPolygon = getUnderpassPolygon().map((p) => ({ x: p.x, y: p.y }));
-    const finishLine = finishLineSegment();
     const cars = Array.from(room.kartCars.entries()).map(([playerId, c]) => {
       const pl = room.players.get(playerId);
       return {
@@ -1183,15 +1178,21 @@ export function buildHostState(
       countdown: room.kartCountdown,
       paused: room.kartPaused,
       pausedByPlayerId: room.kartPausedByPlayerId,
-      innerIslands,
-      outerWall,
-      bridgePolygon,
-      underpassPolygon,
-      finishLine: { a: finishLine.a, b: finishLine.b },
       cars,
       winnerId: room.kartWinnerId,
       seriesWins: Object.fromEntries(room.seriesWins),
     };
+    // Static geometry is ~34KB; send it only during the countdown (spans many
+    // frames, so resilient to a dropped packet) and let the host cache it,
+    // rather than re-serializing it on every racing tick.
+    if (room.kartCountdown !== null) {
+      const finishLine = finishLineSegment();
+      kart.outerWall = getOuterWall().map((p) => ({ x: p.x, y: p.y }));
+      kart.innerIslands = getInnerIslands().map((island) => island.map((p) => ({ x: p.x, y: p.y })));
+      kart.bridgePolygon = getBridgePolygon().map((p) => ({ x: p.x, y: p.y }));
+      kart.underpassPolygon = getUnderpassPolygon().map((p) => ({ x: p.x, y: p.y }));
+      kart.finishLine = { a: finishLine.a, b: finishLine.b };
+    }
   }
 
 
