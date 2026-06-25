@@ -2,12 +2,13 @@
  * JSON WebSocket messages (orchestration + host/controller state).
  * Binary join/input/ping stays in protocol.ts.
  */
-export const MINIGAME_IDS = ["kart", "race_walk", "frogger", "football"];
+export const MINIGAME_IDS = ["kart", "race_walk", "frogger", "football", "air_hockey"];
 export const MINIGAME_LABELS = {
     kart: "Kart Racing",
     race_walk: "Race Walk",
     frogger: "Frogger",
     football: "Football",
+    air_hockey: "Air Hockey",
 };
 export function parseClientIntent(raw) {
     if (!raw || typeof raw !== "object")
@@ -82,6 +83,19 @@ export function parseClientIntent(raw) {
     }
     if (t === "football_start")
         return { type: "football_start" };
+    if (t === "air_hockey_results") {
+        const a = o.action;
+        if (a === "play_again" || a === "minigame_menu" || a === "add_controllers") {
+            return { type: "air_hockey_results", action: a };
+        }
+    }
+    if (t === "air_hockey_pick_team") {
+        const tm = o.team;
+        if (tm === "red" || tm === "blue")
+            return { type: "air_hockey_pick_team", team: tm };
+    }
+    if (t === "air_hockey_start")
+        return { type: "air_hockey_start" };
     if (t === "pause_resume")
         return { type: "pause_resume" };
     if (t === "pause_to_menu")

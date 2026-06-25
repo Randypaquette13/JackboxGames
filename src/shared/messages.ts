@@ -39,18 +39,26 @@ export type GamePhase =
   | "football_summary"
   | "football"
   | "football_paused"
-  | "football_results";
+  | "football_results"
+  | "air_hockey_team_select"
+  | "air_hockey_summary"
+  | "air_hockey"
+  | "air_hockey_paused"
+  | "air_hockey_results";
 
-export const MINIGAME_IDS = ["kart", "race_walk", "frogger", "football"] as const;
+export const MINIGAME_IDS = ["kart", "race_walk", "frogger", "football", "air_hockey"] as const;
 export type MinigameId = (typeof MINIGAME_IDS)[number];
 
 export type FootballTeam = "red" | "blue";
+/** Air hockey reuses the two-team model (red/blue sides). */
+export type AirHockeyTeam = FootballTeam;
 
 export const MINIGAME_LABELS: Record<MinigameId, string> = {
   kart: "Kart Racing",
   race_walk: "Race Walk",
   frogger: "Frogger",
   football: "Football",
+  air_hockey: "Air Hockey",
 };
 
 export type RaceWalkRunnerJson = {
@@ -120,6 +128,17 @@ export type FootballPlayerHudJson = {
   y: number;
 };
 
+export type AirHockeyRosterSlotJson = { playerId: number; name: string; hue: number };
+
+export type AirHockeyMalletJson = {
+  playerId: number;
+  name: string;
+  hue: number;
+  team: AirHockeyTeam;
+  x: number;
+  y: number;
+};
+
 /** Client → server (controller or dev; some allowed from host in dev only — server validates). */
 export type ClientIntent =
   | { type: "all_ready" }
@@ -141,6 +160,10 @@ export type ClientIntent =
   | { type: "football_pick_team"; team: FootballTeam }
   /** At least two players required; unpicked players are auto-balanced onto teams. */
   | { type: "football_start" }
+  | { type: "air_hockey_results"; action: "play_again" | "minigame_menu" | "add_controllers" }
+  | { type: "air_hockey_pick_team"; team: AirHockeyTeam }
+  /** At least two players required; unpicked players are auto-balanced onto teams. */
+  | { type: "air_hockey_start" }
   | { type: "pause_resume" }
   | { type: "pause_to_menu" };
 
@@ -257,6 +280,35 @@ export type HostStateJson = {
       liveBallX1: number;
     };
   };
+  airHockey: null | {
+    /** team_select | summary use rosters only; play adds mallet positions */
+    red: AirHockeyRosterSlotJson[];
+    blue: AirHockeyRosterSlotJson[];
+    mallets: AirHockeyMalletJson[];
+    puck: { x: number; y: number };
+    redScore: number;
+    blueScore: number;
+    /** Goals needed to win the match (from room settings). */
+    goalsToWin: number;
+    timeLeftSec: number;
+    /** Clock hit 0; game ends after the next goal. */
+    timerExpired: boolean;
+    kickoffCountdown: number | null;
+    paused: boolean;
+    pausedByPlayerId: number | null;
+    seriesWins: Record<number, number>;
+    winner: AirHockeyTeam | "tie" | null;
+    rink: {
+      x0: number;
+      x1: number;
+      y0: number;
+      y1: number;
+      midX: number;
+      /** Goal mouth vertical extent (same on both ends). */
+      goalY0: number;
+      goalY1: number;
+    };
+  };
 };
 
 export type ControllerStateJson = {
@@ -314,6 +366,22 @@ export type ControllerStateJson = {
     timeLeftSec: number;
     timerExpired: boolean;
     /** Whether this client may send football_start (any controller once canStart). */
+    isStarter: boolean;
+    seriesWins: Record<number, number>;
+    paused: boolean;
+  };
+  airHockey: null | {
+    teamSelect: boolean;
+    myTeam: AirHockeyTeam | null;
+    redIds: number[];
+    blueIds: number[];
+    canStart: boolean;
+    redScore: number;
+    blueScore: number;
+    goalsToWin: number;
+    timeLeftSec: number;
+    timerExpired: boolean;
+    /** Whether this client may send air_hockey_start (any controller once canStart). */
     isStarter: boolean;
     seriesWins: Record<number, number>;
     paused: boolean;
@@ -380,6 +448,17 @@ export function parseClientIntent(raw: unknown): ClientIntent | null {
     if (tm === "red" || tm === "blue") return { type: "football_pick_team", team: tm };
   }
   if (t === "football_start") return { type: "football_start" };
+  if (t === "air_hockey_results") {
+    const a = o.action;
+    if (a === "play_again" || a === "minigame_menu" || a === "add_controllers") {
+      return { type: "air_hockey_results", action: a };
+    }
+  }
+  if (t === "air_hockey_pick_team") {
+    const tm = o.team;
+    if (tm === "red" || tm === "blue") return { type: "air_hockey_pick_team", team: tm };
+  }
+  if (t === "air_hockey_start") return { type: "air_hockey_start" };
   if (t === "pause_resume") return { type: "pause_resume" };
   if (t === "pause_to_menu") return { type: "pause_to_menu" };
   return null;

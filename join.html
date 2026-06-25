@@ -135,6 +135,44 @@
       </div>
     </div>
 
+    <div id="panel-air-hockey-teams" class="panel football-teams-panel" hidden>
+      <p id="ah-team-top" class="hint">Air Hockey — pick your side</p>
+      <p id="ah-team-sub" class="subhint football-team-sub"></p>
+      <div class="football-team-btns">
+        <button type="button" id="ah-team-red" class="football-team-btn football-team-red" data-team="red">
+          RED
+        </button>
+        <button type="button" id="ah-team-blue" class="football-team-btn football-team-blue" data-team="blue">
+          BLUE
+        </button>
+      </div>
+      <button type="button" id="ah-start-game" class="primary football-start-btn">START GAME</button>
+      <p id="ah-start-hint" class="subhint football-start-hint"></p>
+    </div>
+
+    <div id="panel-air-hockey" class="panel football-play-panel" hidden>
+      <div class="football-play-main">
+        <div class="football-play-col football-play-col-stick">
+          <div id="ah-joystick" class="vj-base" aria-label="Movement">
+            <div id="ah-knob" class="vj-knob"></div>
+          </div>
+          <p class="vj-legend football-play-vj-legend">
+            <span class="vj-leg"><span class="vj-dot vj-dot-dead"></span> stop</span>
+            <span class="vj-leg"><span class="vj-dot vj-dot-walk"></span> slow</span>
+            <span class="vj-leg"><span class="vj-dot vj-dot-run"></span> fast</span>
+            <span class="vj-leg"><span class="vj-dot vj-dot-full"></span> full</span>
+          </p>
+        </div>
+        <div class="football-play-col football-play-col-mid">
+          <button type="button" id="ah-pause" class="secondary small-pause football-play-pause">Pause</button>
+          <p class="hint football-play-hint">
+            Air Hockey — stay on your half and knock the puck into the opponent's goal
+          </p>
+          <p id="ah-play-hud" class="subhint football-play-hud"></p>
+        </div>
+      </div>
+    </div>
+
     <div id="panel-frogger" class="panel" hidden>
       <button type="button" id="fg-pause" class="secondary small-pause">Pause</button>
       <div id="fg-death-banner" class="frogger-death-banner" hidden>
@@ -204,6 +242,21 @@
         <label for="set-football-speed">Football sprint speed</label>
         <input type="range" id="set-football-speed" />
         <span id="set-football-speed-val" class="settings-val"></span>
+      </div>
+      <div class="settings-row">
+        <label for="set-air-hockey-goals">Air Hockey goals to win</label>
+        <input type="range" id="set-air-hockey-goals" />
+        <span id="set-air-hockey-goals-val" class="settings-val"></span>
+      </div>
+      <div class="settings-row">
+        <label for="set-air-hockey-period">Air Hockey match length (sec)</label>
+        <input type="range" id="set-air-hockey-period" />
+        <span id="set-air-hockey-period-val" class="settings-val"></span>
+      </div>
+      <div class="settings-row">
+        <label for="set-air-hockey-speed">Air Hockey mallet speed</label>
+        <input type="range" id="set-air-hockey-speed" />
+        <span id="set-air-hockey-speed-val" class="settings-val"></span>
       </div>
       <button type="button" id="set-close" class="primary">Close</button>
     </div>

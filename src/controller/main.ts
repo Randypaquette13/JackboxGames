@@ -18,6 +18,17 @@ import {
   resolveFootballTdToWin,
 } from "@shared/footballGameSettings";
 import {
+  AIR_HOCKEY_GAME_GOALS_TO_WIN_MAX,
+  AIR_HOCKEY_GAME_GOALS_TO_WIN_MIN,
+  AIR_HOCKEY_GAME_PERIOD_SEC_MAX,
+  AIR_HOCKEY_GAME_PERIOD_SEC_MIN,
+  AIR_HOCKEY_GAME_SPEED_MAX,
+  AIR_HOCKEY_GAME_SPEED_MIN,
+  resolveAirHockeyGoalsToWin,
+  resolveAirHockeyMaxPlayerSpeed,
+  resolveAirHockeyPeriodSec,
+} from "@shared/airHockeyGameSettings";
+import {
   KART_FORWARD_SPEED_MAX,
   KART_FORWARD_SPEED_MIN,
   resolveKartForwardSpeed,
@@ -77,6 +88,8 @@ const panels = {
   frogger: document.querySelector<HTMLElement>("#panel-frogger")!,
   footballTeams: document.querySelector<HTMLElement>("#panel-football-teams")!,
   football: document.querySelector<HTMLElement>("#panel-football")!,
+  airHockeyTeams: document.querySelector<HTMLElement>("#panel-air-hockey-teams")!,
+  airHockey: document.querySelector<HTMLElement>("#panel-air-hockey")!,
   kart: document.querySelector<HTMLElement>("#panel-kart")!,
   kartPause: document.querySelector<HTMLElement>("#panel-kart-pause")!,
   results: document.querySelector<HTMLElement>("#panel-results")!,
@@ -117,6 +130,16 @@ const fbPlayHudEl = document.querySelector<HTMLElement>("#fb-play-hud")!;
 const fbJoystickEl = document.querySelector<HTMLElement>("#fb-joystick")!;
 const fbKnobEl = document.querySelector<HTMLElement>("#fb-knob")!;
 
+const ahTeamTopEl = document.querySelector<HTMLElement>("#ah-team-top")!;
+const ahTeamSubEl = document.querySelector<HTMLElement>("#ah-team-sub")!;
+const ahTeamRedBtn = document.querySelector<HTMLButtonElement>("#ah-team-red")!;
+const ahTeamBlueBtn = document.querySelector<HTMLButtonElement>("#ah-team-blue")!;
+const ahStartGameBtn = document.querySelector<HTMLButtonElement>("#ah-start-game")!;
+const ahStartHintEl = document.querySelector<HTMLElement>("#ah-start-hint")!;
+const ahPlayHudEl = document.querySelector<HTMLElement>("#ah-play-hud")!;
+const ahJoystickEl = document.querySelector<HTMLElement>("#ah-joystick")!;
+const ahKnobEl = document.querySelector<HTMLElement>("#ah-knob")!;
+
 /** SVG rings aligned to shared speed tiers (same normalization as stick clamp). */
 function injectFootballJoystickZones(base: HTMLElement, knob: HTMLElement): void {
   if (base.querySelector("svg.vj-zones")) return;
@@ -145,6 +168,7 @@ function injectFootballJoystickZones(base: HTMLElement, knob: HTMLElement): void
   base.insertBefore(svg, knob);
 }
 injectFootballJoystickZones(fbJoystickEl, fbKnobEl);
+injectFootballJoystickZones(ahJoystickEl, ahKnobEl);
 
 const RESULT_LABELS = ["Play again", "Back to minigame select", "Add more controllers"];
 
@@ -172,6 +196,24 @@ fbSpeedInput.min = String(FOOTBALL_GAME_SPEED_MIN);
 fbSpeedInput.max = String(FOOTBALL_GAME_SPEED_MAX);
 fbSpeedInput.step = "5";
 
+const ahGoalsInput = document.querySelector<HTMLInputElement>("#set-air-hockey-goals")!;
+const ahGoalsVal = document.querySelector<HTMLElement>("#set-air-hockey-goals-val")!;
+ahGoalsInput.min = String(AIR_HOCKEY_GAME_GOALS_TO_WIN_MIN);
+ahGoalsInput.max = String(AIR_HOCKEY_GAME_GOALS_TO_WIN_MAX);
+ahGoalsInput.step = "1";
+
+const ahPeriodInput = document.querySelector<HTMLInputElement>("#set-air-hockey-period")!;
+const ahPeriodVal = document.querySelector<HTMLElement>("#set-air-hockey-period-val")!;
+ahPeriodInput.min = String(AIR_HOCKEY_GAME_PERIOD_SEC_MIN);
+ahPeriodInput.max = String(AIR_HOCKEY_GAME_PERIOD_SEC_MAX);
+ahPeriodInput.step = "15";
+
+const ahSpeedInput = document.querySelector<HTMLInputElement>("#set-air-hockey-speed")!;
+const ahSpeedVal = document.querySelector<HTMLElement>("#set-air-hockey-speed-val")!;
+ahSpeedInput.min = String(AIR_HOCKEY_GAME_SPEED_MIN);
+ahSpeedInput.max = String(AIR_HOCKEY_GAME_SPEED_MAX);
+ahSpeedInput.step = "5";
+
 if (!roomId) {
   statusEl.textContent = "Missing ?room= in URL. Scan the QR on the host screen.";
 } else {
@@ -184,6 +226,7 @@ if (!roomId) {
   let forcedControllerPhase: ControllerStateJson["phase"] | null = null;
   /** Ignore RED/BLUE taps briefly after menu→team UI swap (avoids confirm release “click” hitting a team). */
   let footballTeamPickLockUntil = 0;
+  let airHockeyTeamPickLockUntil = 0;
   let prevWsPhase: ControllerStateJson["phase"] | null = null;
   let prejoinMode: "resume" | "create" = "resume";
   let prejoinTouched = { name: false, hue: false };
@@ -392,6 +435,15 @@ if (!roomId) {
     }, 100);
   });
 
+  let ahPause = false;
+  document.querySelector("#ah-pause")!.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    ahPause = true;
+    setTimeout(() => {
+      ahPause = false;
+    }, 100);
+  });
+
   let fbStickX = 0;
   let fbStickY = 0;
 
@@ -442,6 +494,56 @@ if (!roomId) {
   fbJoystickEl.addEventListener("pointerup", centerFbStick);
   fbJoystickEl.addEventListener("pointercancel", centerFbStick);
 
+  let ahStickX = 0;
+  let ahStickY = 0;
+
+  function updateAhKnobVisual(): void {
+    const rect = ahJoystickEl.getBoundingClientRect();
+    const radius = Math.max(24, (Math.min(rect.width, rect.height) / 2) * FOOTBALL_JOYSTICK_SURFACE_FRAC);
+    const dx = ahStickX * radius;
+    const dy = ahStickY * radius;
+    ahKnobEl.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+  }
+
+  function centerAhStick(): void {
+    ahStickX = 0;
+    ahStickY = 0;
+    updateAhKnobVisual();
+  }
+
+  function moveAhStickFromClient(clientX: number, clientY: number): void {
+    const r = ahJoystickEl.getBoundingClientRect();
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height / 2;
+    const max = Math.max(24, (Math.min(r.width, r.height) / 2) * FOOTBALL_JOYSTICK_SURFACE_FRAC);
+    let nx = (clientX - cx) / max;
+    let ny = (clientY - cy) / max;
+    const len = Math.hypot(nx, ny);
+    if (len > 1) {
+      nx /= len;
+      ny /= len;
+    }
+    ahStickX = nx;
+    ahStickY = ny;
+    updateAhKnobVisual();
+  }
+
+  ahJoystickEl.addEventListener(
+    "pointerdown",
+    (e) => {
+      e.preventDefault();
+      ahJoystickEl.setPointerCapture(e.pointerId);
+      moveAhStickFromClient(e.clientX, e.clientY);
+    },
+    { passive: false }
+  );
+  ahJoystickEl.addEventListener("pointermove", (e) => {
+    if (!ahJoystickEl.hasPointerCapture(e.pointerId)) return;
+    moveAhStickFromClient(e.clientX, e.clientY);
+  });
+  ahJoystickEl.addEventListener("pointerup", centerAhStick);
+  ahJoystickEl.addEventListener("pointercancel", centerAhStick);
+
   const ws = new WebSocket(`${wsUrl()}?cid=${encodeURIComponent(controllerClientId)}`);
   ws.binaryType = "arraybuffer";
 
@@ -463,6 +565,20 @@ if (!roomId) {
     const fbs = resolveFootballMaxPlayerSpeed(st.gameSettings);
     fbSpeedInput.value = String(fbs);
     fbSpeedVal.textContent = String(fbs);
+
+    const ahGoals = resolveAirHockeyGoalsToWin(st.gameSettings);
+    ahGoalsInput.value = String(ahGoals);
+    ahGoalsVal.textContent = String(ahGoals);
+
+    const ahPeriod = resolveAirHockeyPeriodSec(st.gameSettings);
+    ahPeriodInput.value = String(ahPeriod);
+    const apm = Math.floor(ahPeriod / 60);
+    const aps = ahPeriod % 60;
+    ahPeriodVal.textContent = `${apm}:${String(aps).padStart(2, "0")}`;
+
+    const ahs = resolveAirHockeyMaxPlayerSpeed(st.gameSettings);
+    ahSpeedInput.value = String(ahs);
+    ahSpeedVal.textContent = String(ahs);
   }
 
   function hideAll(): void {
@@ -692,6 +808,45 @@ if (!roomId) {
     }
   }
 
+  function syncAirHockeyUi(st: ControllerStateJson | null): void {
+    const ah = st?.airHockey;
+    const ph = forcedControllerPhase ?? st?.phase ?? "lobby";
+
+    ahTeamRedBtn.classList.toggle("my-pick", ah?.myTeam === "red");
+    ahTeamBlueBtn.classList.toggle("my-pick", ah?.myTeam === "blue");
+
+    if (ph === "air_hockey_team_select" && ah) {
+      ahTeamTopEl.textContent = "Air Hockey — pick your side";
+      ahTeamSubEl.textContent = "";
+      ahStartGameBtn.hidden = false;
+      ahStartGameBtn.disabled = !ah.canStart;
+      ahTeamRedBtn.disabled = false;
+      ahTeamBlueBtn.disabled = false;
+      ahStartHintEl.textContent = ah.canStart
+        ? "START locks sides and faces off on the TV. Unpicked players are auto-balanced."
+        : "Need at least two joined players.";
+    } else if (ph === "air_hockey_summary" && ah) {
+      ahTeamTopEl.textContent = "Air Hockey — sides locked";
+      ahTeamSubEl.textContent = "Face-off coming — glance at the host screen.";
+      ahStartGameBtn.hidden = true;
+      ahTeamRedBtn.disabled = true;
+      ahTeamBlueBtn.disabled = true;
+      ahStartHintEl.textContent = "";
+    }
+
+    if (ah && (ph === "air_hockey" || ph === "air_hockey_paused")) {
+      const m = Math.floor(ah.timeLeftSec / 60);
+      const sec = ah.timeLeftSec % 60;
+      const clk = `${m}:${String(sec).padStart(2, "0")}`;
+      const g = ah.goalsToWin;
+      ahPlayHudEl.textContent = ah.timerExpired
+        ? `${clk} — overtime: next goal ends it · RED ${ah.redScore}/${g} — BLUE ${ah.blueScore}/${g}`
+        : `${clk} · RED ${ah.redScore}/${g} — BLUE ${ah.blueScore}/${g}`;
+    } else {
+      ahPlayHudEl.textContent = "";
+    }
+  }
+
   function syncRaceWalkPanelState(st: ControllerStateJson | null): void {
     const rw = st?.raceWalk;
     if (!rw) {
@@ -720,6 +875,7 @@ if (!roomId) {
     syncRaceWalkPanelState(st);
     syncFroggerPanelState(st);
     syncFootballUi(st);
+    syncAirHockeyUi(st);
     hideAll();
     if (!st) {
       statusEl.textContent = "Connecting…";
@@ -738,6 +894,7 @@ if (!roomId) {
     }
     const ph = forcedControllerPhase ?? st.phase;
     if (ph !== "football") centerFbStick();
+    if (ph !== "air_hockey") centerAhStick();
     if (ph === "lobby") {
       panels.lobby.hidden = false;
     } else if (ph === "menu") {
@@ -758,20 +915,26 @@ if (!roomId) {
       panels.footballTeams.hidden = false;
     } else if (ph === "football") {
       panels.football.hidden = false;
+    } else if (ph === "air_hockey_team_select" || ph === "air_hockey_summary") {
+      panels.airHockeyTeams.hidden = false;
+    } else if (ph === "air_hockey") {
+      panels.airHockey.hidden = false;
     } else if (ph === "kart") {
       panels.kart.hidden = false;
     } else if (
       ph === "kart_paused" ||
       ph === "race_walk_paused" ||
       ph === "frogger_paused" ||
-      ph === "football_paused"
+      ph === "football_paused" ||
+      ph === "air_hockey_paused"
     ) {
       panels.kartPause.hidden = false;
     } else if (
       ph === "kart_results" ||
       ph === "race_walk_results" ||
       ph === "frogger_results" ||
-      ph === "football_results"
+      ph === "football_results" ||
+      ph === "air_hockey_results"
     ) {
       panels.results.hidden = false;
       renderResultsMenu(st);
@@ -800,6 +963,9 @@ if (!roomId) {
           }
           if (ctrlState.phase === "football_team_select" && prevWsPhase !== "football_team_select") {
             footballTeamPickLockUntil = performance.now() + 420;
+          }
+          if (ctrlState.phase === "air_hockey_team_select" && prevWsPhase !== "air_hockey_team_select") {
+            airHockeyTeamPickLockUntil = performance.now() + 420;
           }
           prevWsPhase = ctrlState.phase;
           refreshUI();
@@ -927,6 +1093,16 @@ if (!roomId) {
     sendJson(ws, { type: "football_start" });
   });
 
+  function tryAirHockeyPickTeam(team: "red" | "blue"): void {
+    if (performance.now() < airHockeyTeamPickLockUntil) return;
+    sendJson(ws, { type: "air_hockey_pick_team", team });
+  }
+  bindPointerTap(ahTeamRedBtn, () => tryAirHockeyPickTeam("red"));
+  bindPointerTap(ahTeamBlueBtn, () => tryAirHockeyPickTeam("blue"));
+  ahStartGameBtn.addEventListener("click", () => {
+    sendJson(ws, { type: "air_hockey_start" });
+  });
+
   document.querySelector("#st-back")!.addEventListener("click", () => {
     sendJson(ws, { type: "stub_back" });
   });
@@ -958,7 +1134,8 @@ if (!roomId) {
       ph === "kart_results" ||
       ph === "race_walk_results" ||
       ph === "frogger_results" ||
-      ph === "football_results";
+      ph === "football_results" ||
+      ph === "air_hockey_results";
     if (!menuLike) return;
     const el = e.target as HTMLElement | null;
     if (el?.closest("input, textarea, select")) return;
@@ -1011,6 +1188,26 @@ if (!roomId) {
     sendJson(ws, { type: "game_settings_patch", patch: { footballMaxPlayerSpeed: n } });
   });
 
+  ahGoalsInput.addEventListener("input", () => {
+    const n = Number(ahGoalsInput.value);
+    ahGoalsVal.textContent = String(n);
+    sendJson(ws, { type: "game_settings_patch", patch: { airHockeyGoalsToWin: n } });
+  });
+
+  ahPeriodInput.addEventListener("input", () => {
+    const n = Number(ahPeriodInput.value);
+    const pm = Math.floor(n / 60);
+    const ps = n % 60;
+    ahPeriodVal.textContent = `${pm}:${String(ps).padStart(2, "0")}`;
+    sendJson(ws, { type: "game_settings_patch", patch: { airHockeyPeriodSec: n } });
+  });
+
+  ahSpeedInput.addEventListener("input", () => {
+    const n = Number(ahSpeedInput.value);
+    ahSpeedVal.textContent = String(n);
+    sendJson(ws, { type: "game_settings_patch", patch: { airHockeyMaxPlayerSpeed: n } });
+  });
+
   function loop(): void {
     if (ws.readyState === WebSocket.OPEN && ctrlState) {
       seq = (seq + 1) >>> 0;
@@ -1028,6 +1225,13 @@ if (!roomId) {
         if (fbPass) buttons |= Btn.Pass;
         ws.send(encodeFootballAxis(seq, packed, buttons));
       } else if (ph === "football_paused") {
+        ws.send(encodeFootballAxis(seq, joystickToPackedFootballAxis(0, 0), 0));
+      } else if (ph === "air_hockey") {
+        const packed = joystickToPackedFootballAxis(ahStickX, ahStickY);
+        let buttons = 0;
+        if (ahPause) buttons |= Btn.Pause;
+        ws.send(encodeFootballAxis(seq, packed, buttons));
+      } else if (ph === "air_hockey_paused") {
         ws.send(encodeFootballAxis(seq, joystickToPackedFootballAxis(0, 0), 0));
       } else if (ph === "kart") {
         let h = 0;

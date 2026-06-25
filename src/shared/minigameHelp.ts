@@ -63,4 +63,18 @@ export const MINIGAME_HELP: Record<MinigameId, MinigameHelpCopy> = {
       "Pause — Pause on the TVs for everyone",
     ],
   },
+  air_hockey: {
+    rules: [
+      "Pick Red or Blue, then START (any controller) when everyone is ready. Unpicked players are auto-balanced.",
+      "You are a mallet locked to your own half of the rink — slide around to defend your goal and attack the other side.",
+      "The puck glides and bounces off the rink walls. Drive your mallet into it to knock it across the rink.",
+      "Score by sending the puck through the opening in the opponent's end wall.",
+      "First team to the goals-to-win total wins (set in Game settings on your phone).",
+      "A match clock runs out to overtime: whoever leads wins — the game ends on the next goal (tie if still tied).",
+    ],
+    controls: [
+      "Joystick — Move your mallet in every direction (locked to your half)",
+      "Pause — Pause on the TVs for everyone",
+    ],
+  },
 };

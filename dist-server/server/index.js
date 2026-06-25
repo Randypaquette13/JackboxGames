@@ -8,9 +8,10 @@ import { TICK_DT } from "../src/shared/constants.js";
 import { parseClientIntent } from "../src/shared/messages.js";
 import { pickPlayerHue } from "../src/shared/playerColors.js";
 import { resolveFootballMaxPlayerSpeed } from "../src/shared/footballGameSettings.js";
+import { resolveAirHockeyMaxPlayerSpeed } from "../src/shared/airHockeyGameSettings.js";
 import { packedAxisToVelocity } from "../src/shared/footballPackedInput.js";
 import { Btn, encodeError, encodePong, encodeWelcome, Op, parseInput, parseJoin, parsePing, } from "../src/shared/protocol.js";
-import { applyIntent, buildControllerState, buildHostState, createRoom, ensureKartCar, handleFootballPauseEdge, handleFroggerPauseEdge, handleKartPauseEdge, handleRaceWalkPauseEdge, tickSimulation, } from "./gameRoom.js";
+import { applyIntent, buildControllerState, buildHostState, createRoom, ensureKartCar, handleAirHockeyPauseEdge, handleFootballPauseEdge, handleFroggerPauseEdge, handleKartPauseEdge, handleRaceWalkPauseEdge, tickSimulation, } from "./gameRoom.js";
 import { createPlayer, DEFAULT_PLATFORMS } from "./game.js";
 import { counters, logDiagnostics } from "./metrics.js";
 const PORT = Number(process.env.PORT) || 3001;
@@ -60,6 +61,7 @@ function buildPrejoinState(room) {
         raceWalk: null,
         frogger: null,
         football: null,
+        airHockey: null,
     };
 }
 function setTcpNoDelay(ws) {
@@ -388,6 +390,10 @@ function handleBinaryMessage(ws, data) {
                 const { vx, vy } = packedAxisToVelocity(axisU8, resolveFootballMaxPlayerSpeed(room.gameSettings));
                 player.input = { h: 0, buttons: inp.buttons, seq: inp.seq, footballVx: vx, footballVy: vy };
             }
+            else if (room.phase === "air_hockey" || room.phase === "air_hockey_paused") {
+                const { vx, vy } = packedAxisToVelocity(axisU8, resolveAirHockeyMaxPlayerSpeed(room.gameSettings));
+                player.input = { h: 0, buttons: inp.buttons, seq: inp.seq, footballVx: vx, footballVy: vy };
+            }
             else {
                 player.input = { h: inp.h, buttons: inp.buttons, seq: inp.seq };
             }
@@ -410,6 +416,11 @@ function handleBinaryMessage(ws, data) {
             if (fbAth && (room.phase === "football" || room.phase === "football_paused")) {
                 const pauseHeld = (inp.buttons & Btn.Pause) !== 0;
                 handleFootballPauseEdge(room, att.playerId, fbAth, pauseHeld);
+            }
+            const ahMallet = room.airHockeyMallets.get(att.playerId);
+            if (ahMallet && (room.phase === "air_hockey" || room.phase === "air_hockey_paused")) {
+                const pauseHeld = (inp.buttons & Btn.Pause) !== 0;
+                handleAirHockeyPauseEdge(room, att.playerId, ahMallet, pauseHeld);
             }
             return;
         }

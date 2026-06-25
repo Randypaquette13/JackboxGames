@@ -8,6 +8,7 @@
  * Race Walk: J/L walk-run, I/K aim, F fire.
  * Frogger: WASD or arrows move, P/Esc pause.
  * Football team select: 1 Red / 2 Blue, Enter START. Play: WASD or arrows move, E pass while carrying, P/Esc pause edge.
+ * Air Hockey team select: 1 Red / 2 Blue, Enter START. Play: WASD or arrows move, P/Esc pause edge.
  */
 import type { ClientIntent, GamePhase } from "@shared/messages";
 import {
@@ -73,6 +74,16 @@ function devHintForScreen(ph: GamePhase, snap: DevHostSnapshot): string {
     case "football_paused":
       return "Enter: resume · Esc: to menu · Tab: target player";
     case "football_results":
+      return "↑↓: navigate · Enter: confirm · Tab: target player";
+    case "air_hockey_team_select":
+      return "1 Red · 2 Blue · Enter START (2+ players) · Tab: target";
+    case "air_hockey_summary":
+      return "Watch TV — face-off soon · Tab: target player";
+    case "air_hockey":
+      return "WASD or arrows: move mallet · P/Esc: pause · Tab: target player";
+    case "air_hockey_paused":
+      return "Enter: resume · Esc: to menu · Tab: target player";
+    case "air_hockey_results":
       return "↑↓: navigate · Enter: confirm · Tab: target player";
     default:
       return `${String(ph)} · Tab: target`;
@@ -271,7 +282,8 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
             ph === "kart_results" ||
             ph === "race_walk_results" ||
             ph === "frogger_results" ||
-            ph === "football_results")
+            ph === "football_results" ||
+            ph === "air_hockey_results")
         ) {
           if (e.code === "ArrowUp") {
             e.preventDefault();
@@ -331,6 +343,14 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
           }, 100);
           return;
         }
+        if (ph === "air_hockey" && (e.code === "KeyP" || e.code === "Escape")) {
+          e.preventDefault();
+          keys.pause = true;
+          setTimeout(() => {
+            keys.pause = false;
+          }, 100);
+          return;
+        }
         if (ph === "football_team_select" && !snap.settingsOpen) {
           if (e.code === "Digit1" || e.code === "Numpad1") {
             e.preventDefault();
@@ -348,6 +368,23 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
             return;
           }
         }
+        if (ph === "air_hockey_team_select" && !snap.settingsOpen) {
+          if (e.code === "Digit1" || e.code === "Numpad1") {
+            e.preventDefault();
+            sendIntent(ws, { type: "air_hockey_pick_team", team: "red" });
+            return;
+          }
+          if (e.code === "Digit2" || e.code === "Numpad2") {
+            e.preventDefault();
+            sendIntent(ws, { type: "air_hockey_pick_team", team: "blue" });
+            return;
+          }
+          if (e.code === "Enter") {
+            e.preventDefault();
+            sendIntent(ws, { type: "air_hockey_start" });
+            return;
+          }
+        }
         if (ph === "kart_paused" || ph === "race_walk_paused" || ph === "frogger_paused") {
           if (e.code === "Enter") {
             e.preventDefault();
@@ -360,7 +397,7 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
             return;
           }
         }
-        if (ph === "football_paused") {
+        if (ph === "football_paused" || ph === "air_hockey_paused") {
           if (e.code === "Enter") {
             e.preventDefault();
             sendIntent(ws, { type: "pause_resume" });
@@ -382,7 +419,9 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
         ph === "race_walk_results" ||
         ph === "frogger_results" ||
         ph === "football_results" ||
-        ph === "football_team_select"
+        ph === "air_hockey_results" ||
+        ph === "football_team_select" ||
+        ph === "air_hockey_team_select"
       ) {
         return;
       }
@@ -440,6 +479,9 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
           }, 100);
           return;
         }
+      }
+
+      if (ph === "football" || ph === "air_hockey") {
         if (e.code === "KeyW" || e.code === "ArrowUp") {
           e.preventDefault();
           keys.footUp = true;
@@ -462,7 +504,14 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
         }
       }
 
-      if (ph !== "frogger" && ph !== "frogger_paused" && ph !== "football" && ph !== "football_paused") {
+      if (
+        ph !== "frogger" &&
+        ph !== "frogger_paused" &&
+        ph !== "football" &&
+        ph !== "football_paused" &&
+        ph !== "air_hockey" &&
+        ph !== "air_hockey_paused"
+      ) {
         if (
           ["ArrowLeft", "ArrowRight", "ArrowUp", "Space", "KeyA", "KeyD", "KeyW", "KeyP", "KeyB"].includes(e.code)
         ) {
@@ -704,6 +753,9 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
         ph === "football_team_select" ||
         ph === "football_summary" ||
         ph === "football_results" ||
+        ph === "air_hockey_team_select" ||
+        ph === "air_hockey_summary" ||
+        ph === "air_hockey_results" ||
         ph === "kart_paused" ||
         ph === "race_walk_paused" ||
         ph === "frogger_paused" ||
@@ -720,7 +772,14 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
         slot.ws.send(encodeFootballAxis(slot.seq, packed, buttons));
         continue;
       }
-      if (ph === "football_paused") {
+      if (ph === "air_hockey") {
+        const { x, y } = footballStickVector(forActive);
+        const packed = joystickToPackedFootballAxis(x, y);
+        const buttons = keys.pause ? Btn.Pause : 0;
+        slot.ws.send(encodeFootballAxis(slot.seq, packed, buttons));
+        continue;
+      }
+      if (ph === "football_paused" || ph === "air_hockey_paused") {
         slot.ws.send(encodeFootballAxis(slot.seq, joystickToPackedFootballAxis(0, 0), 0));
         continue;
       }

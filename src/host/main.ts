@@ -19,6 +19,7 @@ import { drawKart } from "./renderKart";
 import { drawFrogger } from "./renderFrogger";
 import { drawRaceWalk } from "./renderRaceWalk";
 import { drawFootball } from "./renderFootball";
+import { drawAirHockey } from "./renderAirHockey";
 
 function publicBaseUrl(): string {
   const raw = import.meta.env.VITE_PUBLIC_BASE_URL?.trim() || window.location.origin;
@@ -72,7 +73,8 @@ function isMinigamePausedPhase(phase: GamePhase): boolean {
     phase === "kart_paused" ||
     phase === "race_walk_paused" ||
     phase === "frogger_paused" ||
-    phase === "football_paused"
+    phase === "football_paused" ||
+    phase === "air_hockey_paused"
   );
 }
 
@@ -250,6 +252,8 @@ function drawResultsMenu(w: number, h: number): void {
     title = "Frogger finished — choose on controller:";
   } else if (hostState.phase === "football_results" && hostState.football) {
     title = "Football finished — choose on controller:";
+  } else if (hostState.phase === "air_hockey_results" && hostState.airHockey) {
+    title = "Air Hockey finished — choose on controller:";
   } else {
     return;
   }
@@ -327,6 +331,15 @@ function draw(): void {
     phase === "football_results"
   ) {
     if (hostState) drawFootball(ctx, hostState, w, h, scale, ox, oy);
+    drawResultsMenu(w, h);
+  } else if (
+    phase === "air_hockey_team_select" ||
+    phase === "air_hockey_summary" ||
+    phase === "air_hockey" ||
+    phase === "air_hockey_paused" ||
+    phase === "air_hockey_results"
+  ) {
+    if (hostState) drawAirHockey(ctx, hostState, w, h, scale, ox, oy);
     drawResultsMenu(w, h);
   }
 

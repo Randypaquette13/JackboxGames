@@ -1,4 +1,5 @@
 import type {
+  AirHockeyTeam,
   ClientIntent,
   ControllerStateJson,
   FootballTeam,
@@ -20,6 +21,12 @@ import {
   clampFootballTdToWin,
   resolveFootballTdToWin,
 } from "../src/shared/footballGameSettings.js";
+import {
+  clampAirHockeyGoalsToWin,
+  clampAirHockeyMaxPlayerSpeed,
+  clampAirHockeyPeriodSec,
+  resolveAirHockeyGoalsToWin,
+} from "../src/shared/airHockeyGameSettings.js";
 import {
   clampKartForwardSpeed,
   KART_BOOST_DURATION_SEC,
@@ -108,8 +115,18 @@ import {
   tickFootballSummary,
   type FootballAthlete,
 } from "./footballRoom.js";
+import {
+  airHockeyTryStart,
+  bootstrapAirHockeyFromMenu,
+  buildAirHockeyHostJson,
+  clearAirHockeyState,
+  tickAirHockeyPlay,
+  tickAirHockeySummary,
+  type AirHockeyMallet,
+} from "./airHockeyRoom.js";
 
 export { handleFootballPauseEdge } from "./footballRoom.js";
+export { handleAirHockeyPauseEdge } from "./airHockeyRoom.js";
 
 // Laps are tracked as forward finish-line crossings:
 // 0 = not started, 1 = lap 1 started, 2 = lap 2 started, 3 = finished (2 full laps completed).
@@ -290,6 +307,20 @@ export type Room = {
   footballKickoffCountdown: number | null;
   footballPausedByPlayerId: number | null;
   footballWinner: FootballTeam | "tie" | null;
+  airHockeyTeamPick: Map<number, AirHockeyTeam>;
+  airHockeyTeamAssignment: Map<number, AirHockeyTeam>;
+  airHockeyMallets: Map<number, AirHockeyMallet>;
+  airHockeyPuck: { x: number; y: number; vx: number; vy: number };
+  airHockeyRedScore: number;
+  airHockeyBlueScore: number;
+  airHockeyTimeLeftSec: number;
+  airHockeyTimerExpired: boolean;
+  airHockeySummaryEndTick: number | null;
+  airHockeyKickoffCountdown: number | null;
+  airHockeyPausedByPlayerId: number | null;
+  airHockeyWinner: AirHockeyTeam | "tie" | null;
+  /** Mallet strikes this rally; ramps velocity transfer until a goal resets it. */
+  airHockeyVelocityTransferHits: number;
 };
 
 export function createRoom(host: WebSocket, platforms: Platform[]): Room {
@@ -350,6 +381,19 @@ export function createRoom(host: WebSocket, platforms: Platform[]): Room {
     footballKickoffCountdown: null,
     footballPausedByPlayerId: null,
     footballWinner: null,
+    airHockeyTeamPick: new Map(),
+    airHockeyTeamAssignment: new Map(),
+    airHockeyMallets: new Map(),
+    airHockeyPuck: { x: 480, y: 270, vx: 0, vy: 0 },
+    airHockeyRedScore: 0,
+    airHockeyBlueScore: 0,
+    airHockeyTimeLeftSec: 0,
+    airHockeyTimerExpired: false,
+    airHockeySummaryEndTick: null,
+    airHockeyKickoffCountdown: null,
+    airHockeyPausedByPlayerId: null,
+    airHockeyWinner: null,
+    airHockeyVelocityTransferHits: 0,
   };
 }
 
@@ -1214,6 +1258,7 @@ export function buildHostState(
     raceWalk: buildRaceWalkHostJson(room),
     frogger: buildFroggerHostJson(room),
     football: buildFootballHostJson(room),
+    airHockey: buildAirHockeyHostJson(room),
   };
 }
 
@@ -1290,6 +1335,38 @@ export function buildControllerState(room: Room, playerId: number): ControllerSt
         }
       : null;
 
+  const canAirHockeyStart = nPlayers >= 2;
+  const ahTeamMapForUi =
+    room.phase === "air_hockey_team_select" ? room.airHockeyTeamPick : room.airHockeyTeamAssignment;
+  const airHockeyHud =
+    room.phase === "air_hockey_team_select" ||
+    room.phase === "air_hockey_summary" ||
+    room.phase === "air_hockey" ||
+    room.phase === "air_hockey_paused" ||
+    room.phase === "air_hockey_results"
+      ? {
+          teamSelect: room.phase === "air_hockey_team_select",
+          myTeam: (ahTeamMapForUi.get(playerId) ?? room.airHockeyTeamPick.get(playerId)) ?? null,
+          redIds: [...ahTeamMapForUi.entries()]
+            .filter(([, t]) => t === "red")
+            .map(([id]) => id)
+            .sort((a, b) => a - b),
+          blueIds: [...ahTeamMapForUi.entries()]
+            .filter(([, t]) => t === "blue")
+            .map(([id]) => id)
+            .sort((a, b) => a - b),
+          canStart: canAirHockeyStart && room.phase === "air_hockey_team_select",
+          isStarter: room.phase === "air_hockey_team_select" && canAirHockeyStart,
+          redScore: room.airHockeyRedScore,
+          blueScore: room.airHockeyBlueScore,
+          goalsToWin: resolveAirHockeyGoalsToWin(room.gameSettings),
+          timeLeftSec: Math.ceil(room.airHockeyTimeLeftSec),
+          timerExpired: room.airHockeyTimerExpired,
+          seriesWins: Object.fromEntries(room.seriesWins),
+          paused: room.phase === "air_hockey_paused",
+        }
+      : null;
+
   return {
     type: "controller_state",
     tick: room.tick,
@@ -1316,6 +1393,7 @@ export function buildControllerState(room: Room, playerId: number): ControllerSt
     raceWalk: raceWalkHud,
     frogger: froggerHud,
     football: footballHud,
+    airHockey: airHockeyHud,
   };
 }
 
@@ -1361,6 +1439,18 @@ export function startKartFromMenu(room: Room): void {
 
 export function startFootballFromMenu(room: Room): void {
   bootstrapFootballFromMenu(room);
+}
+
+export function startAirHockeyFromMenu(room: Room): void {
+  room.kartCars.clear();
+  room.kartWinnerId = null;
+  room.kartCountdown = null;
+  room.kartPaused = false;
+  room.kartPausedByPlayerId = null;
+  clearRaceWalkState(room);
+  clearFroggerState(room);
+  clearFootballState(room);
+  bootstrapAirHockeyFromMenu(room);
 }
 
 export function ensureKartCar(room: Room, playerId: number): void {
@@ -1439,6 +1529,20 @@ export function tickSimulation(room: Room, dt: number): void {
   }
   if (room.phase === "football") {
     tickFootballPlay(room, dt);
+    return;
+  }
+  if (room.phase === "air_hockey_team_select" || room.phase === "air_hockey_results") {
+    return;
+  }
+  if (room.phase === "air_hockey_summary") {
+    tickAirHockeySummary(room);
+    return;
+  }
+  if (room.phase === "air_hockey_paused") {
+    return;
+  }
+  if (room.phase === "air_hockey") {
+    tickAirHockeyPlay(room, dt);
     return;
   }
   if (room.phase !== "kart" || room.kartPaused) return;
@@ -1655,6 +1759,7 @@ function goToMinigameMenu(room: Room): void {
   room.phase = "menu";
   room.menuHelpOpen = false;
   clearFootballState(room);
+  clearAirHockeyState(room);
 }
 
 export function applyIntent(room: Room, _playerId: number, intent: ClientIntent): void {
@@ -1671,7 +1776,8 @@ export function applyIntent(room: Room, _playerId: number, intent: ClientIntent)
         room.phase === "kart_results" ||
         room.phase === "race_walk_results" ||
         room.phase === "frogger_results" ||
-        room.phase === "football_results"
+        room.phase === "football_results" ||
+        room.phase === "air_hockey_results"
       ) {
         const n = 3;
         if (intent.dir === "up") room.menuIndex = (room.menuIndex - 1 + n) % n;
@@ -1776,6 +1882,24 @@ export function applyIntent(room: Room, _playerId: number, intent: ClientIntent)
         }
         break;
       }
+      if (room.phase === "air_hockey_results") {
+        const actions = ["play_again", "minigame_menu", "add_controllers"] as const;
+        const action = actions[room.menuIndex % 3];
+        if (action === "play_again") startAirHockeyFromMenu(room);
+        else if (action === "minigame_menu") {
+          goToMinigameMenu(room);
+          room.stubId = null;
+          clearAirHockeyState(room);
+          room.showQr = false;
+        } else {
+          room.phase = "lobby";
+          room.menuIndex = 0;
+          room.stubId = null;
+          clearAirHockeyState(room);
+          room.showQr = true;
+        }
+        break;
+      }
       if (room.phase === "menu") {
         if (room.menuHelpOpen) {
           room.menuHelpOpen = false;
@@ -1786,6 +1910,7 @@ export function applyIntent(room: Room, _playerId: number, intent: ClientIntent)
         else if (id === "race_walk") startRaceWalkFromMenu(room);
         else if (id === "frogger") startFroggerFromMenu(room);
         else if (id === "football") startFootballFromMenu(room);
+        else if (id === "air_hockey") startAirHockeyFromMenu(room);
         else {
           room.phase = "stub";
           room.stubId = id;
@@ -1804,6 +1929,16 @@ export function applyIntent(room: Room, _playerId: number, intent: ClientIntent)
         footballTryStart(room);
       }
       break;
+    case "air_hockey_pick_team":
+      if (room.phase === "air_hockey_team_select") {
+        room.airHockeyTeamPick.set(_playerId, intent.team);
+      }
+      break;
+    case "air_hockey_start":
+      if (room.phase === "air_hockey_team_select") {
+        airHockeyTryStart(room);
+      }
+      break;
     case "menu_add_players":
       if (room.phase === "menu") {
         room.phase = "lobby";
@@ -1818,6 +1953,7 @@ export function applyIntent(room: Room, _playerId: number, intent: ClientIntent)
         clearRaceWalkState(room);
         clearFroggerState(room);
         clearFootballState(room);
+        clearAirHockeyState(room);
         room.showQr = true;
       } else {
         room.showQr = true;
@@ -1854,6 +1990,24 @@ export function applyIntent(room: Room, _playerId: number, intent: ClientIntent)
         const v = p.footballMaxPlayerSpeed;
         if (typeof v === "number" && Number.isFinite(v)) {
           room.gameSettings.footballMaxPlayerSpeed = clampFootballMaxPlayerSpeed(v);
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(p, "airHockeyPeriodSec")) {
+        const v = p.airHockeyPeriodSec;
+        if (typeof v === "number" && Number.isFinite(v)) {
+          room.gameSettings.airHockeyPeriodSec = clampAirHockeyPeriodSec(v);
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(p, "airHockeyGoalsToWin")) {
+        const v = p.airHockeyGoalsToWin;
+        if (typeof v === "number" && Number.isFinite(v)) {
+          room.gameSettings.airHockeyGoalsToWin = clampAirHockeyGoalsToWin(v);
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(p, "airHockeyMaxPlayerSpeed")) {
+        const v = p.airHockeyMaxPlayerSpeed;
+        if (typeof v === "number" && Number.isFinite(v)) {
+          room.gameSettings.airHockeyMaxPlayerSpeed = clampAirHockeyMaxPlayerSpeed(v);
         }
       }
       break;
@@ -1944,6 +2098,23 @@ export function applyIntent(room: Room, _playerId: number, intent: ClientIntent)
         room.showQr = true;
       }
       break;
+    case "air_hockey_results":
+      if (room.phase !== "air_hockey_results") break;
+      if (intent.action === "play_again") {
+        startAirHockeyFromMenu(room);
+      } else if (intent.action === "minigame_menu") {
+        goToMinigameMenu(room);
+        room.stubId = null;
+        clearAirHockeyState(room);
+        room.showQr = false;
+      } else if (intent.action === "add_controllers") {
+        room.phase = "lobby";
+        room.menuIndex = 0;
+        room.stubId = null;
+        clearAirHockeyState(room);
+        room.showQr = true;
+      }
+      break;
     case "pause_resume":
       if (room.phase === "kart_paused") {
         room.phase = "kart";
@@ -1971,6 +2142,12 @@ export function applyIntent(room: Room, _playerId: number, intent: ClientIntent)
           a.prevPauseHeld = false;
           a.prevPassHeld = false;
         }
+      } else if (room.phase === "air_hockey_paused") {
+        room.phase = "air_hockey";
+        room.airHockeyPausedByPlayerId = null;
+        for (const m of room.airHockeyMallets.values()) {
+          m.prevPauseHeld = false;
+        }
       }
       break;
     case "pause_to_menu":
@@ -1996,6 +2173,11 @@ export function applyIntent(room: Room, _playerId: number, intent: ClientIntent)
         goToMinigameMenu(room);
         room.stubId = null;
         clearFootballState(room);
+        room.showQr = false;
+      } else if (room.phase === "air_hockey" || room.phase === "air_hockey_paused") {
+        goToMinigameMenu(room);
+        room.stubId = null;
+        clearAirHockeyState(room);
         room.showQr = false;
       }
       break;
