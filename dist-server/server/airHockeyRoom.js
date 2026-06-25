@@ -250,14 +250,6 @@ function resolvePuckMalletCollisions(room) {
         clampPuckSpeed(p);
     }
 }
-function resolveOvertime(room) {
-    let w = "tie";
-    if (room.airHockeyRedScore > room.airHockeyBlueScore)
-        w = "red";
-    else if (room.airHockeyBlueScore > room.airHockeyRedScore)
-        w = "blue";
-    endMatch(room, w);
-}
 function endMatch(room, winner) {
     room.phase = "air_hockey_results";
     room.menuIndex = 0;
@@ -268,6 +260,19 @@ function endMatch(room, winner) {
                 room.seriesWins.set(pid, (room.seriesWins.get(pid) ?? 0) + 1);
             }
         }
+    }
+}
+/** Clock hit 0: leader wins immediately; tied score enters sudden-death overtime. */
+function onClockExpired(room) {
+    if (room.airHockeyRedScore === room.airHockeyBlueScore) {
+        room.airHockeyTimerExpired = true;
+        return;
+    }
+    if (room.airHockeyRedScore > room.airHockeyBlueScore) {
+        endMatch(room, "red");
+    }
+    else {
+        endMatch(room, "blue");
     }
 }
 /** Returns true if the round ended (match over) so the caller can stop. */
@@ -283,7 +288,7 @@ function onGoal(room, scoringTeam) {
         return true;
     }
     if (room.airHockeyTimerExpired) {
-        resolveOvertime(room);
+        endMatch(room, scoringTeam);
         return true;
     }
     room.airHockeyVelocityTransferHits = 0;
@@ -302,9 +307,14 @@ export function tickAirHockeyPlay(room, dt) {
     }
     if (!room.airHockeyTimerExpired && room.airHockeyTimeLeftSec > 0) {
         room.airHockeyTimeLeftSec = Math.max(0, room.airHockeyTimeLeftSec - dt);
-        if (room.airHockeyTimeLeftSec <= 0)
-            room.airHockeyTimerExpired = true;
+        if (room.airHockeyTimeLeftSec <= 0) {
+            onClockExpired(room);
+            if (room.phase !== "air_hockey")
+                return;
+        }
     }
+    if (room.phase !== "air_hockey")
+        return;
     // Move mallets from packed-joystick input velocity, locked to their own half.
     for (const [pid, m] of room.airHockeyMallets) {
         const pl = room.players.get(pid);

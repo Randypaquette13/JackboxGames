@@ -70,7 +70,7 @@ export const MINIGAME_HELP: Record<MinigameId, MinigameHelpCopy> = {
       "The puck glides and bounces off the rink walls. Drive your mallet into it to knock it across the rink.",
       "Score by sending the puck through the opening in the opponent's end wall.",
       "First team to the goals-to-win total wins (set in Game settings on your phone).",
-      "A match clock runs out to overtime: whoever leads wins — the game ends on the next goal (tie if still tied).",
+      "A match clock runs out with the leading team winning; if the score is tied, sudden-death overtime begins and the next goal wins.",
     ],
     controls: [
       "Joystick — Move your mallet in every direction (locked to your half)",
