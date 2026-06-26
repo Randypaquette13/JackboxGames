@@ -43,7 +43,7 @@ export type FootballAthlete = {
 
 const SUMMARY_SEC = 3;
 const BALL_FLING_SPEED = 320;
-const BALL_DRAG = 1.4;
+const BALL_DRAG = 1.3;
 /** Opposing players tackle when their circles overlap (center distance ≤ sum of radii). */
 const TACKLE_DIST = FOOTBALL_PLAYER_R * 2;
 const PICKUP_DIST = FOOTBALL_PLAYER_R + FOOTBALL_BALL_R - 2;
