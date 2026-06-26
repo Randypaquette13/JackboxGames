@@ -86,6 +86,7 @@ const panels = {
   stub: document.querySelector<HTMLElement>("#panel-stub")!,
   raceWalk: document.querySelector<HTMLElement>("#panel-race-walk")!,
   frogger: document.querySelector<HTMLElement>("#panel-frogger")!,
+  bomberman: document.querySelector<HTMLElement>("#panel-bomberman")!,
   footballTeams: document.querySelector<HTMLElement>("#panel-football-teams")!,
   football: document.querySelector<HTMLElement>("#panel-football")!,
   airHockeyTeams: document.querySelector<HTMLElement>("#panel-air-hockey-teams")!,
@@ -98,6 +99,8 @@ const panels = {
 
 const fgDeathBanner = document.querySelector<HTMLElement>("#fg-death-banner")!;
 const fgDeathSub = document.querySelector<HTMLElement>("#fg-death-sub")!;
+const bmDeathBanner = document.querySelector<HTMLElement>("#bm-death-banner")!;
+const bmDeathSub = document.querySelector<HTMLElement>("#bm-death-sub")!;
 
 const pjHint = document.querySelector<HTMLElement>("#pj-hint")!;
 const pjResumeHint = document.querySelector<HTMLElement>("#pj-resume-hint")!;
@@ -417,6 +420,63 @@ if (!roomId) {
     }, 100);
   });
 
+  let bmUp = false;
+  let bmDown = false;
+  let bmLeft = false;
+  let bmRight = false;
+  let bmBomb = false;
+  let bmPause = false;
+  bindHold(
+    document.querySelector("#bm-up")!,
+    () => {
+      bmUp = true;
+    },
+    () => {
+      bmUp = false;
+    }
+  );
+  bindHold(
+    document.querySelector("#bm-down")!,
+    () => {
+      bmDown = true;
+    },
+    () => {
+      bmDown = false;
+    }
+  );
+  bindHold(
+    document.querySelector("#bm-left")!,
+    () => {
+      bmLeft = true;
+    },
+    () => {
+      bmLeft = false;
+    }
+  );
+  bindHold(
+    document.querySelector("#bm-right")!,
+    () => {
+      bmRight = true;
+    },
+    () => {
+      bmRight = false;
+    }
+  );
+  document.querySelector("#bm-bomb")!.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    bmBomb = true;
+    setTimeout(() => {
+      bmBomb = false;
+    }, 100);
+  });
+  document.querySelector("#bm-pause")!.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    bmPause = true;
+    setTimeout(() => {
+      bmPause = false;
+    }, 100);
+  });
+
   let fbPause = false;
   document.querySelector("#fb-pause")!.addEventListener("pointerdown", (e) => {
     e.preventDefault();
@@ -641,6 +701,8 @@ if (!roomId) {
         return "Race Walk finished";
       case "frogger_results":
         return "Frogger finished";
+      case "bomberman_results":
+        return "Bomberman finished";
       case "football_results":
         return "Football finished";
       default:
@@ -742,6 +804,30 @@ if (!roomId) {
     } else {
       fgDeathBanner.hidden = true;
       fgDeathSub.textContent = "";
+    }
+  }
+
+  function syncBombermanPanelState(st: ControllerStateJson | null): void {
+    const bm = st?.bomberman;
+    const tick = st?.tick ?? 0;
+    if (!bm) {
+      bmDeathBanner.hidden = true;
+      bmDeathSub.textContent = "";
+      return;
+    }
+    const noticeOk = bm.deathNotice && tick < bm.deathNotice.untilTick;
+    const showDead =
+      !bm.alive &&
+      (noticeOk ||
+        st?.phase === "bomberman" ||
+        st?.phase === "bomberman_paused" ||
+        st?.phase === "bomberman_results");
+    if (showDead) {
+      bmDeathBanner.hidden = false;
+      bmDeathSub.textContent = noticeOk ? bm.deathNotice!.text : "Spectating…";
+    } else {
+      bmDeathBanner.hidden = true;
+      bmDeathSub.textContent = "";
     }
   }
 
@@ -874,6 +960,7 @@ if (!roomId) {
     syncKartPanelState(st);
     syncRaceWalkPanelState(st);
     syncFroggerPanelState(st);
+    syncBombermanPanelState(st);
     syncFootballUi(st);
     syncAirHockeyUi(st);
     hideAll();
@@ -911,6 +998,8 @@ if (!roomId) {
       panels.raceWalk.hidden = false;
     } else if (ph === "frogger") {
       panels.frogger.hidden = false;
+    } else if (ph === "bomberman") {
+      panels.bomberman.hidden = false;
     } else if (ph === "football_team_select" || ph === "football_summary") {
       panels.footballTeams.hidden = false;
     } else if (ph === "football") {
@@ -925,6 +1014,7 @@ if (!roomId) {
       ph === "kart_paused" ||
       ph === "race_walk_paused" ||
       ph === "frogger_paused" ||
+      ph === "bomberman_paused" ||
       ph === "football_paused" ||
       ph === "air_hockey_paused"
     ) {
@@ -933,6 +1023,7 @@ if (!roomId) {
       ph === "kart_results" ||
       ph === "race_walk_results" ||
       ph === "frogger_results" ||
+      ph === "bomberman_results" ||
       ph === "football_results" ||
       ph === "air_hockey_results"
     ) {
@@ -1134,6 +1225,7 @@ if (!roomId) {
       ph === "kart_results" ||
       ph === "race_walk_results" ||
       ph === "frogger_results" ||
+      ph === "bomberman_results" ||
       ph === "football_results" ||
       ph === "air_hockey_results";
     if (!menuLike) return;
@@ -1258,6 +1350,16 @@ if (!roomId) {
         if (fgUp) buttons |= Btn.AimUp;
         if (fgDown) buttons |= Btn.AimDown;
         if (fgPause) buttons |= Btn.Pause;
+        ws.send(encodeInput(seq, h, buttons));
+      } else if (ph === "bomberman") {
+        let h = 0;
+        if (bmLeft && !bmRight) h = -127;
+        else if (bmRight && !bmLeft) h = 127;
+        let buttons = 0;
+        if (bmUp) buttons |= Btn.AimUp;
+        if (bmDown) buttons |= Btn.AimDown;
+        if (bmBomb) buttons |= Btn.Fire;
+        if (bmPause) buttons |= Btn.Pause;
         ws.send(encodeInput(seq, h, buttons));
       }
     }

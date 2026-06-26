@@ -7,6 +7,7 @@
  * Kart: A/D steer, B = boost, P or Esc = pause edge.
  * Race Walk: J/L walk-run, I/K aim, F fire.
  * Frogger: WASD or arrows move, P/Esc pause.
+ * Bomberman: WASD or arrows move, Space bomb, P/Esc pause.
  * Football team select: 1 Red / 2 Blue, Enter START. Play: WASD or arrows move, E pass while carrying, P/Esc pause edge.
  * Air Hockey team select: 1 Red / 2 Blue, Enter START. Play: WASD or arrows move, P/Esc pause edge.
  */
@@ -64,6 +65,12 @@ function devHintForScreen(ph: GamePhase, snap: DevHostSnapshot): string {
     case "frogger_paused":
       return "Enter: resume · Esc: to menu · Tab: target player";
     case "frogger_results":
+      return "↑↓: navigate · Enter: confirm · Tab: target player";
+    case "bomberman":
+      return "WASD or arrows: move · Space: bomb · P/Esc: pause · Tab: target player";
+    case "bomberman_paused":
+      return "Enter: resume · Esc: to menu · Tab: target player";
+    case "bomberman_results":
       return "↑↓: navigate · Enter: confirm · Tab: target player";
     case "football_team_select":
       return "1 Red · 2 Blue · Enter START (2+ players) · Tab: target";
@@ -146,6 +153,7 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
     footLeft: false,
     footRight: false,
     footPass: false,
+    bmBomb: false,
   };
 
   function footballStickVector(forActive: boolean): { x: number; y: number } {
@@ -282,6 +290,7 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
             ph === "kart_results" ||
             ph === "race_walk_results" ||
             ph === "frogger_results" ||
+            ph === "bomberman_results" ||
             ph === "football_results" ||
             ph === "air_hockey_results")
         ) {
@@ -335,6 +344,22 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
           }, 100);
           return;
         }
+        if (ph === "bomberman" && (e.code === "KeyP" || e.code === "Escape")) {
+          e.preventDefault();
+          keys.pause = true;
+          setTimeout(() => {
+            keys.pause = false;
+          }, 100);
+          return;
+        }
+        if (ph === "bomberman" && e.code === "Space") {
+          e.preventDefault();
+          keys.bmBomb = true;
+          setTimeout(() => {
+            keys.bmBomb = false;
+          }, 100);
+          return;
+        }
         if (ph === "football" && (e.code === "KeyP" || e.code === "Escape")) {
           e.preventDefault();
           keys.pause = true;
@@ -385,7 +410,7 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
             return;
           }
         }
-        if (ph === "kart_paused" || ph === "race_walk_paused" || ph === "frogger_paused") {
+        if (ph === "kart_paused" || ph === "race_walk_paused" || ph === "frogger_paused" || ph === "bomberman_paused") {
           if (e.code === "Enter") {
             e.preventDefault();
             sendIntent(ws, { type: "pause_resume" });
@@ -418,6 +443,7 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
         ph === "kart_results" ||
         ph === "race_walk_results" ||
         ph === "frogger_results" ||
+        ph === "bomberman_results" ||
         ph === "football_results" ||
         ph === "air_hockey_results" ||
         ph === "football_team_select" ||
@@ -426,7 +452,7 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
         return;
       }
 
-      if (ph === "frogger") {
+      if (ph === "frogger" || ph === "bomberman") {
         if (e.code === "ArrowUp" || e.code === "KeyW") {
           e.preventDefault();
           keys.fgAimUp = true;
@@ -507,6 +533,8 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
       if (
         ph !== "frogger" &&
         ph !== "frogger_paused" &&
+        ph !== "bomberman" &&
+        ph !== "bomberman_paused" &&
         ph !== "football" &&
         ph !== "football_paused" &&
         ph !== "air_hockey" &&
@@ -562,6 +590,7 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
     keys.footLeft = false;
     keys.footRight = false;
     keys.footPass = false;
+    keys.bmBomb = false;
   });
 
   function syncSelectOptions(): void {
@@ -628,6 +657,14 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
       let buttons = 0;
       if (keys.fgAimUp) buttons |= Btn.AimUp;
       if (keys.fgAimDown) buttons |= Btn.AimDown;
+      if (keys.pause) buttons |= Btn.Pause;
+      return { h, buttons };
+    }
+    if (ph === "bomberman") {
+      let buttons = 0;
+      if (keys.fgAimUp) buttons |= Btn.AimUp;
+      if (keys.fgAimDown) buttons |= Btn.AimDown;
+      if (keys.bmBomb) buttons |= Btn.Fire;
       if (keys.pause) buttons |= Btn.Pause;
       return { h, buttons };
     }
@@ -750,6 +787,7 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
         ph === "kart_results" ||
         ph === "race_walk_results" ||
         ph === "frogger_results" ||
+        ph === "bomberman_results" ||
         ph === "football_team_select" ||
         ph === "football_summary" ||
         ph === "football_results" ||
@@ -759,6 +797,7 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
         ph === "kart_paused" ||
         ph === "race_walk_paused" ||
         ph === "frogger_paused" ||
+        ph === "bomberman_paused" ||
         snap.settingsOpen
       ) {
         slot.ws.send(encodeInput(slot.seq, 0, 0));

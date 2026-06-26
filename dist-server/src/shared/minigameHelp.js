@@ -70,4 +70,17 @@ export const MINIGAME_HELP = {
             "Pause — Pause on the TVs for everyone",
         ],
     },
+    bomberman: {
+        rules: [
+            "Move on a grid and place bombs to blast rivals and break soft blocks.",
+            "Explosions travel in a cross shape and chain to other bombs.",
+            "Broken blocks may drop power-ups: extra bombs, longer blasts, or faster movement.",
+            "Last player alive wins the round.",
+        ],
+        controls: [
+            "◀ ▶ ▲ ▼ — Move one tile at a time",
+            "Bomb — Place a bomb on your tile",
+            "Pause — Pause for everyone",
+        ],
+    },
 };

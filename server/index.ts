@@ -27,6 +27,7 @@ import {
   createRoom,
   ensureKartCar,
   handleAirHockeyPauseEdge,
+  handleBombermanPauseEdge,
   handleFootballPauseEdge,
   handleFroggerPauseEdge,
   handleKartPauseEdge,
@@ -34,6 +35,7 @@ import {
   type Room,
   tickSimulation,
 } from "./gameRoom.js";
+import { bombermanOnPlayerRemoved } from "./bombermanRoom.js";
 import { createPlayer, DEFAULT_PLATFORMS } from "./game.js";
 import { counters, logDiagnostics } from "./metrics.js";
 
@@ -107,6 +109,7 @@ function buildPrejoinState(room: Room): ControllerStateJson {
     frogger: null,
     football: null,
     airHockey: null,
+    bomberman: null,
   };
 }
 
@@ -163,6 +166,7 @@ function removePlayerFromRoom(room: Room, playerId: number): void {
   room.raceWalkShooters.delete(playerId);
   room.froggerFrogs.delete(playerId);
   room.froggerDeathNotices.delete(playerId);
+  bombermanOnPlayerRemoved(room, playerId);
   room.footballTeamPick.delete(playerId);
   room.footballTeamAssignment.delete(playerId);
   room.footballAthletes.delete(playerId);
@@ -175,6 +179,7 @@ function removePlayerFromRoom(room: Room, playerId: number): void {
   if (room.kartPausedByPlayerId === playerId) room.kartPausedByPlayerId = null;
   if (room.raceWalkPausedByPlayerId === playerId) room.raceWalkPausedByPlayerId = null;
   if (room.froggerPausedByPlayerId === playerId) room.froggerPausedByPlayerId = null;
+  if (room.bombermanPausedByPlayerId === playerId) room.bombermanPausedByPlayerId = null;
   if (room.footballPausedByPlayerId === playerId) room.footballPausedByPlayerId = null;
 }
 
@@ -454,6 +459,11 @@ function handleBinaryMessage(ws: WebSocket, data: Buffer): void {
       if (fgFrog && (room.phase === "frogger" || room.phase === "frogger_paused")) {
         const pauseHeld = (inp.buttons & Btn.Pause) !== 0;
         handleFroggerPauseEdge(room, att.playerId, fgFrog, pauseHeld);
+      }
+      const bmPlayer = room.bombermanPlayers.get(att.playerId);
+      if (bmPlayer && (room.phase === "bomberman" || room.phase === "bomberman_paused")) {
+        const pauseHeld = (inp.buttons & Btn.Pause) !== 0;
+        handleBombermanPauseEdge(room, att.playerId, bmPlayer, pauseHeld);
       }
       const fbAth = room.footballAthletes.get(att.playerId);
       if (fbAth && (room.phase === "football" || room.phase === "football_paused")) {

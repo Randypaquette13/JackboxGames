@@ -845,3 +845,34 @@ button.football-pass-btn {
 .vj-dot-full {
   background: rgba(130, 190, 255, 0.95);
 }
+
+#panel-bomberman.panel {
+  gap: 0.75rem;
+}
+#panel-bomberman #bm-pause.small-pause {
+  align-self: flex-end;
+}
+#panel-bomberman #bm-bomb {
+  width: 100%;
+  min-height: 72px;
+  font-size: 1.35rem;
+  font-weight: 800;
+}
+#panel-bomberman .frogger-push {
+  min-height: 0.25rem;
+}
+#panel-bomberman .frogger-controls {
+  width: 100%;
+}
+#panel-bomberman #bm-up {
+  grid-column: 2;
+}
+#panel-bomberman #bm-left {
+  grid-column: 1;
+}
+#panel-bomberman #bm-down {
+  grid-column: 2;
+}
+#panel-bomberman #bm-right {
+  grid-column: 3;
+}

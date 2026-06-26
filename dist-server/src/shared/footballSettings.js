@@ -34,7 +34,7 @@ export const FOOTBALL_LIVE_BALL_X1 = FOOTBALL_BLUE_EZ_X0;
 export const FOOTBALL_KICKOFF_X_INSET = 4;
 export const FOOTBALL_KICKOFF_BALL_JITTER = 55;
 /** Loose ball speed after a pass (world units/sec). */
-export const FOOTBALL_PASS_SPEED = 380;
+export const FOOTBALL_PASS_SPEED = 420;
 /** Passer's teammates can't scoop immediately (same mechanism as tackle mate lock). */
 export const FOOTBALL_PASS_TEAMMATE_LOCK_SEC = 0.35;
 /** After a pass, no player may pick up until this elapses (everyone frozen). */
