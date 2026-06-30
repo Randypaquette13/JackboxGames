@@ -52,30 +52,31 @@
 
     <div id="panel-menu" class="panel panel-minigame-menu" hidden>
       <p class="menu-lock-banner" hidden aria-live="polite"></p>
-      <header class="menu-header">
+      <header class="menu-header minigame-header">
         <p class="menu-header-eyebrow">Party Arcade</p>
         <h1 class="menu-header-title">Minigames</h1>
         <p class="menu-header-sub">Pick your next game</p>
       </header>
-      <div id="menu-scroll-wrap" class="settings-scroll-wrap">
-        <div id="menu-list" aria-live="polite"></div>
+      <div class="settings-scroll-wrap">
+        <div id="menu-list" class="settings-scroll" aria-live="polite"></div>
         <p class="settings-scroll-hint" aria-hidden="true">Scroll for more ↓</p>
       </div>
-      <p class="subhint menu-footer-hint">Tap to select · ↑↓ navigate · Select</p>
-      <div class="menu-actions">
-        <div class="menu-actions-primary">
-          <div class="menu-nav">
-            <button type="button" id="mn-up" class="pad sm" aria-label="Previous game">▲</button>
-            <button type="button" id="mn-down" class="pad sm" aria-label="Next game">▼</button>
-          </div>
-          <button type="button" id="mn-confirm" class="primary menu-select-btn">Select</button>
+      <div class="minigame-toolbar">
+        <div class="minigame-nav-row">
+          <button type="button" id="mn-up" class="secondary minigame-nav-btn" aria-label="Previous game">
+            ▲ Previous
+          </button>
+          <button type="button" id="mn-down" class="secondary minigame-nav-btn" aria-label="Next game">
+            Next ▼
+          </button>
         </div>
-        <div class="menu-actions-secondary">
-          <button type="button" id="mn-howto" class="secondary menu-action-btn">How to play</button>
-          <button type="button" id="mn-settings" class="secondary menu-action-btn">Game settings</button>
+        <button type="button" id="mn-confirm" class="primary minigame-select-btn">Select game</button>
+        <div class="minigame-secondary-row">
+          <button type="button" id="mn-howto" class="secondary">How to play</button>
+          <button type="button" id="mn-settings" class="secondary">Game settings</button>
         </div>
+        <button type="button" id="mn-add" class="secondary minigame-back-btn">← Back to lobby</button>
       </div>
-      <button type="button" id="mn-add" class="secondary menu-back-lobby">← Back to lobby</button>
     </div>
 
     <div id="panel-menu-help" class="panel panel-menu-help" hidden>
