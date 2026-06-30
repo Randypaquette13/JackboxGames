@@ -29,6 +29,11 @@ import {
   resolveAirHockeyPeriodSec,
 } from "@shared/airHockeyGameSettings";
 import {
+  PACMAN_GAME_LIVES_MAX,
+  PACMAN_GAME_LIVES_MIN,
+  resolvePacmanLivesPerPlayer,
+} from "@shared/pacmanGameSettings";
+import {
   KART_FORWARD_SPEED_MAX,
   KART_FORWARD_SPEED_MIN,
   resolveKartForwardSpeed,
@@ -87,6 +92,7 @@ const panels = {
   raceWalk: document.querySelector<HTMLElement>("#panel-race-walk")!,
   frogger: document.querySelector<HTMLElement>("#panel-frogger")!,
   bomberman: document.querySelector<HTMLElement>("#panel-bomberman")!,
+  pacman: document.querySelector<HTMLElement>("#panel-pacman")!,
   footballTeams: document.querySelector<HTMLElement>("#panel-football-teams")!,
   football: document.querySelector<HTMLElement>("#panel-football")!,
   airHockeyTeams: document.querySelector<HTMLElement>("#panel-air-hockey-teams")!,
@@ -101,6 +107,9 @@ const fgDeathBanner = document.querySelector<HTMLElement>("#fg-death-banner")!;
 const fgDeathSub = document.querySelector<HTMLElement>("#fg-death-sub")!;
 const bmDeathBanner = document.querySelector<HTMLElement>("#bm-death-banner")!;
 const bmDeathSub = document.querySelector<HTMLElement>("#bm-death-sub")!;
+const pmDeathBanner = document.querySelector<HTMLElement>("#pm-death-banner")!;
+const pmDeathSub = document.querySelector<HTMLElement>("#pm-death-sub")!;
+const pmHudEl = document.querySelector<HTMLElement>("#pm-hud")!;
 
 const pjHint = document.querySelector<HTMLElement>("#pj-hint")!;
 const pjResumeHint = document.querySelector<HTMLElement>("#pj-resume-hint")!;
@@ -216,6 +225,12 @@ const ahSpeedVal = document.querySelector<HTMLElement>("#set-air-hockey-speed-va
 ahSpeedInput.min = String(AIR_HOCKEY_GAME_SPEED_MIN);
 ahSpeedInput.max = String(AIR_HOCKEY_GAME_SPEED_MAX);
 ahSpeedInput.step = "5";
+
+const pmLivesInput = document.querySelector<HTMLInputElement>("#set-pacman-lives")!;
+const pmLivesVal = document.querySelector<HTMLElement>("#set-pacman-lives-val")!;
+pmLivesInput.min = String(PACMAN_GAME_LIVES_MIN);
+pmLivesInput.max = String(PACMAN_GAME_LIVES_MAX);
+pmLivesInput.step = "1";
 
 if (!roomId) {
   statusEl.textContent = "Missing ?room= in URL. Scan the QR on the host screen.";
@@ -477,6 +492,55 @@ if (!roomId) {
     }, 100);
   });
 
+  let pmUp = false;
+  let pmDown = false;
+  let pmLeft = false;
+  let pmRight = false;
+  let pmPause = false;
+  bindHold(
+    document.querySelector("#pm-up")!,
+    () => {
+      pmUp = true;
+    },
+    () => {
+      pmUp = false;
+    }
+  );
+  bindHold(
+    document.querySelector("#pm-down")!,
+    () => {
+      pmDown = true;
+    },
+    () => {
+      pmDown = false;
+    }
+  );
+  bindHold(
+    document.querySelector("#pm-left")!,
+    () => {
+      pmLeft = true;
+    },
+    () => {
+      pmLeft = false;
+    }
+  );
+  bindHold(
+    document.querySelector("#pm-right")!,
+    () => {
+      pmRight = true;
+    },
+    () => {
+      pmRight = false;
+    }
+  );
+  document.querySelector("#pm-pause")!.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    pmPause = true;
+    setTimeout(() => {
+      pmPause = false;
+    }, 100);
+  });
+
   let fbPause = false;
   document.querySelector("#fb-pause")!.addEventListener("pointerdown", (e) => {
     e.preventDefault();
@@ -639,6 +703,10 @@ if (!roomId) {
     const ahs = resolveAirHockeyMaxPlayerSpeed(st.gameSettings);
     ahSpeedInput.value = String(ahs);
     ahSpeedVal.textContent = String(ahs);
+
+    const pmLives = resolvePacmanLivesPerPlayer(st.gameSettings);
+    pmLivesInput.value = String(pmLives);
+    pmLivesVal.textContent = String(pmLives);
   }
 
   function hideAll(): void {
@@ -703,6 +771,8 @@ if (!roomId) {
         return "Frogger finished";
       case "bomberman_results":
         return "Bomberman finished";
+      case "pacman_results":
+        return "Pac-Man finished";
       case "football_results":
         return "Football finished";
       default:
@@ -829,6 +899,38 @@ if (!roomId) {
       bmDeathBanner.hidden = true;
       bmDeathSub.textContent = "";
     }
+  }
+
+  function syncPacmanPanelState(st: ControllerStateJson | null): void {
+    const pm = st?.pacman;
+    const tick = st?.tick ?? 0;
+    if (!pm) {
+      pmDeathBanner.hidden = true;
+      pmDeathSub.textContent = "";
+      pmHudEl.textContent = "";
+      return;
+    }
+    const noticeOk = pm.deathNotice && tick < pm.deathNotice.untilTick;
+    const showDead =
+      !pm.alive &&
+      (noticeOk ||
+        st?.phase === "pacman" ||
+        st?.phase === "pacman_paused" ||
+        st?.phase === "pacman_results");
+    if (showDead) {
+      pmDeathBanner.hidden = false;
+      pmDeathSub.textContent = noticeOk
+        ? pm.deathNotice!.text
+        : pm.lives > 0
+          ? "Respawning…"
+          : "Out of lives!";
+    } else {
+      pmDeathBanner.hidden = true;
+      pmDeathSub.textContent = "";
+    }
+    const fright =
+      pm.frightenedSecLeft !== null ? ` · Frightened ${pm.frightenedSecLeft.toFixed(1)}s` : "";
+    pmHudEl.textContent = `Lives ${pm.lives} · Score ${pm.score} · Pellets ${pm.pelletsRemaining}${fright}`;
   }
 
   function syncKartPanelState(st: ControllerStateJson | null): void {
@@ -961,6 +1063,7 @@ if (!roomId) {
     syncRaceWalkPanelState(st);
     syncFroggerPanelState(st);
     syncBombermanPanelState(st);
+    syncPacmanPanelState(st);
     syncFootballUi(st);
     syncAirHockeyUi(st);
     hideAll();
@@ -1000,6 +1103,8 @@ if (!roomId) {
       panels.frogger.hidden = false;
     } else if (ph === "bomberman") {
       panels.bomberman.hidden = false;
+    } else if (ph === "pacman") {
+      panels.pacman.hidden = false;
     } else if (ph === "football_team_select" || ph === "football_summary") {
       panels.footballTeams.hidden = false;
     } else if (ph === "football") {
@@ -1015,6 +1120,7 @@ if (!roomId) {
       ph === "race_walk_paused" ||
       ph === "frogger_paused" ||
       ph === "bomberman_paused" ||
+      ph === "pacman_paused" ||
       ph === "football_paused" ||
       ph === "air_hockey_paused"
     ) {
@@ -1024,6 +1130,7 @@ if (!roomId) {
       ph === "race_walk_results" ||
       ph === "frogger_results" ||
       ph === "bomberman_results" ||
+      ph === "pacman_results" ||
       ph === "football_results" ||
       ph === "air_hockey_results"
     ) {
@@ -1226,6 +1333,7 @@ if (!roomId) {
       ph === "race_walk_results" ||
       ph === "frogger_results" ||
       ph === "bomberman_results" ||
+      ph === "pacman_results" ||
       ph === "football_results" ||
       ph === "air_hockey_results";
     if (!menuLike) return;
@@ -1300,6 +1408,12 @@ if (!roomId) {
     sendJson(ws, { type: "game_settings_patch", patch: { airHockeyMaxPlayerSpeed: n } });
   });
 
+  pmLivesInput.addEventListener("input", () => {
+    const n = Number(pmLivesInput.value);
+    pmLivesVal.textContent = String(n);
+    sendJson(ws, { type: "game_settings_patch", patch: { pacmanLivesPerPlayer: n } });
+  });
+
   function loop(): void {
     if (ws.readyState === WebSocket.OPEN && ctrlState) {
       seq = (seq + 1) >>> 0;
@@ -1360,6 +1474,15 @@ if (!roomId) {
         if (bmDown) buttons |= Btn.AimDown;
         if (bmBomb) buttons |= Btn.Fire;
         if (bmPause) buttons |= Btn.Pause;
+        ws.send(encodeInput(seq, h, buttons));
+      } else if (ph === "pacman") {
+        let h = 0;
+        if (pmLeft && !pmRight) h = -127;
+        else if (pmRight && !pmLeft) h = 127;
+        let buttons = 0;
+        if (pmUp) buttons |= Btn.AimUp;
+        if (pmDown) buttons |= Btn.AimDown;
+        if (pmPause) buttons |= Btn.Pause;
         ws.send(encodeInput(seq, h, buttons));
       }
     }

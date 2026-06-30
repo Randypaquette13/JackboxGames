@@ -47,9 +47,12 @@ export type GamePhase =
   | "air_hockey_results"
   | "bomberman"
   | "bomberman_paused"
-  | "bomberman_results";
+  | "bomberman_results"
+  | "pacman"
+  | "pacman_paused"
+  | "pacman_results";
 
-export const MINIGAME_IDS = ["kart", "race_walk", "frogger", "football", "air_hockey", "bomberman"] as const;
+export const MINIGAME_IDS = ["kart", "race_walk", "frogger", "football", "air_hockey", "bomberman", "pacman"] as const;
 export type MinigameId = (typeof MINIGAME_IDS)[number];
 
 export type FootballTeam = "red" | "blue";
@@ -63,6 +66,7 @@ export const MINIGAME_LABELS: Record<MinigameId, string> = {
   football: "Football",
   air_hockey: "Air Hockey",
   bomberman: "Bomberman",
+  pacman: "Pac-Man",
 };
 
 export type RaceWalkRunnerJson = {
@@ -177,6 +181,29 @@ export type BombermanPowerUpJson = {
   kind: BombermanPowerKindJson;
 };
 
+export type PacmanGhostModeJson = "normal" | "frightened" | "eaten";
+
+export type PacmanPlayerHostJson = {
+  playerId: number;
+  name: string;
+  hue: number;
+  col: number;
+  row: number;
+  alive: boolean;
+  lives: number;
+  respawnSecLeft: number;
+  score: number;
+  invulnSecLeft: number;
+};
+
+export type PacmanGhostHostJson = {
+  id: number;
+  col: number;
+  row: number;
+  mode: PacmanGhostModeJson;
+  color: string;
+};
+
 /** Client → server (controller or dev; some allowed from host in dev only — server validates). */
 export type ClientIntent =
   | { type: "all_ready" }
@@ -195,6 +222,7 @@ export type ClientIntent =
   | { type: "race_walk_results"; action: "play_again" | "minigame_menu" | "add_controllers" }
   | { type: "frogger_results"; action: "play_again" | "minigame_menu" | "add_controllers" }
   | { type: "bomberman_results"; action: "play_again" | "minigame_menu" | "add_controllers" }
+  | { type: "pacman_results"; action: "play_again" | "minigame_menu" | "add_controllers" }
   | { type: "football_results"; action: "play_again" | "minigame_menu" | "add_controllers" }
   | { type: "football_pick_team"; team: FootballTeam }
   /** At least two players required; unpicked players are auto-balanced onto teams. */
@@ -366,6 +394,29 @@ export type HostStateJson = {
     pausedByPlayerId: number | null;
     banners: RaceWalkBannerJson[];
   };
+  pacman: null | {
+    countdown: number | null;
+    originX: number;
+    originY: number;
+    tile: number;
+    cols: number;
+    rows: number;
+    walls: boolean[][];
+    pelletCells: { col: number; row: number }[];
+    powerPelletCells: { col: number; row: number }[];
+    pelletsRemaining: number;
+    totalPellets: number;
+    frightenedSecLeft: number | null;
+    chaseMode: boolean;
+    players: PacmanPlayerHostJson[];
+    ghosts: PacmanGhostHostJson[];
+    teamCleared: boolean;
+    teamWiped: boolean;
+    seriesWins: Record<number, number>;
+    paused: boolean;
+    pausedByPlayerId: number | null;
+    banners: RaceWalkBannerJson[];
+  };
 };
 
 export type ControllerStateJson = {
@@ -449,6 +500,16 @@ export type ControllerStateJson = {
     seriesWins: Record<number, number>;
     paused: boolean;
   };
+  pacman: null | {
+    alive: boolean;
+    lives: number;
+    score: number;
+    pelletsRemaining: number;
+    frightenedSecLeft: number | null;
+    deathNotice?: { text: string; untilTick: number };
+    seriesWins: Record<number, number>;
+    paused: boolean;
+  };
 };
 
 export function parseClientIntent(raw: unknown): ClientIntent | null {
@@ -504,6 +565,12 @@ export function parseClientIntent(raw: unknown): ClientIntent | null {
     const a = o.action;
     if (a === "play_again" || a === "minigame_menu" || a === "add_controllers") {
       return { type: "bomberman_results", action: a };
+    }
+  }
+  if (t === "pacman_results") {
+    const a = o.action;
+    if (a === "play_again" || a === "minigame_menu" || a === "add_controllers") {
+      return { type: "pacman_results", action: a };
     }
   }
   if (t === "football_results") {

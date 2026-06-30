@@ -2,6 +2,7 @@ import { MINIGAME_IDS, MINIGAME_LABELS } from "../src/shared/messages.js";
 import { TICK_RATE, WORLD_H, WORLD_W } from "../src/shared/constants.js";
 import { clampFootballMaxPlayerSpeed, clampFootballPeriodSec, clampFootballTdToWin, resolveFootballTdToWin, } from "../src/shared/footballGameSettings.js";
 import { clampAirHockeyGoalsToWin, clampAirHockeyMaxPlayerSpeed, clampAirHockeyPeriodSec, resolveAirHockeyGoalsToWin, } from "../src/shared/airHockeyGameSettings.js";
+import { clampPacmanLivesPerPlayer, } from "../src/shared/pacmanGameSettings.js";
 import { clampKartForwardSpeed, KART_BOOST_DURATION_SEC, KART_BOOST_INITIAL_KICK_FRAC, KART_BOOST_SPEED_MULT, KART_BOOST_USES_PER_RACE, resolveKartForwardSpeed, } from "../src/shared/kartSettings.js";
 import { fallbackPlayerHue } from "../src/shared/playerColors.js";
 import { FROGGER_CAR_SPEED_MAX, FROGGER_CAR_SPEED_MIN, FROGGER_COUNTDOWN_SEC, FROGGER_DEATH_NOTICE_TICKS, FROGGER_DISTANCE_UNIT, FROGGER_FAST_CAR_AFTER_BANDS, FROGGER_FAST_CAR_CHANCE, FROGGER_FAST_CAR_MULT, FROGGER_FROG_SIZE, FROGGER_KILL_MARGIN, FROGGER_LILY_W, FROGGER_LOG_W_MAX, FROGGER_LOG_W_MIN, FROGGER_LATERAL_SPEED, FROGGER_MOVE_COOLDOWN, FROGGER_OBSTACLE_AFTER_BANDS, FROGGER_OBSTACLE_CHANCE, FROGGER_PLATFORM_GAP, FROGGER_PLATFORM_SPEED_MAX, FROGGER_PLATFORM_SPEED_MIN, FROGGER_PLATFORM_SPAWN_INTERVAL_SEC, FROGGER_ROW_H, FROGGER_SCROLL_BASE, FROGGER_SCROLL_DELAY_SEC, FROGGER_SCROLL_MAX, FROGGER_SCROLL_RAMP, FROGGER_START_GRASS_ROWS, froggerClampX, froggerCarSpawnIntervalSec, pickFroggerSectionKind, } from "../src/shared/froggerSettings.js";
@@ -12,9 +13,11 @@ import { stepPlayer } from "./game.js";
 import { bootstrapFootballFromMenu, buildFootballHostJson, clearFootballState, footballTryStart, tickFootballPlay, tickFootballSummary, } from "./footballRoom.js";
 import { airHockeyTryStart, bootstrapAirHockeyFromMenu, buildAirHockeyHostJson, clearAirHockeyState, tickAirHockeyPlay, tickAirHockeySummary, } from "./airHockeyRoom.js";
 import { bootstrapBombermanFromMenu, buildBombermanHostJson, clearBombermanState, tickBombermanPlay, } from "./bombermanRoom.js";
+import { bootstrapPacmanFromMenu, buildPacmanHostJson, clearPacmanState, tickPacmanPlay, } from "./pacmanRoom.js";
 export { handleFootballPauseEdge } from "./footballRoom.js";
 export { handleAirHockeyPauseEdge } from "./airHockeyRoom.js";
 export { handleBombermanPauseEdge } from "./bombermanRoom.js";
+export { handlePacmanPauseEdge } from "./pacmanRoom.js";
 // Laps are tracked as forward finish-line crossings:
 // 0 = not started, 1 = lap 1 started, 2 = lap 2 started, 3 = finished (2 full laps completed).
 export const LAPS_TO_WIN = 3;
@@ -104,6 +107,24 @@ export function createRoom(host, platforms) {
         bombermanPausedByPlayerId: null,
         bombermanBanners: [],
         bombermanDeathNotices: new Map(),
+        pacmanCountdown: null,
+        pacmanWalls: [],
+        pacmanPellets: [],
+        pacmanPowerPelletKeys: new Set(),
+        pacmanPelletsRemaining: 0,
+        pacmanTotalPellets: 0,
+        pacmanFrightenedSecLeft: 0,
+        pacmanChaseScatterTimer: 0,
+        pacmanChaseMode: true,
+        pacmanGhostHouse: { col: 15, row: 5 },
+        pacmanPlayerSpawn: { col: 15, row: 15 },
+        pacmanPlayers: new Map(),
+        pacmanGhosts: [],
+        pacmanPausedByPlayerId: null,
+        pacmanBanners: [],
+        pacmanDeathNotices: new Map(),
+        pacmanTeamCleared: false,
+        pacmanTeamWiped: false,
     };
 }
 function clearRaceWalkState(room) {
@@ -465,6 +486,7 @@ export function startRaceWalkFromMenu(room) {
     clearFroggerState(room);
     clearFootballState(room);
     clearBombermanState(room);
+    clearPacmanState(room);
     resetRaceWalk(room);
 }
 function tickRaceWalk(room, dt) {
@@ -604,6 +626,7 @@ export function startFroggerFromMenu(room) {
     clearFootballState(room);
     clearAirHockeyState(room);
     clearBombermanState(room);
+    clearPacmanState(room);
     clearFroggerState(room);
     room.froggerCountdown = FROGGER_COUNTDOWN_SEC;
     room.froggerScroll = 0;
@@ -932,6 +955,7 @@ export function buildHostState(room, roomId, reconnectingPlayers = []) {
         football: buildFootballHostJson(room),
         airHockey: buildAirHockeyHostJson(room),
         bomberman: buildBombermanHostJson(room),
+        pacman: buildPacmanHostJson(room),
     };
 }
 export function buildControllerState(room, playerId) {
@@ -1043,6 +1067,22 @@ export function buildControllerState(room, playerId) {
             paused: room.phase === "bomberman_paused",
         }
         : null;
+    const pm = room.pacmanPlayers.get(playerId);
+    const pmNotice = room.pacmanDeathNotices.get(playerId);
+    const pacmanHud = room.phase === "pacman" || room.phase === "pacman_paused" || room.phase === "pacman_results"
+        ? {
+            alive: pm?.alive ?? false,
+            lives: pm?.lives ?? 0,
+            score: pm?.score ?? 0,
+            pelletsRemaining: room.pacmanPelletsRemaining,
+            frightenedSecLeft: room.pacmanFrightenedSecLeft > 0 ? room.pacmanFrightenedSecLeft : null,
+            deathNotice: pmNotice && room.tick < pmNotice.untilTick
+                ? { text: pmNotice.text, untilTick: pmNotice.untilTick }
+                : undefined,
+            seriesWins: Object.fromEntries(room.seriesWins),
+            paused: room.phase === "pacman_paused",
+        }
+        : null;
     return {
         type: "controller_state",
         tick: room.tick,
@@ -1070,6 +1110,7 @@ export function buildControllerState(room, playerId) {
         football: footballHud,
         airHockey: airHockeyHud,
         bomberman: bombermanHud,
+        pacman: pacmanHud,
     };
 }
 export function resetKartRace(room) {
@@ -1101,11 +1142,25 @@ export function resetKartRace(room) {
         });
     }
 }
+export function startPacmanFromMenu(room) {
+    clearRaceWalkState(room);
+    clearFroggerState(room);
+    clearFootballState(room);
+    clearAirHockeyState(room);
+    clearBombermanState(room);
+    room.kartCars.clear();
+    room.kartWinnerId = null;
+    room.kartCountdown = null;
+    room.kartPaused = false;
+    room.kartPausedByPlayerId = null;
+    bootstrapPacmanFromMenu(room);
+}
 export function startBombermanFromMenu(room) {
     clearRaceWalkState(room);
     clearFroggerState(room);
     clearFootballState(room);
     clearAirHockeyState(room);
+    clearPacmanState(room);
     room.kartCars.clear();
     room.kartWinnerId = null;
     room.kartCountdown = null;
@@ -1122,10 +1177,12 @@ export function startKartFromMenu(room) {
     clearFootballState(room);
     clearAirHockeyState(room);
     clearBombermanState(room);
+    clearPacmanState(room);
     resetKartRace(room);
 }
 export function startFootballFromMenu(room) {
     clearBombermanState(room);
+    clearPacmanState(room);
     bootstrapFootballFromMenu(room);
 }
 export function startAirHockeyFromMenu(room) {
@@ -1138,6 +1195,7 @@ export function startAirHockeyFromMenu(room) {
     clearFroggerState(room);
     clearFootballState(room);
     clearBombermanState(room);
+    clearPacmanState(room);
     bootstrapAirHockeyFromMenu(room);
 }
 export function ensureKartCar(room, playerId) {
@@ -1237,6 +1295,16 @@ export function tickSimulation(room, dt) {
     }
     if (room.phase === "bomberman") {
         tickBombermanPlay(room, dt);
+        return;
+    }
+    if (room.phase === "pacman_results") {
+        return;
+    }
+    if (room.phase === "pacman_paused") {
+        return;
+    }
+    if (room.phase === "pacman") {
+        tickPacmanPlay(room, dt);
         return;
     }
     if (room.phase !== "kart" || room.kartPaused)
@@ -1441,6 +1509,7 @@ function goToMinigameMenu(room) {
     clearFootballState(room);
     clearAirHockeyState(room);
     clearBombermanState(room);
+    clearPacmanState(room);
 }
 export function applyIntent(room, _playerId, intent) {
     switch (intent.type) {
@@ -1457,7 +1526,8 @@ export function applyIntent(room, _playerId, intent) {
                 room.phase === "frogger_results" ||
                 room.phase === "football_results" ||
                 room.phase === "air_hockey_results" ||
-                room.phase === "bomberman_results") {
+                room.phase === "bomberman_results" ||
+                room.phase === "pacman_results") {
                 const n = 3;
                 if (intent.dir === "up")
                     room.menuIndex = (room.menuIndex - 1 + n) % n;
@@ -1615,6 +1685,26 @@ export function applyIntent(room, _playerId, intent) {
                 }
                 break;
             }
+            if (room.phase === "pacman_results") {
+                const actions = ["play_again", "minigame_menu", "add_controllers"];
+                const action = actions[room.menuIndex % 3];
+                if (action === "play_again")
+                    startPacmanFromMenu(room);
+                else if (action === "minigame_menu") {
+                    goToMinigameMenu(room);
+                    room.stubId = null;
+                    clearPacmanState(room);
+                    room.showQr = false;
+                }
+                else {
+                    room.phase = "lobby";
+                    room.menuIndex = 0;
+                    room.stubId = null;
+                    clearPacmanState(room);
+                    room.showQr = true;
+                }
+                break;
+            }
             if (room.phase === "menu") {
                 if (room.menuHelpOpen) {
                     room.menuHelpOpen = false;
@@ -1633,6 +1723,8 @@ export function applyIntent(room, _playerId, intent) {
                     startAirHockeyFromMenu(room);
                 else if (id === "bomberman")
                     startBombermanFromMenu(room);
+                else if (id === "pacman")
+                    startPacmanFromMenu(room);
                 else {
                     room.phase = "stub";
                     room.stubId = id;
@@ -1677,6 +1769,7 @@ export function applyIntent(room, _playerId, intent) {
                 clearFootballState(room);
                 clearAirHockeyState(room);
                 clearBombermanState(room);
+                clearPacmanState(room);
                 room.showQr = true;
             }
             else {
@@ -1733,6 +1826,12 @@ export function applyIntent(room, _playerId, intent) {
                 const v = p.airHockeyMaxPlayerSpeed;
                 if (typeof v === "number" && Number.isFinite(v)) {
                     room.gameSettings.airHockeyMaxPlayerSpeed = clampAirHockeyMaxPlayerSpeed(v);
+                }
+            }
+            if (Object.prototype.hasOwnProperty.call(p, "pacmanLivesPerPlayer")) {
+                const v = p.pacmanLivesPerPlayer;
+                if (typeof v === "number" && Number.isFinite(v)) {
+                    room.gameSettings.pacmanLivesPerPlayer = clampPacmanLivesPerPlayer(v);
                 }
             }
             break;
@@ -1920,6 +2019,13 @@ export function applyIntent(room, _playerId, intent) {
                     p.prevPauseHeld = false;
                 }
             }
+            else if (room.phase === "pacman_paused") {
+                room.phase = "pacman";
+                room.pacmanPausedByPlayerId = null;
+                for (const p of room.pacmanPlayers.values()) {
+                    p.prevPauseHeld = false;
+                }
+            }
             break;
         case "pause_to_menu":
             if (room.phase === "kart_paused" || room.phase === "kart") {
@@ -1960,6 +2066,32 @@ export function applyIntent(room, _playerId, intent) {
                 room.stubId = null;
                 clearBombermanState(room);
                 room.showQr = false;
+            }
+            else if (room.phase === "pacman" || room.phase === "pacman_paused") {
+                goToMinigameMenu(room);
+                room.stubId = null;
+                clearPacmanState(room);
+                room.showQr = false;
+            }
+            break;
+        case "pacman_results":
+            if (room.phase !== "pacman_results")
+                break;
+            if (intent.action === "play_again") {
+                startPacmanFromMenu(room);
+            }
+            else if (intent.action === "minigame_menu") {
+                goToMinigameMenu(room);
+                room.stubId = null;
+                clearPacmanState(room);
+                room.showQr = false;
+            }
+            else if (intent.action === "add_controllers") {
+                room.phase = "lobby";
+                room.menuIndex = 0;
+                room.stubId = null;
+                clearPacmanState(room);
+                room.showQr = true;
             }
             break;
         default:

@@ -90,4 +90,17 @@ export const MINIGAME_HELP: Record<MinigameId, MinigameHelpCopy> = {
       "Pause — Pause for everyone",
     ],
   },
+  pacman: {
+    rules: [
+      "Work together on one maze — clear every pellet to win as a team.",
+      "Small pellets are 10 pts; power pellets are 50 pts and scare ghosts for a few seconds.",
+      "While ghosts are frightened you can eat them for 200 pts; they respawn at the ghost house.",
+      "Each player has a limited number of lives (adjust in Game settings). When caught, you lose a life and respawn if any remain.",
+      "If everyone runs out of lives, the run ends in defeat.",
+    ],
+    controls: [
+      "◀ ▶ ▲ ▼ — Move through the maze",
+      "Pause — Pause for everyone",
+    ],
+  },
 };

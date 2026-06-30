@@ -11,8 +11,9 @@ import { resolveFootballMaxPlayerSpeed } from "../src/shared/footballGameSetting
 import { resolveAirHockeyMaxPlayerSpeed } from "../src/shared/airHockeyGameSettings.js";
 import { packedAxisToVelocity } from "../src/shared/footballPackedInput.js";
 import { Btn, encodeError, encodePong, encodeWelcome, Op, parseInput, parseJoin, parsePing, } from "../src/shared/protocol.js";
-import { applyIntent, buildControllerState, buildHostState, createRoom, ensureKartCar, handleAirHockeyPauseEdge, handleBombermanPauseEdge, handleFootballPauseEdge, handleFroggerPauseEdge, handleKartPauseEdge, handleRaceWalkPauseEdge, tickSimulation, } from "./gameRoom.js";
+import { applyIntent, buildControllerState, buildHostState, createRoom, ensureKartCar, handleAirHockeyPauseEdge, handleBombermanPauseEdge, handlePacmanPauseEdge, handleFootballPauseEdge, handleFroggerPauseEdge, handleKartPauseEdge, handleRaceWalkPauseEdge, tickSimulation, } from "./gameRoom.js";
 import { bombermanOnPlayerRemoved } from "./bombermanRoom.js";
+import { pacmanOnPlayerRemoved } from "./pacmanRoom.js";
 import { createPlayer, DEFAULT_PLATFORMS } from "./game.js";
 import { counters, logDiagnostics } from "./metrics.js";
 const PORT = Number(process.env.PORT) || 3001;
@@ -64,6 +65,7 @@ function buildPrejoinState(room) {
         football: null,
         airHockey: null,
         bomberman: null,
+        pacman: null,
     };
 }
 function setTcpNoDelay(ws) {
@@ -111,6 +113,7 @@ function removePlayerFromRoom(room, playerId) {
     room.froggerFrogs.delete(playerId);
     room.froggerDeathNotices.delete(playerId);
     bombermanOnPlayerRemoved(room, playerId);
+    pacmanOnPlayerRemoved(room, playerId);
     room.footballTeamPick.delete(playerId);
     room.footballTeamAssignment.delete(playerId);
     room.footballAthletes.delete(playerId);
@@ -129,6 +132,8 @@ function removePlayerFromRoom(room, playerId) {
         room.froggerPausedByPlayerId = null;
     if (room.bombermanPausedByPlayerId === playerId)
         room.bombermanPausedByPlayerId = null;
+    if (room.pacmanPausedByPlayerId === playerId)
+        room.pacmanPausedByPlayerId = null;
     if (room.footballPausedByPlayerId === playerId)
         room.footballPausedByPlayerId = null;
 }
@@ -421,6 +426,11 @@ function handleBinaryMessage(ws, data) {
             if (bmPlayer && (room.phase === "bomberman" || room.phase === "bomberman_paused")) {
                 const pauseHeld = (inp.buttons & Btn.Pause) !== 0;
                 handleBombermanPauseEdge(room, att.playerId, bmPlayer, pauseHeld);
+            }
+            const pmPlayer = room.pacmanPlayers.get(att.playerId);
+            if (pmPlayer && (room.phase === "pacman" || room.phase === "pacman_paused")) {
+                const pauseHeld = (inp.buttons & Btn.Pause) !== 0;
+                handlePacmanPauseEdge(room, att.playerId, pmPlayer, pauseHeld);
             }
             const fbAth = room.footballAthletes.get(att.playerId);
             if (fbAth && (room.phase === "football" || room.phase === "football_paused")) {

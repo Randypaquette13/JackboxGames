@@ -21,6 +21,7 @@ import { drawRaceWalk } from "./renderRaceWalk";
 import { drawFootball } from "./renderFootball";
 import { drawAirHockey } from "./renderAirHockey";
 import { drawBomberman } from "./renderBomberman";
+import { drawPacman } from "./renderPacman";
 
 function publicBaseUrl(): string {
   const raw = import.meta.env.VITE_PUBLIC_BASE_URL?.trim() || window.location.origin;
@@ -76,7 +77,8 @@ function isMinigamePausedPhase(phase: GamePhase): boolean {
     phase === "frogger_paused" ||
     phase === "football_paused" ||
     phase === "air_hockey_paused" ||
-    phase === "bomberman_paused"
+    phase === "bomberman_paused" ||
+    phase === "pacman_paused"
   );
 }
 
@@ -258,6 +260,8 @@ function drawResultsMenu(w: number, h: number): void {
     title = "Air Hockey finished — choose on controller:";
   } else if (hostState.phase === "bomberman_results" && hostState.bomberman) {
     title = "Bomberman finished — choose on controller:";
+  } else if (hostState.phase === "pacman_results" && hostState.pacman) {
+    title = "Pac-Man finished — choose on controller:";
   } else {
     return;
   }
@@ -347,6 +351,9 @@ function draw(): void {
     drawResultsMenu(w, h);
   } else if (phase === "bomberman" || phase === "bomberman_paused" || phase === "bomberman_results") {
     if (hostState) drawBomberman(ctx, hostState, w, h, scale, ox, oy);
+    drawResultsMenu(w, h);
+  } else if (phase === "pacman" || phase === "pacman_paused" || phase === "pacman_results") {
+    if (hostState) drawPacman(ctx, hostState, w, h, scale, ox, oy);
     drawResultsMenu(w, h);
   }
 

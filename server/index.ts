@@ -28,6 +28,7 @@ import {
   ensureKartCar,
   handleAirHockeyPauseEdge,
   handleBombermanPauseEdge,
+  handlePacmanPauseEdge,
   handleFootballPauseEdge,
   handleFroggerPauseEdge,
   handleKartPauseEdge,
@@ -36,6 +37,7 @@ import {
   tickSimulation,
 } from "./gameRoom.js";
 import { bombermanOnPlayerRemoved } from "./bombermanRoom.js";
+import { pacmanOnPlayerRemoved } from "./pacmanRoom.js";
 import { createPlayer, DEFAULT_PLATFORMS } from "./game.js";
 import { counters, logDiagnostics } from "./metrics.js";
 
@@ -110,6 +112,7 @@ function buildPrejoinState(room: Room): ControllerStateJson {
     football: null,
     airHockey: null,
     bomberman: null,
+    pacman: null,
   };
 }
 
@@ -167,6 +170,7 @@ function removePlayerFromRoom(room: Room, playerId: number): void {
   room.froggerFrogs.delete(playerId);
   room.froggerDeathNotices.delete(playerId);
   bombermanOnPlayerRemoved(room, playerId);
+  pacmanOnPlayerRemoved(room, playerId);
   room.footballTeamPick.delete(playerId);
   room.footballTeamAssignment.delete(playerId);
   room.footballAthletes.delete(playerId);
@@ -180,6 +184,7 @@ function removePlayerFromRoom(room: Room, playerId: number): void {
   if (room.raceWalkPausedByPlayerId === playerId) room.raceWalkPausedByPlayerId = null;
   if (room.froggerPausedByPlayerId === playerId) room.froggerPausedByPlayerId = null;
   if (room.bombermanPausedByPlayerId === playerId) room.bombermanPausedByPlayerId = null;
+  if (room.pacmanPausedByPlayerId === playerId) room.pacmanPausedByPlayerId = null;
   if (room.footballPausedByPlayerId === playerId) room.footballPausedByPlayerId = null;
 }
 
@@ -464,6 +469,11 @@ function handleBinaryMessage(ws: WebSocket, data: Buffer): void {
       if (bmPlayer && (room.phase === "bomberman" || room.phase === "bomberman_paused")) {
         const pauseHeld = (inp.buttons & Btn.Pause) !== 0;
         handleBombermanPauseEdge(room, att.playerId, bmPlayer, pauseHeld);
+      }
+      const pmPlayer = room.pacmanPlayers.get(att.playerId);
+      if (pmPlayer && (room.phase === "pacman" || room.phase === "pacman_paused")) {
+        const pauseHeld = (inp.buttons & Btn.Pause) !== 0;
+        handlePacmanPauseEdge(room, att.playerId, pmPlayer, pauseHeld);
       }
       const fbAth = room.footballAthletes.get(att.playerId);
       if (fbAth && (room.phase === "football" || room.phase === "football_paused")) {

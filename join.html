@@ -210,6 +210,25 @@
       </div>
     </div>
 
+    <div id="panel-pacman" class="panel" hidden>
+      <button type="button" id="pm-pause" class="secondary small-pause">Pause</button>
+      <div id="pm-death-banner" class="frogger-death-banner" hidden>
+        <p class="fg-death-title">You were caught!</p>
+        <p id="pm-death-sub" class="fg-death-sub"></p>
+      </div>
+      <p class="hint">Pac-Man — clear all pellets together</p>
+      <p id="pm-hud" class="subhint"></p>
+      <div class="frogger-push" aria-hidden="true"></div>
+      <div class="frogger-controls">
+        <div class="dpad frogger-pad">
+          <button type="button" id="pm-up" class="pad sm frogger-arrow" aria-label="Up">▲</button>
+          <button type="button" id="pm-left" class="pad sm frogger-arrow" aria-label="Left">◀</button>
+          <button type="button" id="pm-down" class="pad sm frogger-arrow" aria-label="Down">▼</button>
+          <button type="button" id="pm-right" class="pad sm frogger-arrow" aria-label="Right">▶</button>
+        </div>
+      </div>
+    </div>
+
     <div id="panel-kart" class="panel" hidden>
       <button type="button" id="kt-pause" class="secondary small-pause">Pause</button>
       <div class="kart-push" aria-hidden="true"></div>
@@ -276,6 +295,11 @@
         <label for="set-air-hockey-speed">Air Hockey mallet speed</label>
         <input type="range" id="set-air-hockey-speed" />
         <span id="set-air-hockey-speed-val" class="settings-val"></span>
+      </div>
+      <div class="settings-row">
+        <label for="set-pacman-lives">Pac-Man lives per player</label>
+        <input type="range" id="set-pacman-lives" />
+        <span id="set-pacman-lives-val" class="settings-val"></span>
       </div>
       <button type="button" id="set-close" class="primary">Close</button>
     </div>
