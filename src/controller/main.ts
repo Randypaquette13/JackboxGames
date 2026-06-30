@@ -322,6 +322,13 @@ if (!roomId) {
   let prevWsPhase: ControllerStateJson["phase"] | null = null;
   let prejoinMode: "resume" | "create" = "resume";
   let prejoinTouched = { name: false, hue: false };
+  let renderedMinigameMenuKey = "";
+
+  function minigameMenuRenderKey(st: ControllerStateJson): string {
+    const items =
+      st.menuItems.length > 0 ? st.menuItems.map((item) => item.id).join(",") : MINIGAME_IDS.join(",");
+    return `${st.menuIndex}|${items}`;
+  }
 
   function bindHold(el: HTMLElement, onDown: () => void, onUp: () => void): void {
     el.addEventListener(
@@ -835,11 +842,16 @@ if (!roomId) {
     addSection("Controls (phone)", copy.controls);
   }
 
-  function renderMinigameMenu(st: ControllerStateJson | null): void {
-    const items =
-      st && Array.isArray(st.menuItems) && st.menuItems.length > 0 ? st.menuItems : fallbackMenuItems;
+  function renderMinigameMenu(st: ControllerStateJson | null, opts?: { force?: boolean }): void {
+    if (!st) return;
+    const renderKey = minigameMenuRenderKey(st);
+    const selectionChanged = renderKey !== renderedMinigameMenuKey;
+    if (!opts?.force && !selectionChanged) return;
+    renderedMinigameMenuKey = renderKey;
+
+    const items = st.menuItems.length > 0 ? st.menuItems : fallbackMenuItems;
     const n = items.length;
-    const idxRaw = st?.menuIndex ?? 0;
+    const idxRaw = st.menuIndex ?? 0;
     const idx = n <= 0 ? 0 : ((idxRaw % n) + n) % n;
     menuListEl.textContent = "";
     items.forEach((item, i) => {
@@ -875,9 +887,11 @@ if (!roomId) {
       menuListEl.appendChild(row);
     });
     requestAnimationFrame(() => {
-      menuListEl.querySelector<HTMLElement>(".menu-game-card.selected")?.scrollIntoView({
-        block: "nearest",
-      });
+      if (selectionChanged) {
+        menuListEl.querySelector<HTMLElement>(".menu-game-card.selected")?.scrollIntoView({
+          block: "nearest",
+        });
+      }
       updateMinigameMenuScrollHint();
       requestAnimationFrame(updateMinigameMenuScrollHint);
     });
@@ -1210,6 +1224,9 @@ if (!roomId) {
       return;
     }
     const ph = forcedControllerPhase ?? st.phase;
+    if (ph !== "menu" || st.menuHelpOpen) {
+      renderedMinigameMenuKey = "";
+    }
     if (ph !== "football") centerFbStick();
     if (ph !== "air_hockey") centerAhStick();
     if (ph === "lobby") {
@@ -1221,6 +1238,7 @@ if (!roomId) {
       } else {
         panels.menu.hidden = false;
         renderMinigameMenu(st);
+        updateMinigameMenuScrollHint();
         requestAnimationFrame(() => {
           updateMinigameMenuScrollHint();
           requestAnimationFrame(updateMinigameMenuScrollHint);
@@ -1274,7 +1292,8 @@ if (!roomId) {
   function showMenuPanelImmediately(): void {
     hideAll();
     panels.menu.hidden = false;
-    renderMinigameMenu(ctrlState);
+    renderedMinigameMenuKey = "";
+    renderMinigameMenu(ctrlState, { force: true });
     statusEl.textContent = "";
   }
 
