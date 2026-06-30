@@ -1,5 +1,5 @@
 import { TICK_RATE } from "../src/shared/constants.js";
-import { buildPacmanMaze, PACMAN_CHASE_SCATTER_SEC, PACMAN_COUNTDOWN_SEC, PACMAN_DEATH_NOTICE_TICKS, PACMAN_DIR_DELTA, PACMAN_FRIGHTENED_SEC, PACMAN_GHOST_EAT_POINTS, PACMAN_GHOST_MOVE_COOLDOWN_SEC, PACMAN_INVULN_SEC, PACMAN_MOVE_COOLDOWN_SEC, PACMAN_ORIGIN_X, PACMAN_ORIGIN_Y, PACMAN_PELLET_POINTS, PACMAN_POWER_PELLET_POINTS, PACMAN_RESPAWN_SEC, PACMAN_TILE, PACMAN_COLS, PACMAN_ROWS, PACMAN_TUNNEL_ROW, pacmanInBounds, pacmanOppositeDir, pickPacmanPlayerSpawns, } from "../src/shared/pacmanSettings.js";
+import { buildPacmanMaze, PACMAN_CHASE_SCATTER_SEC, PACMAN_COUNTDOWN_SEC, PACMAN_DEATH_NOTICE_TICKS, PACMAN_DIR_DELTA, PACMAN_FRIGHTENED_SEC, PACMAN_GHOST_EAT_POINTS, PACMAN_GHOST_MOVE_COOLDOWN_SEC, PACMAN_GHOST_SPAWN_STAGGER_SEC, PACMAN_INVULN_SEC, PACMAN_MOVE_COOLDOWN_SEC, PACMAN_ORIGIN_X, PACMAN_ORIGIN_Y, PACMAN_PELLET_POINTS, PACMAN_POWER_PELLET_POINTS, PACMAN_RESPAWN_SEC, PACMAN_TILE, PACMAN_COLS, PACMAN_ROWS, PACMAN_TUNNEL_ROW, pacmanInBounds, pacmanOppositeDir, pickPacmanPlayerSpawns, } from "../src/shared/pacmanSettings.js";
 import { resolvePacmanLivesPerPlayer } from "../src/shared/pacmanGameSettings.js";
 import { fallbackPlayerHue } from "../src/shared/playerColors.js";
 import { Btn } from "../src/shared/protocol.js";
@@ -83,7 +83,7 @@ function initPacmanRound(room) {
         mode: "normal",
         chase: id % 2 === 0,
         scatterTarget: maze.scatterTargets[id] ?? maze.scatterTargets[0],
-        moveCooldown: id * 0.08,
+        moveCooldown: id * PACMAN_GHOST_SPAWN_STAGGER_SEC,
         dir: 2,
     }));
 }

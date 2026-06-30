@@ -8,6 +8,7 @@ import {
   PACMAN_FRIGHTENED_SEC,
   PACMAN_GHOST_EAT_POINTS,
   PACMAN_GHOST_MOVE_COOLDOWN_SEC,
+  PACMAN_GHOST_SPAWN_STAGGER_SEC,
   PACMAN_INVULN_SEC,
   PACMAN_MOVE_COOLDOWN_SEC,
   PACMAN_ORIGIN_X,
@@ -146,7 +147,7 @@ function initPacmanRound(room: Room): void {
     mode: "normal" as const,
     chase: id % 2 === 0,
     scatterTarget: maze.scatterTargets[id] ?? maze.scatterTargets[0]!,
-    moveCooldown: id * 0.08,
+    moveCooldown: id * PACMAN_GHOST_SPAWN_STAGGER_SEC,
     dir: 2 as PacmanDir,
   }));
 }
