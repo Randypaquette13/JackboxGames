@@ -865,11 +865,12 @@ if (!roomId) {
       section.className = "minigame-section";
       if (meta) section.style.setProperty("--section-accent", meta.accent);
 
-      const pick = document.createElement("button");
-      pick.type = "button";
+      const pick = document.createElement("div");
       pick.className = `minigame-pick${selected ? " selected" : ""}`;
       pick.dataset.gameId = id;
       pick.dataset.menuIndex = String(i);
+      pick.setAttribute("role", "button");
+      pick.tabIndex = 0;
 
       const label = document.createElement("span");
       label.className = "minigame-pick-label";
@@ -1444,16 +1445,48 @@ if (!roomId) {
     return (forcedControllerPhase ?? ctrlState.phase) === "menu";
   }
 
-  menuListEl.addEventListener("click", (e) => {
+  const MINIGAME_PICK_TAP_THRESHOLD_PX = 12;
+  let minigamePickStartY = 0;
+  let minigamePickStartX = 0;
+
+  function tryMinigamePick(target: EventTarget | null): void {
     if (!ctrlState || ws.readyState !== WebSocket.OPEN) return;
     if (!isMinigameMenuPhase()) return;
     if (!canControlMenu(ctrlState)) return;
 
-    const pick = (e.target as HTMLElement | null)?.closest<HTMLElement>(".minigame-pick");
+    const pick = (target as HTMLElement | null)?.closest<HTMLElement>(".minigame-pick");
     if (!pick) return;
     const idx = Number(pick.dataset.menuIndex);
     if (!Number.isFinite(idx) || idx < 0) return;
     sendJson(ws, { type: "menu_select", index: idx });
+  }
+
+  menuListEl.addEventListener(
+    "pointerdown",
+    (e) => {
+      minigamePickStartY = e.clientY;
+      minigamePickStartX = e.clientX;
+    },
+    { passive: true }
+  );
+
+  menuListEl.addEventListener(
+    "pointerup",
+    (e) => {
+      const dy = Math.abs(e.clientY - minigamePickStartY);
+      const dx = Math.abs(e.clientX - minigamePickStartX);
+      if (dy > MINIGAME_PICK_TAP_THRESHOLD_PX || dx > MINIGAME_PICK_TAP_THRESHOLD_PX) return;
+      tryMinigamePick(e.target);
+    },
+    { passive: true }
+  );
+
+  menuListEl.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const pick = (e.target as HTMLElement | null)?.closest<HTMLElement>(".minigame-pick");
+    if (!pick) return;
+    e.preventDefault();
+    tryMinigamePick(pick);
   });
 
   menuListEl.addEventListener("scroll", updateMinigameMenuScrollHint, { passive: true });
