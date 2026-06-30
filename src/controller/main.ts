@@ -68,9 +68,7 @@ function preventMobileBrowserZoom(): void {
   document.addEventListener(
     "touchend",
     (e) => {
-      if ((e.target as Element | null)?.closest(
-        "input, textarea, select, .settings-scroll, .menu-game-list, .menu-help-scroll"
-      )) return;
+      if ((e.target as Element | null)?.closest("input, textarea, select")) return;
       const now = Date.now();
       if (now - lastTouchEnd <= 300) e.preventDefault();
       lastTouchEnd = now;
@@ -148,7 +146,7 @@ const pjBackBtn = document.querySelector<HTMLButtonElement>("#pj-back")!;
 const pjJoinBtn = document.querySelector<HTMLButtonElement>("#pj-join")!;
 
 const menuListEl = document.querySelector<HTMLElement>("#menu-list")!;
-const menuGameScrollWrapEl = document.querySelector<HTMLElement>("#panel-menu .menu-game-scroll-wrap")!;
+const menuGameScrollWrapEl = document.querySelector<HTMLElement>("#panel-menu .settings-scroll-wrap")!;
 const resultsHintEl = document.querySelector<HTMLElement>("#results-hint")!;
 const resultsListEl = document.querySelector<HTMLElement>("#results-list")!;
 const rwFireBtn = document.querySelector<HTMLButtonElement>("#rw-fire")!;
@@ -287,22 +285,22 @@ function syncMenuLock(st: ControllerStateJson | null): void {
   }
 }
 
+function updatePanelScrollHint(scrollEl: HTMLElement, wrapEl: HTMLElement): void {
+  const canScroll = scrollEl.scrollHeight > scrollEl.clientHeight + 4;
+  const atBottom =
+    scrollEl.scrollTop + scrollEl.clientHeight >= scrollEl.scrollHeight - 10;
+  wrapEl.classList.toggle("can-scroll", canScroll);
+  wrapEl.classList.toggle("at-bottom", atBottom);
+}
+
 function updateSettingsScrollHint(): void {
   if (!settingsScrollEl || !settingsScrollWrapEl) return;
-  const canScroll = settingsScrollEl.scrollHeight > settingsScrollEl.clientHeight + 4;
-  const atBottom =
-    settingsScrollEl.scrollTop + settingsScrollEl.clientHeight >= settingsScrollEl.scrollHeight - 10;
-  settingsScrollWrapEl.classList.toggle("can-scroll", canScroll);
-  settingsScrollWrapEl.classList.toggle("at-bottom", atBottom);
+  updatePanelScrollHint(settingsScrollEl, settingsScrollWrapEl);
 }
 
 function updateMinigameMenuScrollHint(): void {
   if (!menuListEl || !menuGameScrollWrapEl) return;
-  const canScroll = menuListEl.scrollHeight > menuListEl.clientHeight + 4;
-  const atBottom =
-    menuListEl.scrollTop + menuListEl.clientHeight >= menuListEl.scrollHeight - 10;
-  menuGameScrollWrapEl.classList.toggle("can-scroll", canScroll);
-  menuGameScrollWrapEl.classList.toggle("at-bottom", atBottom);
+  updatePanelScrollHint(menuListEl, menuGameScrollWrapEl);
 }
 pmLivesInput.min = String(PACMAN_GAME_LIVES_MIN);
 pmLivesInput.max = String(PACMAN_GAME_LIVES_MAX);
@@ -1422,31 +1420,15 @@ if (!roomId) {
     sendJson(ws, { type: "menu_game_settings" });
   });
 
-  const MENU_TAP_MOVE_THRESHOLD_PX = 12;
-  let menuTapStartY = 0;
-  let menuTapStartX = 0;
-
   function isMinigameMenuPhase(): boolean {
     if (!ctrlState) return false;
     return (forcedControllerPhase ?? ctrlState.phase) === "menu";
   }
 
-  menuListEl.addEventListener(
-    "pointerdown",
-    (e) => {
-      menuTapStartY = e.clientY;
-      menuTapStartX = e.clientX;
-    },
-    { passive: true }
-  );
-
-  menuListEl.addEventListener("pointerup", (e) => {
+  menuListEl.addEventListener("click", (e) => {
     if (!ctrlState || ws.readyState !== WebSocket.OPEN) return;
     if (!isMinigameMenuPhase()) return;
     if (!canControlMenu(ctrlState)) return;
-    const dy = Math.abs(e.clientY - menuTapStartY);
-    const dx = Math.abs(e.clientX - menuTapStartX);
-    if (dy > MENU_TAP_MOVE_THRESHOLD_PX || dx > MENU_TAP_MOVE_THRESHOLD_PX) return;
 
     const card = (e.target as HTMLElement | null)?.closest<HTMLElement>(".menu-game-card");
     if (!card) return;
