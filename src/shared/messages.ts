@@ -200,6 +200,8 @@ export type PacmanPlayerHostJson = {
   hue: number;
   col: number;
   row: number;
+  /** 0 up · 1 down · 2 left · 3 right */
+  dir: 0 | 1 | 2 | 3;
   alive: boolean;
   lives: number;
   respawnSecLeft: number;
