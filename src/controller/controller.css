@@ -363,8 +363,7 @@ input.pj-name {
   overflow: hidden;
   touch-action: pan-y;
 }
-#panel-settings .settings-header,
-#panel-menu .minigame-header {
+#panel-settings .settings-header {
   flex-shrink: 0;
 }
 #panel-settings .settings-scroll-wrap {
