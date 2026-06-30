@@ -448,6 +448,9 @@ export type ControllerStateJson = {
   menuIndex: number;
   menuItems: { id: MinigameId; label: string }[];
   menuHelpOpen: boolean;
+  /** Who may operate shared menus; null until someone interacts. */
+  menuControllerId: number | null;
+  menuControllerName: string | null;
   settingsOpen: boolean;
   gameSettings: Record<string, unknown>;
   stubId: MinigameId | null;

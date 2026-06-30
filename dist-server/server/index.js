@@ -11,7 +11,7 @@ import { resolveFootballMaxPlayerSpeed } from "../src/shared/footballGameSetting
 import { resolveAirHockeyMaxPlayerSpeed } from "../src/shared/airHockeyGameSettings.js";
 import { packedAxisToVelocity } from "../src/shared/footballPackedInput.js";
 import { Btn, encodeError, encodePong, encodeWelcome, Op, parseInput, parseJoin, parsePing, } from "../src/shared/protocol.js";
-import { applyIntent, buildControllerState, buildHostState, createRoom, ensureKartCar, handleAirHockeyPauseEdge, handleBombermanPauseEdge, handlePacmanPauseEdge, handleFootballPauseEdge, handleFroggerPauseEdge, handleKartPauseEdge, handleRaceWalkPauseEdge, tickSimulation, } from "./gameRoom.js";
+import { applyIntent, buildControllerState, buildHostState, createRoom, ensureKartCar, handleAirHockeyPauseEdge, handleBombermanPauseEdge, handlePacmanPauseEdge, handleFootballPauseEdge, handleFroggerPauseEdge, handleKartPauseEdge, handleRaceWalkPauseEdge, onMenuControllerPlayerRemoved, tickSimulation, } from "./gameRoom.js";
 import { bombermanOnPlayerRemoved } from "./bombermanRoom.js";
 import { pacmanOnPlayerRemoved } from "./pacmanRoom.js";
 import { createPlayer, DEFAULT_PLATFORMS } from "./game.js";
@@ -56,6 +56,8 @@ function buildPrejoinState(room) {
         menuIndex: room.menuIndex,
         menuItems: [],
         menuHelpOpen: false,
+        menuControllerId: null,
+        menuControllerName: null,
         settingsOpen: room.settingsOpen,
         gameSettings: { ...room.gameSettings },
         stubId: room.stubId,
@@ -136,6 +138,7 @@ function removePlayerFromRoom(room, playerId) {
         room.pacmanPausedByPlayerId = null;
     if (room.footballPausedByPlayerId === playerId)
         room.footballPausedByPlayerId = null;
+    onMenuControllerPlayerRemoved(room, playerId);
 }
 function destroyRoom(roomId) {
     const r = rooms.get(roomId);

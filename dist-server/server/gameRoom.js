@@ -38,6 +38,7 @@ export function createRoom(host, platforms) {
         showQr: true,
         menuIndex: 0,
         menuHelpOpen: false,
+        menuControllerId: null,
         settingsOpen: false,
         gameSettings: {},
         stubId: null,
@@ -1091,6 +1092,8 @@ export function buildControllerState(room, playerId) {
         menuIndex: room.menuIndex,
         menuItems: menuItemsList(),
         menuHelpOpen: room.phase === "menu" && room.menuHelpOpen,
+        menuControllerId: room.menuControllerId,
+        menuControllerName: menuControllerName(room),
         settingsOpen: room.settingsOpen,
         gameSettings: { ...room.gameSettings },
         stubId: room.stubId,
@@ -1506,16 +1509,74 @@ export function handleFroggerPauseEdge(room, playerId, frog, pauseHeld) {
 function goToMinigameMenu(room) {
     room.phase = "menu";
     room.menuHelpOpen = false;
+    room.menuControllerId = null;
     clearFootballState(room);
     clearAirHockeyState(room);
     clearBombermanState(room);
     clearPacmanState(room);
 }
+function isResultsPhase(phase) {
+    return (phase === "kart_results" ||
+        phase === "race_walk_results" ||
+        phase === "frogger_results" ||
+        phase === "football_results" ||
+        phase === "air_hockey_results" ||
+        phase === "bomberman_results" ||
+        phase === "pacman_results");
+}
+function isSharedMenuActive(room) {
+    return room.phase === "menu" || isResultsPhase(room.phase);
+}
+function clearMenuController(room) {
+    room.menuControllerId = null;
+}
+export function onMenuControllerPlayerRemoved(room, playerId) {
+    if (room.menuControllerId === playerId)
+        clearMenuController(room);
+}
+function menuControllerName(room) {
+    if (room.menuControllerId === null)
+        return null;
+    const p = room.players.get(room.menuControllerId);
+    return p?.name ?? `P${room.menuControllerId}`;
+}
+function authorizeMenuIntent(room, playerId, intent) {
+    if (!isSharedMenuActive(room))
+        return true;
+    if (intent.type === "menu_game_settings" || intent.type === "menu_help_open") {
+        room.menuControllerId = playerId;
+        return true;
+    }
+    if (room.menuControllerId === null) {
+        room.menuControllerId = playerId;
+        return true;
+    }
+    return room.menuControllerId === playerId;
+}
 export function applyIntent(room, _playerId, intent) {
+    if (intent.type === "menu_nav" ||
+        intent.type === "menu_confirm" ||
+        intent.type === "menu_help_open" ||
+        intent.type === "menu_help_close" ||
+        intent.type === "menu_add_players" ||
+        intent.type === "menu_game_settings" ||
+        intent.type === "settings_close" ||
+        intent.type === "game_settings_patch" ||
+        intent.type === "kart_results" ||
+        intent.type === "race_walk_results" ||
+        intent.type === "frogger_results" ||
+        intent.type === "football_results" ||
+        intent.type === "air_hockey_results" ||
+        intent.type === "bomberman_results" ||
+        intent.type === "pacman_results") {
+        if (!authorizeMenuIntent(room, _playerId, intent))
+            return;
+    }
     switch (intent.type) {
         case "all_ready":
             if (room.phase === "lobby") {
                 goToMinigameMenu(room);
+                room.menuControllerId = _playerId;
                 room.showQr = false;
                 room.menuIndex = 0;
             }
@@ -1556,8 +1617,10 @@ export function applyIntent(room, _playerId, intent) {
             if (room.phase === "kart_results") {
                 const actions = ["play_again", "minigame_menu", "add_controllers"];
                 const action = actions[room.menuIndex % 3];
-                if (action === "play_again")
+                if (action === "play_again") {
+                    clearMenuController(room);
                     startKartFromMenu(room);
+                }
                 else if (action === "minigame_menu") {
                     goToMinigameMenu(room);
                     room.stubId = null;
@@ -1570,6 +1633,7 @@ export function applyIntent(room, _playerId, intent) {
                     room.showQr = false;
                 }
                 else {
+                    clearMenuController(room);
                     room.phase = "lobby";
                     room.menuIndex = 0;
                     room.stubId = null;
@@ -1586,8 +1650,10 @@ export function applyIntent(room, _playerId, intent) {
             if (room.phase === "race_walk_results") {
                 const actions = ["play_again", "minigame_menu", "add_controllers"];
                 const action = actions[room.menuIndex % 3];
-                if (action === "play_again")
+                if (action === "play_again") {
+                    clearMenuController(room);
                     startRaceWalkFromMenu(room);
+                }
                 else if (action === "minigame_menu") {
                     goToMinigameMenu(room);
                     room.stubId = null;
@@ -1596,6 +1662,7 @@ export function applyIntent(room, _playerId, intent) {
                     room.showQr = false;
                 }
                 else {
+                    clearMenuController(room);
                     room.phase = "lobby";
                     room.menuIndex = 0;
                     room.stubId = null;
@@ -1608,8 +1675,10 @@ export function applyIntent(room, _playerId, intent) {
             if (room.phase === "frogger_results") {
                 const actions = ["play_again", "minigame_menu", "add_controllers"];
                 const action = actions[room.menuIndex % 3];
-                if (action === "play_again")
+                if (action === "play_again") {
+                    clearMenuController(room);
                     startFroggerFromMenu(room);
+                }
                 else if (action === "minigame_menu") {
                     goToMinigameMenu(room);
                     room.stubId = null;
@@ -1617,6 +1686,7 @@ export function applyIntent(room, _playerId, intent) {
                     room.showQr = false;
                 }
                 else {
+                    clearMenuController(room);
                     room.phase = "lobby";
                     room.menuIndex = 0;
                     room.stubId = null;
@@ -1628,8 +1698,10 @@ export function applyIntent(room, _playerId, intent) {
             if (room.phase === "football_results") {
                 const actions = ["play_again", "minigame_menu", "add_controllers"];
                 const action = actions[room.menuIndex % 3];
-                if (action === "play_again")
+                if (action === "play_again") {
+                    clearMenuController(room);
                     startFootballFromMenu(room);
+                }
                 else if (action === "minigame_menu") {
                     goToMinigameMenu(room);
                     room.stubId = null;
@@ -1637,6 +1709,7 @@ export function applyIntent(room, _playerId, intent) {
                     room.showQr = false;
                 }
                 else {
+                    clearMenuController(room);
                     room.phase = "lobby";
                     room.menuIndex = 0;
                     room.stubId = null;
@@ -1648,8 +1721,10 @@ export function applyIntent(room, _playerId, intent) {
             if (room.phase === "air_hockey_results") {
                 const actions = ["play_again", "minigame_menu", "add_controllers"];
                 const action = actions[room.menuIndex % 3];
-                if (action === "play_again")
+                if (action === "play_again") {
+                    clearMenuController(room);
                     startAirHockeyFromMenu(room);
+                }
                 else if (action === "minigame_menu") {
                     goToMinigameMenu(room);
                     room.stubId = null;
@@ -1657,6 +1732,7 @@ export function applyIntent(room, _playerId, intent) {
                     room.showQr = false;
                 }
                 else {
+                    clearMenuController(room);
                     room.phase = "lobby";
                     room.menuIndex = 0;
                     room.stubId = null;
@@ -1668,8 +1744,10 @@ export function applyIntent(room, _playerId, intent) {
             if (room.phase === "bomberman_results") {
                 const actions = ["play_again", "minigame_menu", "add_controllers"];
                 const action = actions[room.menuIndex % 3];
-                if (action === "play_again")
+                if (action === "play_again") {
+                    clearMenuController(room);
                     startBombermanFromMenu(room);
+                }
                 else if (action === "minigame_menu") {
                     goToMinigameMenu(room);
                     room.stubId = null;
@@ -1677,6 +1755,7 @@ export function applyIntent(room, _playerId, intent) {
                     room.showQr = false;
                 }
                 else {
+                    clearMenuController(room);
                     room.phase = "lobby";
                     room.menuIndex = 0;
                     room.stubId = null;
@@ -1688,8 +1767,10 @@ export function applyIntent(room, _playerId, intent) {
             if (room.phase === "pacman_results") {
                 const actions = ["play_again", "minigame_menu", "add_controllers"];
                 const action = actions[room.menuIndex % 3];
-                if (action === "play_again")
+                if (action === "play_again") {
+                    clearMenuController(room);
                     startPacmanFromMenu(room);
+                }
                 else if (action === "minigame_menu") {
                     goToMinigameMenu(room);
                     room.stubId = null;
@@ -1697,6 +1778,7 @@ export function applyIntent(room, _playerId, intent) {
                     room.showQr = false;
                 }
                 else {
+                    clearMenuController(room);
                     room.phase = "lobby";
                     room.menuIndex = 0;
                     room.stubId = null;
@@ -1710,6 +1792,7 @@ export function applyIntent(room, _playerId, intent) {
                     room.menuHelpOpen = false;
                     break;
                 }
+                clearMenuController(room);
                 const id = MINIGAME_IDS[room.menuIndex];
                 if (id === "kart")
                     startKartFromMenu(room);
@@ -1765,6 +1848,7 @@ export function applyIntent(room, _playerId, intent) {
             break;
         case "menu_add_players":
             if (room.phase === "menu") {
+                clearMenuController(room);
                 room.phase = "lobby";
                 room.menuIndex = 0;
                 room.stubId = null;
@@ -1856,6 +1940,7 @@ export function applyIntent(room, _playerId, intent) {
             if (room.phase !== "kart_results")
                 break;
             if (intent.action === "play_again") {
+                clearMenuController(room);
                 startKartFromMenu(room);
             }
             else if (intent.action === "minigame_menu") {
@@ -1870,6 +1955,7 @@ export function applyIntent(room, _playerId, intent) {
                 room.showQr = false;
             }
             else if (intent.action === "add_controllers") {
+                clearMenuController(room);
                 room.phase = "lobby";
                 room.menuIndex = 0;
                 room.stubId = null;
@@ -1886,6 +1972,7 @@ export function applyIntent(room, _playerId, intent) {
             if (room.phase !== "race_walk_results")
                 break;
             if (intent.action === "play_again") {
+                clearMenuController(room);
                 startRaceWalkFromMenu(room);
             }
             else if (intent.action === "minigame_menu") {
@@ -1896,6 +1983,7 @@ export function applyIntent(room, _playerId, intent) {
                 room.showQr = false;
             }
             else if (intent.action === "add_controllers") {
+                clearMenuController(room);
                 room.phase = "lobby";
                 room.menuIndex = 0;
                 room.stubId = null;
@@ -1908,6 +1996,7 @@ export function applyIntent(room, _playerId, intent) {
             if (room.phase !== "frogger_results")
                 break;
             if (intent.action === "play_again") {
+                clearMenuController(room);
                 startFroggerFromMenu(room);
             }
             else if (intent.action === "minigame_menu") {
@@ -1917,6 +2006,7 @@ export function applyIntent(room, _playerId, intent) {
                 room.showQr = false;
             }
             else if (intent.action === "add_controllers") {
+                clearMenuController(room);
                 room.phase = "lobby";
                 room.menuIndex = 0;
                 room.stubId = null;
@@ -1928,6 +2018,7 @@ export function applyIntent(room, _playerId, intent) {
             if (room.phase !== "football_results")
                 break;
             if (intent.action === "play_again") {
+                clearMenuController(room);
                 startFootballFromMenu(room);
             }
             else if (intent.action === "minigame_menu") {
@@ -1937,6 +2028,7 @@ export function applyIntent(room, _playerId, intent) {
                 room.showQr = false;
             }
             else if (intent.action === "add_controllers") {
+                clearMenuController(room);
                 room.phase = "lobby";
                 room.menuIndex = 0;
                 room.stubId = null;
@@ -1948,6 +2040,7 @@ export function applyIntent(room, _playerId, intent) {
             if (room.phase !== "air_hockey_results")
                 break;
             if (intent.action === "play_again") {
+                clearMenuController(room);
                 startAirHockeyFromMenu(room);
             }
             else if (intent.action === "minigame_menu") {
@@ -1957,6 +2050,7 @@ export function applyIntent(room, _playerId, intent) {
                 room.showQr = false;
             }
             else if (intent.action === "add_controllers") {
+                clearMenuController(room);
                 room.phase = "lobby";
                 room.menuIndex = 0;
                 room.stubId = null;
@@ -1968,6 +2062,7 @@ export function applyIntent(room, _playerId, intent) {
             if (room.phase !== "bomberman_results")
                 break;
             if (intent.action === "play_again") {
+                clearMenuController(room);
                 startBombermanFromMenu(room);
             }
             else if (intent.action === "minigame_menu") {
@@ -1977,6 +2072,7 @@ export function applyIntent(room, _playerId, intent) {
                 room.showQr = false;
             }
             else if (intent.action === "add_controllers") {
+                clearMenuController(room);
                 room.phase = "lobby";
                 room.menuIndex = 0;
                 room.stubId = null;
@@ -2088,6 +2184,7 @@ export function applyIntent(room, _playerId, intent) {
             if (room.phase !== "pacman_results")
                 break;
             if (intent.action === "play_again") {
+                clearMenuController(room);
                 startPacmanFromMenu(room);
             }
             else if (intent.action === "minigame_menu") {
@@ -2097,6 +2194,7 @@ export function applyIntent(room, _playerId, intent) {
                 room.showQr = false;
             }
             else if (intent.action === "add_controllers") {
+                clearMenuController(room);
                 room.phase = "lobby";
                 room.menuIndex = 0;
                 room.stubId = null;

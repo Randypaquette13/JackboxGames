@@ -432,6 +432,31 @@ input.pj-name {
     opacity: 1;
   }
 }
+
+.menu-lock-banner {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  text-align: center;
+  font-size: 0.88rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #ffe8c8;
+  background: linear-gradient(180deg, rgba(58, 50, 40, 0.92), rgba(36, 30, 24, 0.96));
+  border: 1px solid rgba(212, 168, 92, 0.45);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
+}
+.panel.menu-locked button,
+.panel.menu-locked input[type="range"] {
+  pointer-events: none;
+  opacity: 0.42;
+  filter: grayscale(0.15);
+}
+.panel.menu-locked .menu-lock-banner {
+  opacity: 1;
+  filter: none;
+}
+
 .settings-section {
   --section-accent: #8ab4ff;
 }

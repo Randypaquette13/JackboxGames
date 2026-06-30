@@ -235,6 +235,37 @@ const pmLivesVal = document.querySelector<HTMLElement>("#set-pacman-lives-val")!
 const settingsScrollEl = document.querySelector<HTMLElement>("#panel-settings .settings-scroll")!;
 const settingsScrollWrapEl = document.querySelector<HTMLElement>("#panel-settings .settings-scroll-wrap")!;
 
+const menuLockPanels = [
+  panels.menu,
+  panels.menuHelp,
+  panels.settings,
+  panels.results,
+] as const;
+
+function canControlMenu(st: ControllerStateJson | null): boolean {
+  if (!st || st.playerId === 0) return false;
+  if (st.menuControllerId === null) return true;
+  return st.menuControllerId === st.playerId;
+}
+
+function syncMenuLock(st: ControllerStateJson | null): void {
+  const locked =
+    st !== null &&
+    st.menuControllerId !== null &&
+    st.playerId !== 0 &&
+    st.menuControllerId !== st.playerId;
+  const label = st?.menuControllerName ?? (st?.menuControllerId ? `P${st.menuControllerId}` : "");
+  const text = locked ? `${label} is controlling the menu` : "";
+  for (const panel of menuLockPanels) {
+    const banner = panel.querySelector<HTMLElement>(".menu-lock-banner");
+    if (banner) {
+      banner.hidden = !locked;
+      banner.textContent = text;
+    }
+    panel.classList.toggle("menu-locked", locked);
+  }
+}
+
 function updateSettingsScrollHint(): void {
   if (!settingsScrollEl || !settingsScrollWrapEl) return;
   const canScroll = settingsScrollEl.scrollHeight > settingsScrollEl.clientHeight + 4;
@@ -1140,6 +1171,7 @@ if (!roomId) {
     if (st.settingsOpen) {
       syncGameSettingsFromState(st);
       panels.settings.hidden = false;
+      syncMenuLock(st);
       requestAnimationFrame(() => {
         updateSettingsScrollHint();
         requestAnimationFrame(updateSettingsScrollHint);
@@ -1201,6 +1233,7 @@ if (!roomId) {
       panels.results.hidden = false;
       renderResultsMenu(st);
     }
+    syncMenuLock(st);
   }
 
   function showMenuPanelImmediately(): void {
@@ -1396,6 +1429,7 @@ if (!roomId) {
   window.addEventListener("keydown", (e: KeyboardEvent) => {
     if (!ctrlState || ws.readyState !== WebSocket.OPEN) return;
     if (ctrlState.settingsOpen) return;
+    if (!canControlMenu(ctrlState)) return;
     const ph = forcedControllerPhase ?? ctrlState.phase;
     const menuLike =
       ph === "menu" ||

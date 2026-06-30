@@ -33,6 +33,7 @@ import {
   handleFroggerPauseEdge,
   handleKartPauseEdge,
   handleRaceWalkPauseEdge,
+  onMenuControllerPlayerRemoved,
   type Room,
   tickSimulation,
 } from "./gameRoom.js";
@@ -103,6 +104,8 @@ function buildPrejoinState(room: Room): ControllerStateJson {
     menuIndex: room.menuIndex,
     menuItems: [],
     menuHelpOpen: false,
+    menuControllerId: null,
+    menuControllerName: null,
     settingsOpen: room.settingsOpen,
     gameSettings: { ...room.gameSettings },
     stubId: room.stubId,
@@ -186,6 +189,7 @@ function removePlayerFromRoom(room: Room, playerId: number): void {
   if (room.bombermanPausedByPlayerId === playerId) room.bombermanPausedByPlayerId = null;
   if (room.pacmanPausedByPlayerId === playerId) room.pacmanPausedByPlayerId = null;
   if (room.footballPausedByPlayerId === playerId) room.footballPausedByPlayerId = null;
+  onMenuControllerPlayerRemoved(room, playerId);
 }
 
 function destroyRoom(roomId: string): void {
