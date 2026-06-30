@@ -311,8 +311,22 @@ function updateSettingsScrollHint(): void {
 }
 
 function updateMinigameMenuScrollHint(): void {
-  if (!menuScrollWrapEl) return;
-  updatePanelScrollHint(menuScrollWrapEl, menuScrollWrapEl);
+  if (!menuListEl || !menuScrollWrapEl) return;
+  updatePanelScrollHint(menuListEl, menuScrollWrapEl);
+}
+
+let minigameScrollHintObserver: ResizeObserver | null = null;
+
+function observeMinigameMenuScrollHint(): void {
+  if (!menuListEl || typeof ResizeObserver === "undefined") return;
+  if (!minigameScrollHintObserver) {
+    minigameScrollHintObserver = new ResizeObserver(() => {
+      updateMinigameMenuScrollHint();
+    });
+  }
+  minigameScrollHintObserver.disconnect();
+  minigameScrollHintObserver.observe(menuListEl);
+  minigameScrollHintObserver.observe(menuScrollWrapEl);
 }
 
 function findMinigamePickAt(clientX: number, clientY: number): HTMLElement | null {
@@ -895,7 +909,11 @@ if (!roomId) {
         }
         minigameScrollSelectedIntoView = false;
         updateMinigameMenuScrollHint();
-        requestAnimationFrame(updateMinigameMenuScrollHint);
+        requestAnimationFrame(() => {
+          updateMinigameMenuScrollHint();
+          observeMinigameMenuScrollHint();
+          requestAnimationFrame(updateMinigameMenuScrollHint);
+        });
       });
       return;
     }
@@ -949,7 +967,11 @@ if (!roomId) {
       }
       minigameScrollSelectedIntoView = false;
       updateMinigameMenuScrollHint();
-      requestAnimationFrame(updateMinigameMenuScrollHint);
+      requestAnimationFrame(() => {
+        updateMinigameMenuScrollHint();
+        observeMinigameMenuScrollHint();
+        requestAnimationFrame(updateMinigameMenuScrollHint);
+      });
     });
   }
 
@@ -1297,6 +1319,7 @@ if (!roomId) {
         updateMinigameMenuScrollHint();
         requestAnimationFrame(() => {
           updateMinigameMenuScrollHint();
+          observeMinigameMenuScrollHint();
           requestAnimationFrame(updateMinigameMenuScrollHint);
         });
       }
@@ -1513,12 +1536,12 @@ if (!roomId) {
     sendJson(ws, { type: "menu_select", index: idx });
   }
 
-  menuScrollWrapEl.addEventListener("click", (e) => {
+  menuListEl.addEventListener("click", (e) => {
     const pick = findMinigamePickAt(e.clientX, e.clientY);
     if (pick) tryMinigamePickFromElement(pick);
   });
 
-  menuScrollWrapEl.addEventListener("scroll", updateMinigameMenuScrollHint, { passive: true });
+  menuListEl.addEventListener("scroll", updateMinigameMenuScrollHint, { passive: true });
 
   window.addEventListener("resize", updateMinigameMenuScrollHint);
 

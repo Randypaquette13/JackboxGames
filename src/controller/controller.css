@@ -401,31 +401,29 @@ input.pj-name {
   flex: 1 1 auto;
   min-height: 0;
   width: 100%;
-  overflow-x: hidden;
+  overflow: hidden;
+}
+#panel-menu .settings-scroll {
+  position: absolute;
+  inset: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
   touch-action: pan-y;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(154, 140, 255, 0.45) transparent;
-}
-#panel-menu .settings-scroll-wrap::-webkit-scrollbar {
-  width: 6px;
-}
-#panel-menu .settings-scroll-wrap::-webkit-scrollbar-thumb {
-  background: rgba(154, 140, 255, 0.45);
-  border-radius: 999px;
-}
-#panel-menu .settings-scroll {
-  position: static;
-  inset: auto;
-  overflow: visible;
   display: flex;
   flex-direction: column;
   gap: 14px;
   width: 100%;
   padding: 4px 2px 36px;
-  min-height: min-content;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(154, 140, 255, 0.45) transparent;
+}
+#panel-menu .settings-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+#panel-menu .settings-scroll::-webkit-scrollbar-thumb {
+  background: rgba(154, 140, 255, 0.45);
+  border-radius: 999px;
 }
 #panel-menu .settings-scroll * {
   pointer-events: none;
