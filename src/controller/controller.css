@@ -400,10 +400,6 @@ input.pj-name {
   background: rgba(154, 140, 255, 0.45);
   border-radius: 999px;
 }
-/* Minigame cards are visual-only; touches go to .settings-scroll (same as settings). */
-#panel-menu .settings-scroll * {
-  pointer-events: none;
-}
 #panel-menu .settings-scroll .settings-section {
   flex-shrink: 0;
 }
@@ -587,28 +583,21 @@ input.pj-name {
   color: #ccc;
 }
 
-/* Minigame select — reuses settings section + card shell */
+/* Minigame rows mirror settings rows (including native range inputs for iOS scroll). */
 #panel-menu .minigame-pick {
   scroll-margin: 8px 0;
-  padding: 12px 14px;
+  cursor: pointer;
 }
-#panel-menu .minigame-pick.selected {
+#panel-menu .settings-card:has(.minigame-pick.selected) {
   border-color: color-mix(in srgb, var(--section-accent) 58%, white 12%);
   box-shadow:
     0 0 0 1px color-mix(in srgb, var(--section-accent) 38%, transparent),
     0 10px 28px color-mix(in srgb, var(--section-accent) 24%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
-.minigame-pick-status {
-  display: block;
-  font-size: 0.82rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--section-accent, #b8b8d8);
-}
-#panel-menu .minigame-pick.selected .minigame-pick-status {
-  color: var(--section-accent, #ebe8ff);
+#panel-menu .minigame-pick input[type="range"] {
+  pointer-events: auto;
+  touch-action: pan-y;
 }
 .minigame-toolbar {
   flex-shrink: 0;
