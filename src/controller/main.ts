@@ -62,6 +62,24 @@ function wsUrl(): string {
   return `${p}//${location.host}/ws`;
 }
 
+/** Block iOS Safari double-tap and pinch zoom — breaks game/controller taps. */
+function preventMobileBrowserZoom(): void {
+  let lastTouchEnd = 0;
+  document.addEventListener(
+    "touchend",
+    (e) => {
+      if ((e.target as Element | null)?.closest("input, textarea, select")) return;
+      const now = Date.now();
+      if (now - lastTouchEnd <= 300) e.preventDefault();
+      lastTouchEnd = now;
+    },
+    { passive: false }
+  );
+  document.addEventListener("gesturestart", (e) => e.preventDefault(), { passive: false });
+}
+
+preventMobileBrowserZoom();
+
 function getOrCreateControllerClientId(): string {
   const key = "jb_controller_client_id";
   const existing = localStorage.getItem(key);

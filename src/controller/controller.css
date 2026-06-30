@@ -1,6 +1,10 @@
 * {
   box-sizing: border-box;
 }
+html {
+  /* iOS Safari: block pinch/double-tap page zoom on the controller surface. */
+  touch-action: none;
+}
 html,
 body {
   margin: 0;
@@ -15,6 +19,7 @@ body {
   -moz-user-select: none;
   -webkit-tap-highlight-color: transparent;
   -webkit-touch-callout: none;
+  overscroll-behavior: none;
 }
 /**
  * Buttons still get label selection / gray highlights on double-tap on some mobile browsers.
@@ -231,7 +236,6 @@ input.pj-name {
   width: 100%;
   max-width: none;
   margin-inline: 0;
-  touch-action: manipulation;
 }
 #panel-race-walk .rw-fire-row {
   display: flex;
@@ -243,7 +247,6 @@ input.pj-name {
 #panel-race-walk .rw-fire-main.jump {
   width: min(92%, 340px);
   margin: 0 auto;
-  touch-action: manipulation;
 }
 #panel-race-walk .hint {
   margin-bottom: 6px;
@@ -621,7 +624,7 @@ input.pj-name {
 .menu-game-card {
   --game-accent: #8ab4ff;
   cursor: pointer;
-  touch-action: manipulation;
+  touch-action: none;
   user-select: none;
   -webkit-user-select: none;
   display: grid;
@@ -773,10 +776,6 @@ input.pj-name {
   display: flex;
   gap: 12px;
   justify-content: center;
-}
-.menu-nav .pad.sm,
-#panel-results #rs-confirm {
-  touch-action: manipulation;
 }
 .dpad {
   display: flex;
