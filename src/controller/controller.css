@@ -372,10 +372,23 @@ input.pj-name {
   flex: 1 1 auto;
   min-height: 0;
   width: 100%;
+}
+#panel-settings .settings-scroll-wrap {
   overflow: hidden;
 }
-#panel-settings .settings-scroll,
-#panel-menu .settings-scroll {
+/* Minigame: scroll the wrap (not an absolute inner layer). iOS blocks native
+   overflow on nested absolute scrollers filled with tappable cards. */
+#panel-menu .settings-scroll-wrap {
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  min-height: 120px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(154, 140, 255, 0.45) transparent;
+}
+#panel-settings .settings-scroll {
   position: absolute;
   inset: 0;
   overflow-y: auto;
@@ -390,12 +403,24 @@ input.pj-name {
   scrollbar-width: thin;
   scrollbar-color: rgba(154, 140, 255, 0.45) transparent;
 }
+#panel-menu .settings-scroll {
+  position: static;
+  inset: auto;
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  padding: 4px 2px 36px;
+  min-height: min-content;
+  touch-action: pan-y;
+}
 #panel-settings .settings-scroll::-webkit-scrollbar,
-#panel-menu .settings-scroll::-webkit-scrollbar {
+#panel-menu .settings-scroll-wrap::-webkit-scrollbar {
   width: 6px;
 }
 #panel-settings .settings-scroll::-webkit-scrollbar-thumb,
-#panel-menu .settings-scroll::-webkit-scrollbar-thumb {
+#panel-menu .settings-scroll-wrap::-webkit-scrollbar-thumb {
   background: rgba(154, 140, 255, 0.45);
   border-radius: 999px;
 }
@@ -588,7 +613,7 @@ input.pj-name {
   margin: 0;
   padding: 14px 16px;
   scroll-margin: 8px 0;
-  touch-action: inherit;
+  touch-action: pan-y;
   pointer-events: auto;
   text-align: left;
   cursor: pointer;
