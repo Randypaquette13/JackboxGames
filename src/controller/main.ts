@@ -231,6 +231,18 @@ ahSpeedInput.step = "5";
 
 const pmLivesInput = document.querySelector<HTMLInputElement>("#set-pacman-lives")!;
 const pmLivesVal = document.querySelector<HTMLElement>("#set-pacman-lives-val")!;
+
+const settingsScrollEl = document.querySelector<HTMLElement>("#panel-settings .settings-scroll")!;
+const settingsScrollWrapEl = document.querySelector<HTMLElement>("#panel-settings .settings-scroll-wrap")!;
+
+function updateSettingsScrollHint(): void {
+  if (!settingsScrollEl || !settingsScrollWrapEl) return;
+  const canScroll = settingsScrollEl.scrollHeight > settingsScrollEl.clientHeight + 4;
+  const atBottom =
+    settingsScrollEl.scrollTop + settingsScrollEl.clientHeight >= settingsScrollEl.scrollHeight - 10;
+  settingsScrollWrapEl.classList.toggle("can-scroll", canScroll);
+  settingsScrollWrapEl.classList.toggle("at-bottom", atBottom);
+}
 pmLivesInput.min = String(PACMAN_GAME_LIVES_MIN);
 pmLivesInput.max = String(PACMAN_GAME_LIVES_MAX);
 pmLivesInput.step = "1";
@@ -1128,6 +1140,7 @@ if (!roomId) {
     if (st.settingsOpen) {
       syncGameSettingsFromState(st);
       panels.settings.hidden = false;
+      requestAnimationFrame(updateSettingsScrollHint);
       return;
     }
     const ph = forcedControllerPhase ?? st.phase;
@@ -1415,6 +1428,9 @@ if (!roomId) {
   document.querySelector("#set-close")!.addEventListener("click", () => {
     sendJson(ws, { type: "settings_close" });
   });
+
+  settingsScrollEl.addEventListener("scroll", updateSettingsScrollHint, { passive: true });
+  window.addEventListener("resize", updateSettingsScrollHint);
 
   kartSpeedInput.addEventListener("input", () => {
     const n = Number(kartSpeedInput.value);
