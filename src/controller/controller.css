@@ -366,16 +366,14 @@ input.pj-name {
 #panel-menu .minigame-header {
   flex-shrink: 0;
 }
-#panel-settings .settings-scroll-wrap,
-#panel-menu .settings-scroll-wrap {
+#panel-settings .settings-scroll-wrap {
   position: relative;
   flex: 1 1 auto;
   min-height: 0;
   width: 100%;
   overflow: hidden;
 }
-#panel-settings .settings-scroll,
-#panel-menu .settings-scroll {
+#panel-settings .settings-scroll {
   position: absolute;
   inset: 0;
   overflow-y: auto;
@@ -390,16 +388,48 @@ input.pj-name {
   scrollbar-width: thin;
   scrollbar-color: rgba(154, 140, 255, 0.45) transparent;
 }
-#panel-settings .settings-scroll::-webkit-scrollbar,
-#panel-menu .settings-scroll::-webkit-scrollbar {
+#panel-settings .settings-scroll::-webkit-scrollbar {
   width: 6px;
 }
-#panel-settings .settings-scroll::-webkit-scrollbar-thumb,
-#panel-menu .settings-scroll::-webkit-scrollbar-thumb {
+#panel-settings .settings-scroll::-webkit-scrollbar-thumb {
   background: rgba(154, 140, 255, 0.45);
   border-radius: 999px;
 }
-.settings-scroll-wrap.can-scroll:not(.at-bottom)::after {
+/* Minigame: native scroll on the wrap (static content inside). iOS fails to
+   finger-scroll absolute inner overflow layers in this flex shell. */
+#panel-menu .minigame-scroll-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  min-height: 120px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(154, 140, 255, 0.45) transparent;
+  transform: translateZ(0);
+}
+#panel-menu .minigame-scroll-wrap::-webkit-scrollbar {
+  width: 6px;
+}
+#panel-menu .minigame-scroll-wrap::-webkit-scrollbar-thumb {
+  background: rgba(154, 140, 255, 0.45);
+  border-radius: 999px;
+}
+#panel-menu .minigame-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  padding: 4px 2px 36px;
+  min-height: min-content;
+  pointer-events: none;
+}
+.settings-scroll-wrap.can-scroll:not(.at-bottom)::after,
+.minigame-scroll-wrap.can-scroll:not(.at-bottom)::after {
   content: "";
   position: absolute;
   left: 0;
@@ -430,7 +460,8 @@ input.pj-name {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
   animation: settings-scroll-hint-bob 1.5s ease-in-out infinite;
 }
-.settings-scroll-wrap.can-scroll:not(.at-bottom) .settings-scroll-hint {
+.settings-scroll-wrap.can-scroll:not(.at-bottom) .settings-scroll-hint,
+.minigame-scroll-wrap.can-scroll:not(.at-bottom) .settings-scroll-hint {
   display: block;
 }
 @keyframes settings-scroll-hint-bob {

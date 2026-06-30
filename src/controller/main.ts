@@ -301,11 +301,9 @@ function updateSettingsScrollHint(): void {
 }
 
 function updateMinigameMenuScrollHint(): void {
-  if (!menuListEl || !menuGameScrollWrapEl) return;
-  updatePanelScrollHint(menuListEl, menuGameScrollWrapEl);
+  if (!menuGameScrollWrapEl) return;
+  updatePanelScrollHint(menuGameScrollWrapEl, menuGameScrollWrapEl);
 }
-
-const MINIGAME_TAP_THRESHOLD_PX = 12;
 
 function findMinigamePickAt(clientX: number, clientY: number): HTMLElement | null {
   for (const pick of menuListEl.querySelectorAll<HTMLElement>(".minigame-pick")) {
@@ -315,46 +313,6 @@ function findMinigamePickAt(clientX: number, clientY: number): HTMLElement | nul
     }
   }
   return null;
-}
-
-/** Tap-to-select via hit-testing — cards are non-interactive so native scroll is unobstructed. */
-function bindMinigameListTap(scrollEl: HTMLElement, onPick: (pick: HTMLElement) => void): void {
-  let tapStartX = 0;
-  let tapStartY = 0;
-  let tapActive = false;
-
-  scrollEl.addEventListener(
-    "pointerdown",
-    (e) => {
-      if (e.pointerType === "mouse" && e.button !== 0) return;
-      tapStartX = e.clientX;
-      tapStartY = e.clientY;
-      tapActive = true;
-    },
-    { passive: true }
-  );
-
-  scrollEl.addEventListener(
-    "pointerup",
-    (e) => {
-      if (!tapActive) return;
-      tapActive = false;
-      const dx = Math.abs(e.clientX - tapStartX);
-      const dy = Math.abs(e.clientY - tapStartY);
-      if (dx > MINIGAME_TAP_THRESHOLD_PX || dy > MINIGAME_TAP_THRESHOLD_PX) return;
-      const pick = findMinigamePickAt(e.clientX, e.clientY);
-      if (pick) onPick(pick);
-    },
-    { passive: true }
-  );
-
-  scrollEl.addEventListener(
-    "pointercancel",
-    () => {
-      tapActive = false;
-    },
-    { passive: true }
-  );
 }
 pmLivesInput.min = String(PACMAN_GAME_LIVES_MIN);
 pmLivesInput.max = String(PACMAN_GAME_LIVES_MAX);
@@ -921,8 +879,6 @@ if (!roomId) {
       pick.className = `minigame-pick${selected ? " selected" : ""}`;
       pick.dataset.gameId = id;
       pick.dataset.menuIndex = String(i);
-      pick.setAttribute("role", "option");
-      pick.setAttribute("aria-selected", selected ? "true" : "false");
 
       const label = document.createElement("span");
       label.className = "minigame-pick-label";
@@ -1507,8 +1463,12 @@ if (!roomId) {
     sendJson(ws, { type: "menu_select", index: idx });
   }
 
-  bindMinigameListTap(menuListEl, tryMinigamePickFromElement);
-  menuListEl.addEventListener("scroll", updateMinigameMenuScrollHint, { passive: true });
+  menuGameScrollWrapEl.addEventListener("click", (e) => {
+    const pick = findMinigamePickAt(e.clientX, e.clientY);
+    if (pick) tryMinigamePickFromElement(pick);
+  });
+
+  menuGameScrollWrapEl.addEventListener("scroll", updateMinigameMenuScrollHint, { passive: true });
 
   window.addEventListener("resize", updateMinigameMenuScrollHint);
 
