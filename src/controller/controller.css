@@ -372,23 +372,10 @@ input.pj-name {
   flex: 1 1 auto;
   min-height: 0;
   width: 100%;
-}
-#panel-settings .settings-scroll-wrap {
   overflow: hidden;
 }
-/* Minigame: scroll the wrap (not an absolute inner layer). iOS blocks native
-   overflow on nested absolute scrollers filled with tappable cards. */
-#panel-menu .settings-scroll-wrap {
-  overflow-x: hidden;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  touch-action: pan-y;
-  min-height: 120px;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(154, 140, 255, 0.45) transparent;
-}
-#panel-settings .settings-scroll {
+#panel-settings .settings-scroll,
+#panel-menu .settings-scroll {
   position: absolute;
   inset: 0;
   overflow-y: auto;
@@ -403,24 +390,12 @@ input.pj-name {
   scrollbar-width: thin;
   scrollbar-color: rgba(154, 140, 255, 0.45) transparent;
 }
-#panel-menu .settings-scroll {
-  position: static;
-  inset: auto;
-  overflow: visible;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  width: 100%;
-  padding: 4px 2px 36px;
-  min-height: min-content;
-  touch-action: pan-y;
-}
 #panel-settings .settings-scroll::-webkit-scrollbar,
-#panel-menu .settings-scroll-wrap::-webkit-scrollbar {
+#panel-menu .settings-scroll::-webkit-scrollbar {
   width: 6px;
 }
 #panel-settings .settings-scroll::-webkit-scrollbar-thumb,
-#panel-menu .settings-scroll-wrap::-webkit-scrollbar-thumb {
+#panel-menu .settings-scroll::-webkit-scrollbar-thumb {
   background: rgba(154, 140, 255, 0.45);
   border-radius: 999px;
 }
@@ -484,9 +459,12 @@ input.pj-name {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
 }
 .panel.menu-locked button,
-.panel.menu-locked input[type="range"],
-.panel.menu-locked .minigame-pick {
+.panel.menu-locked input[type="range"] {
   pointer-events: none;
+  opacity: 0.42;
+  filter: grayscale(0.15);
+}
+.panel.menu-locked .minigame-pick {
   opacity: 0.42;
   filter: grayscale(0.15);
 }
@@ -607,16 +585,19 @@ input.pj-name {
   --section-accent: #8ab4ff;
   margin: 0;
   flex-shrink: 0;
+  pointer-events: none;
 }
+/* Cards are visual only — touches hit the native scroll surface behind them. */
 .minigame-pick {
   width: 100%;
   margin: 0;
   padding: 14px 16px;
   scroll-margin: 8px 0;
+  pointer-events: none;
   touch-action: pan-y;
-  pointer-events: auto;
+  user-select: none;
+  -webkit-user-select: none;
   text-align: left;
-  cursor: pointer;
   font: inherit;
   color: inherit;
   border-radius: 14px;
