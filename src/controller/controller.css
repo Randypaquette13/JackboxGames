@@ -1083,32 +1083,104 @@ button.football-pass-btn {
 }
 
 #panel-bomberman.panel {
+  justify-content: flex-start;
+  padding-top: max(16px, env(safe-area-inset-top));
   gap: 0.75rem;
 }
-#panel-bomberman #bm-pause.small-pause {
-  align-self: flex-end;
-}
-#panel-bomberman #bm-bomb {
+#panel-bomberman .bomberman-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   width: 100%;
-  min-height: 72px;
-  font-size: 1.35rem;
+  gap: 10px;
+  flex-shrink: 0;
+}
+#panel-bomberman .bomberman-hand-toggle {
+  width: auto;
+  min-width: 0;
+  max-width: none;
+  min-height: 36px;
+  padding: 6px 12px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+#panel-bomberman #bm-pause.bomberman-pause.small-pause {
+  width: auto;
+  min-width: 88px;
+  max-width: none;
+  margin: 0;
+  align-self: auto;
+  min-height: 36px;
+  padding: 6px 14px;
+  font-size: 0.82rem;
+}
+#panel-bomberman.bomberman-lefty .bomberman-up-row {
+  flex-direction: row-reverse;
+}
+#panel-bomberman .bomberman-pad {
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: auto auto;
+}
+#panel-bomberman .bomberman-up-row {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+  width: 100%;
+}
+#panel-bomberman .bomberman-up-row #bm-up.frogger-arrow.pad.sm {
+  flex: 3 1 0;
+  min-width: 0;
+  min-height: 88px;
+  max-width: none;
+  width: auto;
+  aspect-ratio: auto;
+  font-size: 2.35rem;
   font-weight: 800;
 }
+#panel-bomberman .bomberman-bomb-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 88px;
+  max-width: none;
+  width: auto;
+  margin: 0;
+  padding: 8px 6px;
+  font-size: clamp(0.82rem, 3.2vw, 1rem);
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  border-radius: 16px;
+}
 #panel-bomberman .frogger-push {
-  min-height: 0.25rem;
+  flex: 1 1 auto;
+  min-height: 16px;
 }
 #panel-bomberman .frogger-controls {
   width: 100%;
-}
-#panel-bomberman #bm-up {
-  grid-column: 2;
+  flex-shrink: 0;
 }
 #panel-bomberman #bm-left {
   grid-column: 1;
+  grid-row: 2;
 }
 #panel-bomberman #bm-down {
   grid-column: 2;
+  grid-row: 2;
 }
 #panel-bomberman #bm-right {
   grid-column: 3;
+  grid-row: 2;
+}
+#panel-bomberman #bm-left.frogger-arrow.pad.sm,
+#panel-bomberman #bm-down.frogger-arrow.pad.sm,
+#panel-bomberman #bm-right.frogger-arrow.pad.sm {
+  flex: none;
+  min-height: 96px;
+  max-width: none;
+  width: 100%;
+  aspect-ratio: 1;
+  font-size: 2rem;
+  font-weight: 800;
 }

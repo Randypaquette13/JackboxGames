@@ -108,6 +108,8 @@ const fgDeathBanner = document.querySelector<HTMLElement>("#fg-death-banner")!;
 const fgDeathSub = document.querySelector<HTMLElement>("#fg-death-sub")!;
 const bmDeathBanner = document.querySelector<HTMLElement>("#bm-death-banner")!;
 const bmDeathSub = document.querySelector<HTMLElement>("#bm-death-sub")!;
+const bmHandToggleBtn = document.querySelector<HTMLButtonElement>("#bm-hand-toggle")!;
+const BM_LEFTY_KEY = "jb_bomberman_lefty";
 const pmDeathBanner = document.querySelector<HTMLElement>("#pm-death-banner")!;
 const pmDeathSub = document.querySelector<HTMLElement>("#pm-death-sub")!;
 const pmHudEl = document.querySelector<HTMLElement>("#pm-hud")!;
@@ -491,6 +493,21 @@ if (!roomId) {
     setTimeout(() => {
       bmPause = false;
     }, 100);
+  });
+
+  function applyBombermanHandPref(lefty: boolean): void {
+    panels.bomberman.classList.toggle("bomberman-lefty", lefty);
+    bmHandToggleBtn.textContent = lefty ? "⇄ Right hand" : "⇄ Left hand";
+    bmHandToggleBtn.setAttribute("aria-pressed", lefty ? "true" : "false");
+    try {
+      localStorage.setItem(BM_LEFTY_KEY, lefty ? "1" : "0");
+    } catch {
+      /* storage unavailable */
+    }
+  }
+  applyBombermanHandPref(localStorage.getItem(BM_LEFTY_KEY) === "1");
+  bmHandToggleBtn.addEventListener("click", () => {
+    applyBombermanHandPref(!panels.bomberman.classList.contains("bomberman-lefty"));
   });
 
   let pmUp = false;

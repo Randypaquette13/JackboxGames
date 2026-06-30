@@ -208,17 +208,24 @@
     </div>
 
     <div id="panel-bomberman" class="panel" hidden>
-      <button type="button" id="bm-pause" class="secondary small-pause">Pause</button>
+      <div class="bomberman-header">
+        <button type="button" id="bm-hand-toggle" class="secondary bomberman-hand-toggle" aria-pressed="false">
+          ⇄ Left hand
+        </button>
+        <button type="button" id="bm-pause" class="secondary small-pause bomberman-pause">Pause</button>
+      </div>
       <div id="bm-death-banner" class="frogger-death-banner" hidden>
         <p class="fg-death-title">You were blasted!</p>
         <p id="bm-death-sub" class="fg-death-sub"></p>
       </div>
       <p class="hint">Bomberman — last player alive wins</p>
       <div class="frogger-push" aria-hidden="true"></div>
-      <button type="button" id="bm-bomb" class="primary">Bomb</button>
       <div class="frogger-controls">
-        <div class="dpad frogger-pad">
-          <button type="button" id="bm-up" class="pad sm frogger-arrow" aria-label="Up">▲</button>
+        <div class="dpad frogger-pad bomberman-pad">
+          <div class="bomberman-up-row">
+            <button type="button" id="bm-up" class="pad sm frogger-arrow" aria-label="Up">▲</button>
+            <button type="button" id="bm-bomb" class="primary bomberman-bomb-btn" aria-label="Bomb">Bomb</button>
+          </div>
           <button type="button" id="bm-left" class="pad sm frogger-arrow" aria-label="Left">◀</button>
           <button type="button" id="bm-down" class="pad sm frogger-arrow" aria-label="Down">▼</button>
           <button type="button" id="bm-right" class="pad sm frogger-arrow" aria-label="Right">▶</button>
