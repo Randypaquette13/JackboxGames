@@ -5,6 +5,20 @@ import { fallbackPlayerHue } from "@shared/playerColors";
 let prevPmCountdown: number | null | undefined;
 let goFlashUntil = 0;
 
+/** Canvas arc mouth faces right at rotation 0. */
+function pacmanFacingRad(dir: 0 | 1 | 2 | 3): number {
+  switch (dir) {
+    case 0:
+      return -Math.PI / 2;
+    case 1:
+      return Math.PI / 2;
+    case 2:
+      return Math.PI;
+    default:
+      return 0;
+  }
+}
+
 function ghostFill(mode: string, baseColor: string, tick: number): string {
   if (mode === "frightened") {
     return tick % 12 < 6 ? "#2121de" : "#fff";
@@ -112,15 +126,20 @@ export function drawPacman(
     const blink = p.invulnSecLeft > 0 && Math.floor(state.tick / 6) % 2 === 0;
     if (blink) continue;
     const mouth = 0.35 + 0.25 * Math.sin(state.tick * 0.4 + p.playerId);
+    const radius = tile * 0.34;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(pacmanFacingRad(p.dir ?? 3));
     ctx.fillStyle = `hsl(${hue} 90% 55%)`;
     ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.arc(x, y, tile * 0.34, mouth * Math.PI, (2 - mouth) * Math.PI);
+    ctx.moveTo(0, 0);
+    ctx.arc(0, 0, radius, mouth * Math.PI, (2 - mouth) * Math.PI);
     ctx.closePath();
     ctx.fill();
     ctx.strokeStyle = "#0a0a12";
     ctx.lineWidth = 2;
     ctx.stroke();
+    ctx.restore();
   }
 
   ctx.fillStyle = "rgba(0,0,0,0.45)";

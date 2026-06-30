@@ -461,6 +461,7 @@ export function buildPacmanHostJson(room) {
             hue: pl?.hue ?? fallbackPlayerHue(pid),
             col: p.col,
             row: p.row,
+            dir: p.dir,
             alive: p.alive,
             lives: p.lives,
             respawnSecLeft: p.respawnSecLeft,

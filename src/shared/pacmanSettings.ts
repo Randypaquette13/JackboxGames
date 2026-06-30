@@ -9,8 +9,8 @@ export const PACMAN_ORIGIN_X = (WORLD_W - PACMAN_GRID_W) * 0.5;
 export const PACMAN_ORIGIN_Y = (WORLD_H - PACMAN_GRID_H) * 0.5;
 
 export const PACMAN_COUNTDOWN_SEC = 3;
-export const PACMAN_MOVE_COOLDOWN_SEC = 0.12;
-export const PACMAN_GHOST_MOVE_COOLDOWN_SEC = 0.16;
+export const PACMAN_MOVE_COOLDOWN_SEC = 0.2;
+export const PACMAN_GHOST_MOVE_COOLDOWN_SEC = 0.26;
 export const PACMAN_RESPAWN_SEC = 3;
 export const PACMAN_INVULN_SEC = 1.5;
 export const PACMAN_FRIGHTENED_SEC = 6;
