@@ -223,6 +223,7 @@ export type ClientIntent =
   | { type: "prejoin_create"; name: string; hue: number }
   | { type: "prejoin_claim"; playerId: number }
   | { type: "menu_nav"; dir: "up" | "down" }
+  | { type: "menu_select"; index: number }
   | { type: "menu_confirm" }
   | { type: "menu_help_open" }
   | { type: "menu_help_close" }
@@ -547,6 +548,12 @@ export function parseClientIntent(raw: unknown): ClientIntent | null {
     }
   }
   if (t === "menu_nav" && (o.dir === "up" || o.dir === "down")) return { type: "menu_nav", dir: o.dir };
+  if (t === "menu_select") {
+    const index = o.index;
+    if (typeof index === "number" && Number.isFinite(index) && index >= 0) {
+      return { type: "menu_select", index: index | 0 };
+    }
+  }
   if (t === "menu_confirm") return { type: "menu_confirm" };
   if (t === "menu_help_open") return { type: "menu_help_open" };
   if (t === "menu_help_close") return { type: "menu_help_close" };

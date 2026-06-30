@@ -447,7 +447,8 @@ input.pj-name {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
 }
 .panel.menu-locked button,
-.panel.menu-locked input[type="range"] {
+.panel.menu-locked input[type="range"],
+.panel.menu-locked .menu-game-list {
   pointer-events: none;
   opacity: 0.42;
   filter: grayscale(0.15);
@@ -605,6 +606,7 @@ input.pj-name {
   max-height: none;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   gap: 8px;
   padding: 10px;
   background:
@@ -618,6 +620,10 @@ input.pj-name {
 }
 .menu-game-card {
   --game-accent: #8ab4ff;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;

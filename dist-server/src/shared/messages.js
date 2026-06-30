@@ -44,6 +44,12 @@ export function parseClientIntent(raw) {
     }
     if (t === "menu_nav" && (o.dir === "up" || o.dir === "down"))
         return { type: "menu_nav", dir: o.dir };
+    if (t === "menu_select") {
+        const index = o.index;
+        if (typeof index === "number" && Number.isFinite(index) && index >= 0) {
+            return { type: "menu_select", index: index | 0 };
+        }
+    }
     if (t === "menu_confirm")
         return { type: "menu_confirm" };
     if (t === "menu_help_open")

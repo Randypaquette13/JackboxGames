@@ -1555,6 +1555,7 @@ function authorizeMenuIntent(room, playerId, intent) {
 }
 export function applyIntent(room, _playerId, intent) {
     if (intent.type === "menu_nav" ||
+        intent.type === "menu_select" ||
         intent.type === "menu_confirm" ||
         intent.type === "menu_help_open" ||
         intent.type === "menu_help_close" ||
@@ -1602,6 +1603,15 @@ export function applyIntent(room, _playerId, intent) {
                     room.menuIndex = (room.menuIndex - 1 + n) % n;
                 else
                     room.menuIndex = (room.menuIndex + 1) % n;
+            }
+            break;
+        }
+        case "menu_select": {
+            if (room.phase === "menu") {
+                const n = MINIGAME_IDS.length;
+                const idx = intent.index;
+                if (idx >= 0 && idx < n)
+                    room.menuIndex = idx;
             }
             break;
         }
