@@ -12,6 +12,16 @@ export const MINIGAME_LABELS = {
     bomberman: "Bomberman",
     pacman: "Pac-Man",
 };
+/** Display metadata for minigame select menus (controller + host). */
+export const MINIGAME_META = {
+    kart: { icon: "🏎️", accent: "#ff6b4a" },
+    race_walk: { icon: "🎯", accent: "#6bcbff" },
+    frogger: { icon: "🐸", accent: "#5ee06a" },
+    football: { icon: "🏈", accent: "#c87840" },
+    air_hockey: { icon: "🏒", accent: "#58a8ff" },
+    bomberman: { icon: "💣", accent: "#ff8844" },
+    pacman: { icon: "👻", accent: "#ffe14a" },
+};
 export function parseClientIntent(raw) {
     if (!raw || typeof raw !== "object")
         return null;

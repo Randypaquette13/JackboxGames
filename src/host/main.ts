@@ -1,7 +1,7 @@
 import QRCode from "qrcode";
 import { PLAYER_H, PLAYER_W, WORLD_H, WORLD_W } from "@shared/constants";
 import type { GamePhase, HostStateJson, MinigameId } from "@shared/messages";
-import { MINIGAME_IDS, MINIGAME_LABELS } from "@shared/messages";
+import { MINIGAME_IDS, MINIGAME_LABELS, MINIGAME_META } from "@shared/messages";
 import { MINIGAME_HELP } from "@shared/minigameHelp";
 import { fallbackPlayerHue } from "@shared/playerColors";
 import { resolveKartForwardSpeed } from "@shared/kartSettings";
@@ -188,30 +188,93 @@ function drawMenu(w: number, h: number): void {
     drawMinigameMenuHelp(w, h);
     return;
   }
-  ctx.fillStyle = "rgba(0,0,0,0.75)";
-  ctx.fillRect(0, 0, w, h);
-  ctx.fillStyle = "#e8e8f0";
-  const titleSize = Math.max(34, Math.min(56, Math.floor(h * 0.065)));
-  const itemSize = Math.max(42, Math.min(82, Math.floor(h * 0.1)));
-  const itemGap = Math.max(54, Math.floor(itemSize * 1.18));
-  const menuBlockH = hostState.menuItems.length * itemGap;
-  const menuTop = Math.floor(h * 0.5 - menuBlockH * 0.5 + itemGap * 0.5);
 
-  ctx.font = `bold ${titleSize}px system-ui,sans-serif`;
+  ctx.fillStyle = "rgba(8, 8, 18, 0.82)";
+  ctx.fillRect(0, 0, w, h);
+
+  const pad = Math.max(24, Math.floor(w * 0.05));
+  const cardH = Math.max(52, Math.min(72, Math.floor(h * 0.078)));
+  const cardGap = Math.max(8, Math.floor(cardH * 0.16));
+  const cardW = Math.min(w - pad * 2, Math.max(320, Math.floor(w * 0.62)));
+  const cardX = Math.floor((w - cardW) / 2);
+  const items = hostState.menuItems;
+  const menuBlockH = items.length * (cardH + cardGap) - cardGap;
+  const titleBlockH = Math.max(100, Math.floor(h * 0.14));
+  const footerH = 56;
+  const menuTop = Math.max(titleBlockH + 12, Math.floor(h * 0.5 - menuBlockH * 0.5));
+
   ctx.textAlign = "center";
-  ctx.fillText("Minigames", w / 2, Math.max(90, Math.floor(h * 0.16)));
-  ctx.font = `bold ${itemSize}px system-ui,sans-serif`;
-  hostState.menuItems.forEach((item, i) => {
+  ctx.font = `700 ${Math.max(11, Math.min(14, Math.floor(h * 0.016)))}px system-ui,sans-serif`;
+  ctx.fillStyle = "#9a8cff";
+  ctx.fillText("PARTY ARCADE", w / 2, Math.max(52, Math.floor(h * 0.1)));
+
+  const titleSize = Math.max(34, Math.min(52, Math.floor(h * 0.058)));
+  ctx.font = `800 ${titleSize}px system-ui,sans-serif`;
+  const titleGrad = ctx.createLinearGradient(w / 2 - 120, 0, w / 2 + 120, 0);
+  titleGrad.addColorStop(0, "#fff8e8");
+  titleGrad.addColorStop(0.45, "#ffe08a");
+  titleGrad.addColorStop(1, "#c8a8ff");
+  ctx.fillStyle = titleGrad;
+  ctx.fillText("Minigames", w / 2, Math.max(92, Math.floor(h * 0.145)));
+
+  ctx.font = `${Math.max(14, Math.min(18, Math.floor(h * 0.02)))}px system-ui,sans-serif`;
+  ctx.fillStyle = "#9898b8";
+  ctx.fillText("Pick your next game", w / 2, Math.max(118, Math.floor(h * 0.175)));
+
+  items.forEach((item, i) => {
     const sel = i === hostState!.menuIndex;
-    ctx.fillStyle = sel ? "#ffffaa" : "#ccc";
-    ctx.fillText(`${sel ? "› " : "  "}${item.label}`, w / 2, menuTop + i * itemGap);
+    const id = item.id as MinigameId;
+    const meta = MINIGAME_META[id];
+    const accent = meta?.accent ?? "#8ab4ff";
+    const cardTop = menuTop + i * (cardH + cardGap);
+
+    ctx.beginPath();
+    const r = Math.min(14, cardH * 0.22);
+    ctx.roundRect(cardX, cardTop, cardW, cardH, r);
+    if (sel) {
+      ctx.fillStyle = "rgba(255,255,255,0.07)";
+      ctx.fill();
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.shadowColor = accent;
+      ctx.shadowBlur = 18;
+    } else {
+      ctx.fillStyle = "rgba(255,255,255,0.03)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,0.08)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+    ctx.shadowBlur = 0;
+
+    const iconX = cardX + 22;
+    const textY = cardTop + cardH * 0.62;
+    ctx.textAlign = "left";
+    ctx.font = `${Math.max(22, Math.min(30, Math.floor(cardH * 0.42)))}px system-ui,sans-serif`;
+    ctx.fillStyle = sel ? "#fff" : "#888";
+    ctx.fillText(meta?.icon ?? "🎮", iconX, textY);
+
+    ctx.font = `700 ${Math.max(18, Math.min(28, Math.floor(cardH * 0.38)))}px system-ui,sans-serif`;
+    ctx.fillStyle = sel ? "#fff" : "#a8a8c0";
+    ctx.fillText(item.label, cardX + 58, textY - 2);
+
+    if (sel) {
+      ctx.textAlign = "right";
+      ctx.font = `700 ${Math.max(14, Math.min(18, Math.floor(cardH * 0.26)))}px system-ui,sans-serif`;
+      ctx.fillStyle = accent;
+      ctx.fillText("▶", cardX + cardW - 18, textY - 2);
+    }
   });
-  ctx.font = "18px system-ui,sans-serif";
-  ctx.fillStyle = "#888";
+
+  ctx.textAlign = "center";
+  ctx.font = `${Math.max(14, Math.min(17, Math.floor(h * 0.019)))}px system-ui,sans-serif`;
+  ctx.fillStyle = "#787898";
   ctx.fillText(
     "↑↓ navigate · OK select · How to play on controller · Lobby / Settings on controller",
     w / 2,
-    h - 48
+    h - footerH * 0.5
   );
 }
 

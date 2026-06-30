@@ -69,6 +69,17 @@ export const MINIGAME_LABELS: Record<MinigameId, string> = {
   pacman: "Pac-Man",
 };
 
+/** Display metadata for minigame select menus (controller + host). */
+export const MINIGAME_META: Record<MinigameId, { icon: string; accent: string }> = {
+  kart: { icon: "🏎️", accent: "#ff6b4a" },
+  race_walk: { icon: "🎯", accent: "#6bcbff" },
+  frogger: { icon: "🐸", accent: "#5ee06a" },
+  football: { icon: "🏈", accent: "#c87840" },
+  air_hockey: { icon: "🏒", accent: "#58a8ff" },
+  bomberman: { icon: "💣", accent: "#ff8844" },
+  pacman: { icon: "👻", accent: "#ffe14a" },
+};
+
 export type RaceWalkRunnerJson = {
   lane: number;
   x: number;

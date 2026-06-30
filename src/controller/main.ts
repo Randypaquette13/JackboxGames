@@ -1,6 +1,7 @@
 import {
   MINIGAME_IDS,
   MINIGAME_LABELS,
+  MINIGAME_META,
   type ClientIntent,
   type ControllerStateJson,
   type MinigameId,
@@ -754,9 +755,34 @@ if (!roomId) {
     const idx = n <= 0 ? 0 : ((idxRaw % n) + n) % n;
     menuListEl.textContent = "";
     items.forEach((item, i) => {
+      const id = item.id as MinigameId;
+      const meta = MINIGAME_META[id];
+      const selected = i === idx;
       const row = document.createElement("div");
-      row.className = `menu-list-row${i === idx ? " selected" : ""}`;
-      row.textContent = `${i === idx ? "› " : "  "}${item.label}`;
+      row.className = `menu-game-card${selected ? " selected" : ""}`;
+      row.dataset.gameId = id;
+      if (meta) row.style.setProperty("--game-accent", meta.accent);
+
+      const icon = document.createElement("span");
+      icon.className = "menu-game-icon";
+      icon.setAttribute("aria-hidden", "true");
+      icon.textContent = meta?.icon ?? "🎮";
+
+      const labelWrap = document.createElement("span");
+      labelWrap.className = "menu-game-label-wrap";
+      const label = document.createElement("span");
+      label.className = "menu-game-label";
+      label.textContent = item.label;
+      labelWrap.appendChild(label);
+
+      row.append(icon, labelWrap);
+      if (selected) {
+        const chevron = document.createElement("span");
+        chevron.className = "menu-game-chevron";
+        chevron.setAttribute("aria-hidden", "true");
+        chevron.textContent = "▶";
+        row.appendChild(chevron);
+      }
       menuListEl.appendChild(row);
     });
   }

@@ -47,17 +47,27 @@
       </div>
     </div>
 
-    <div id="panel-menu" class="panel" hidden>
-      <p class="hint menu-title">Minigames</p>
-      <div id="menu-list" class="menu-list" aria-live="polite"></div>
+    <div id="panel-menu" class="panel panel-minigame-menu" hidden>
+      <header class="menu-header">
+        <p class="menu-header-eyebrow">Party Arcade</p>
+        <h1 class="menu-header-title">Minigames</h1>
+        <p class="menu-header-sub">Pick your next game</p>
+      </header>
+      <div id="menu-list" class="menu-list menu-game-list" aria-live="polite"></div>
       <p class="subhint menu-footer-hint">↑↓ navigate · Select · How to play</p>
-      <div class="menu-nav">
-        <button type="button" id="mn-up" class="pad sm">▲</button>
-        <button type="button" id="mn-down" class="pad sm">▼</button>
+      <div class="menu-actions">
+        <div class="menu-actions-primary">
+          <div class="menu-nav">
+            <button type="button" id="mn-up" class="pad sm" aria-label="Previous game">▲</button>
+            <button type="button" id="mn-down" class="pad sm" aria-label="Next game">▼</button>
+          </div>
+          <button type="button" id="mn-confirm" class="primary menu-select-btn">Select</button>
+        </div>
+        <div class="menu-actions-secondary">
+          <button type="button" id="mn-howto" class="secondary menu-action-btn">How to play</button>
+          <button type="button" id="mn-settings" class="secondary menu-action-btn">Game settings</button>
+        </div>
       </div>
-      <button type="button" id="mn-confirm" class="primary">Select</button>
-      <button type="button" id="mn-howto" class="secondary">How to play</button>
-      <button type="button" id="mn-settings" class="secondary">Game settings</button>
       <button type="button" id="mn-add" class="secondary menu-back-lobby">← Back to lobby</button>
     </div>
 
