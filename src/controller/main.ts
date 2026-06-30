@@ -311,24 +311,24 @@ function updateSettingsScrollHint(): void {
 }
 
 function updateMinigameMenuScrollHint(): void {
-  if (!menuListEl || !menuScrollWrapEl) return;
-  updatePanelScrollHint(menuListEl, menuScrollWrapEl);
+  if (!menuScrollWrapEl) return;
+  updatePanelScrollHint(menuScrollWrapEl, menuScrollWrapEl);
+}
+
+function findMinigamePickAt(clientX: number, clientY: number): HTMLElement | null {
+  for (const pick of menuListEl.querySelectorAll<HTMLElement>(".minigame-pick")) {
+    const r = pick.getBoundingClientRect();
+    if (clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom) {
+      return pick;
+    }
+  }
+  return null;
 }
 
 function syncMinigamePickRow(row: HTMLElement, selected: boolean): void {
   row.classList.toggle("selected", selected);
   const status = row.querySelector<HTMLElement>(".minigame-pick-status");
   if (status) status.textContent = selected ? "Selected" : "Tap to select";
-  const range = row.querySelector<HTMLInputElement>('input[type="range"]');
-  if (range) range.value = selected ? "100" : "0";
-}
-
-function bindMinigamePickRange(range: HTMLInputElement): void {
-  range.addEventListener("input", () => {
-    const row = range.closest<HTMLElement>(".minigame-pick");
-    const isSelected = row?.classList.contains("selected") ?? false;
-    range.value = isSelected ? "100" : "0";
-  });
 }
 pmLivesInput.min = String(PACMAN_GAME_LIVES_MIN);
 pmLivesInput.max = String(PACMAN_GAME_LIVES_MAX);
@@ -351,6 +351,8 @@ if (!roomId) {
   let prejoinMode: "resume" | "create" = "resume";
   let prejoinTouched = { name: false, hue: false };
   let renderedMinigameMenuKey = "";
+  /** When true, next selection update may scroll the selected row into view (nav buttons only). */
+  let minigameScrollSelectedIntoView = false;
 
   function minigameMenuRenderKey(st: ControllerStateJson): string {
     const items =
@@ -886,11 +888,12 @@ if (!roomId) {
       existingPicks.forEach((row, i) => syncMinigamePickRow(row, i === idx));
       renderedMinigameMenuKey = renderKey;
       requestAnimationFrame(() => {
-        if (selectionChanged) {
+        if (selectionChanged && minigameScrollSelectedIntoView) {
           menuListEl.querySelector<HTMLElement>(".minigame-pick.selected")?.scrollIntoView({
             block: "nearest",
           });
         }
+        minigameScrollSelectedIntoView = false;
         updateMinigameMenuScrollHint();
         requestAnimationFrame(updateMinigameMenuScrollHint);
       });
@@ -922,7 +925,7 @@ if (!roomId) {
       const head = document.createElement("div");
       head.className = "settings-row-head";
 
-      const label = document.createElement("label");
+      const label = document.createElement("span");
       label.textContent = "Pick this game";
 
       const status = document.createElement("span");
@@ -932,28 +935,19 @@ if (!roomId) {
       head.appendChild(label);
       head.appendChild(status);
 
-      const range = document.createElement("input");
-      range.type = "range";
-      range.min = "0";
-      range.max = "100";
-      range.step = "1";
-      range.setAttribute("aria-label", `Select ${item.label}`);
-      range.value = selected ? "100" : "0";
-      bindMinigamePickRange(range);
-
       row.appendChild(head);
-      row.appendChild(range);
       card.appendChild(row);
       section.appendChild(title);
       section.appendChild(card);
       menuListEl.appendChild(section);
     });
     requestAnimationFrame(() => {
-      if (selectionChanged) {
+      if (selectionChanged && minigameScrollSelectedIntoView) {
         menuListEl.querySelector<HTMLElement>(".minigame-pick.selected")?.scrollIntoView({
           block: "nearest",
         });
       }
+      minigameScrollSelectedIntoView = false;
       updateMinigameMenuScrollHint();
       requestAnimationFrame(updateMinigameMenuScrollHint);
     });
@@ -1355,6 +1349,7 @@ if (!roomId) {
     hideAll();
     panels.menu.hidden = false;
     renderedMinigameMenuKey = "";
+    minigameScrollSelectedIntoView = true;
     renderMinigameMenu(ctrlState, { force: true });
     statusEl.textContent = "";
   }
@@ -1474,10 +1469,12 @@ if (!roomId) {
 
   bindPointerTap(document.querySelector("#mn-up")!, () => {
     if (!canControlMenu(ctrlState)) return;
+    minigameScrollSelectedIntoView = true;
     sendJson(ws, { type: "menu_nav", dir: "up" });
   });
   bindPointerTap(document.querySelector("#mn-down")!, () => {
     if (!canControlMenu(ctrlState)) return;
+    minigameScrollSelectedIntoView = true;
     sendJson(ws, { type: "menu_nav", dir: "down" });
   });
   bindPointerTap(document.querySelector("#mn-confirm")!, () => {
@@ -1516,12 +1513,12 @@ if (!roomId) {
     sendJson(ws, { type: "menu_select", index: idx });
   }
 
-  menuListEl.addEventListener("click", (e) => {
-    const pick = (e.target as HTMLElement | null)?.closest<HTMLElement>(".minigame-pick");
+  menuScrollWrapEl.addEventListener("click", (e) => {
+    const pick = findMinigamePickAt(e.clientX, e.clientY);
     if (pick) tryMinigamePickFromElement(pick);
   });
 
-  menuListEl.addEventListener("scroll", updateMinigameMenuScrollHint, { passive: true });
+  menuScrollWrapEl.addEventListener("scroll", updateMinigameMenuScrollHint, { passive: true });
 
   window.addEventListener("resize", updateMinigameMenuScrollHint);
 
@@ -1594,11 +1591,13 @@ if (!roomId) {
 
     if (e.code === "ArrowUp") {
       e.preventDefault();
+      if (ph === "menu") minigameScrollSelectedIntoView = true;
       sendJson(ws, { type: "menu_nav", dir: "up" });
       return;
     }
     if (e.code === "ArrowDown") {
       e.preventDefault();
+      if (ph === "menu") minigameScrollSelectedIntoView = true;
       sendJson(ws, { type: "menu_nav", dir: "down" });
       return;
     }

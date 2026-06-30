@@ -367,16 +367,14 @@ input.pj-name {
 #panel-menu .minigame-header {
   flex-shrink: 0;
 }
-#panel-settings .settings-scroll-wrap,
-#panel-menu .settings-scroll-wrap {
+#panel-settings .settings-scroll-wrap {
   position: relative;
   flex: 1 1 auto;
   min-height: 0;
   width: 100%;
   overflow: hidden;
 }
-#panel-settings .settings-scroll,
-#panel-menu .settings-scroll {
+#panel-settings .settings-scroll {
   position: absolute;
   inset: 0;
   overflow-y: auto;
@@ -391,14 +389,46 @@ input.pj-name {
   scrollbar-width: thin;
   scrollbar-color: rgba(154, 140, 255, 0.45) transparent;
 }
-#panel-settings .settings-scroll::-webkit-scrollbar,
-#panel-menu .settings-scroll::-webkit-scrollbar {
+#panel-settings .settings-scroll::-webkit-scrollbar {
   width: 6px;
 }
-#panel-settings .settings-scroll::-webkit-scrollbar-thumb,
-#panel-menu .settings-scroll::-webkit-scrollbar-thumb {
+#panel-settings .settings-scroll::-webkit-scrollbar-thumb {
   background: rgba(154, 140, 255, 0.45);
   border-radius: 999px;
+}
+#panel-menu .settings-scroll-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(154, 140, 255, 0.45) transparent;
+}
+#panel-menu .settings-scroll-wrap::-webkit-scrollbar {
+  width: 6px;
+}
+#panel-menu .settings-scroll-wrap::-webkit-scrollbar-thumb {
+  background: rgba(154, 140, 255, 0.45);
+  border-radius: 999px;
+}
+#panel-menu .settings-scroll {
+  position: static;
+  inset: auto;
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  padding: 4px 2px 36px;
+  min-height: min-content;
+}
+#panel-menu .settings-scroll * {
+  pointer-events: none;
 }
 #panel-menu .settings-scroll .settings-section {
   flex-shrink: 0;
@@ -586,7 +616,6 @@ input.pj-name {
 /* Minigame rows mirror settings rows (including native range inputs for iOS scroll). */
 #panel-menu .minigame-pick {
   scroll-margin: 8px 0;
-  cursor: pointer;
 }
 #panel-menu .settings-card:has(.minigame-pick.selected) {
   border-color: color-mix(in srgb, var(--section-accent) 58%, white 12%);
@@ -594,10 +623,6 @@ input.pj-name {
     0 0 0 1px color-mix(in srgb, var(--section-accent) 38%, transparent),
     0 10px 28px color-mix(in srgb, var(--section-accent) 24%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
-}
-#panel-menu .minigame-pick input[type="range"] {
-  pointer-events: auto;
-  touch-action: pan-y;
 }
 .minigame-toolbar {
   flex-shrink: 0;
