@@ -58,6 +58,8 @@ type Attached = {
 };
 
 const CONTROLLER_GRACE_MS = 30_000;
+/** End the session if no player joins within this window after the host opens a room. */
+const EMPTY_ROOM_JOIN_MS = 2 * 60 * 1000;
 
 type GraceEntry = {
   playerId: number;
@@ -69,6 +71,36 @@ const rooms = new Map<string, Room>();
 const reconnectGraceByRoom = new Map<string, Map<string, GraceEntry>>();
 const clientIdByPlayerByRoom = new Map<string, Map<number, string>>();
 const prejoinControllersByRoom = new Map<string, Set<WebSocket>>();
+const emptyRoomJoinTimeouts = new Map<string, NodeJS.Timeout>();
+
+function clearEmptyRoomJoinTimeout(roomId: string): void {
+  const timeout = emptyRoomJoinTimeouts.get(roomId);
+  if (!timeout) return;
+  clearTimeout(timeout);
+  emptyRoomJoinTimeouts.delete(roomId);
+}
+
+function scheduleEmptyRoomJoinTimeout(roomId: string): void {
+  clearEmptyRoomJoinTimeout(roomId);
+  const timeout = setTimeout(() => {
+    emptyRoomJoinTimeouts.delete(roomId);
+    const room = rooms.get(roomId);
+    if (!room || room.players.size > 0) return;
+    if (room.host && room.host.readyState === 1) {
+      try {
+        room.host.send(encodeError("session ended: no players joined within 2 minutes"));
+      } catch {
+        /* ignore */
+      }
+    }
+    destroyRoom(roomId);
+  }, EMPTY_ROOM_JOIN_MS);
+  emptyRoomJoinTimeouts.set(roomId, timeout);
+}
+
+function onPlayerJoinedRoom(roomId: string): void {
+  clearEmptyRoomJoinTimeout(roomId);
+}
 
 function prejoinSet(roomId: string): Set<WebSocket> {
   let s = prejoinControllersByRoom.get(roomId);
@@ -193,6 +225,7 @@ function removePlayerFromRoom(room: Room, playerId: number): void {
 }
 
 function destroyRoom(roomId: string): void {
+  clearEmptyRoomJoinTimeout(roomId);
   const r = rooms.get(roomId);
   if (!r) return;
   for (const ws of r.controllers.keys()) {
@@ -305,6 +338,7 @@ function handleTextMessage(ws: WebSocket, raw: string): void {
       const wsCid = getClientId(ws);
       if (wsCid) clientMap(att.roomId).set(playerId, wsCid);
       ensureKartCar(room, playerId);
+      onPlayerJoinedRoom(att.roomId);
       counters.joinsCreate++;
       ws.send(encodeWelcome(playerId, att.roomId));
       broadcastRoom(att.roomId);
@@ -322,6 +356,7 @@ function handleTextMessage(ws: WebSocket, raw: string): void {
       const wsCid = getClientId(ws);
       if (wsCid) clientMap(att.roomId).set(pid, wsCid);
       ensureKartCar(room, pid);
+      onPlayerJoinedRoom(att.roomId);
       counters.joinsClaim++;
       ws.send(encodeWelcome(pid, att.roomId));
       broadcastRoom(att.roomId);
@@ -367,6 +402,7 @@ function handleBinaryMessage(ws: WebSocket, data: Buffer): void {
       counters.roomsCreated++;
       setAttached(ws, { role: "host", roomId });
       ws.send(encodeWelcome(0, roomId));
+      scheduleEmptyRoomJoinTimeout(roomId);
       broadcastRoom(roomId);
       return;
     }
@@ -394,6 +430,7 @@ function handleBinaryMessage(ws: WebSocket, data: Buffer): void {
         setAttached(ws, { role: "controller", roomId, playerId });
         clientMap(roomId).set(playerId, wsCid);
         ensureKartCar(room, playerId);
+        onPlayerJoinedRoom(roomId);
         counters.autoResumes++;
         ws.send(encodeWelcome(playerId, roomId));
         broadcastRoom(roomId);
