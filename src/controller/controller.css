@@ -304,23 +304,122 @@ input.pj-name {
 .settings-row {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   width: 100%;
-  padding: 8px 0;
+  padding: 12px 0;
+}
+.settings-row:first-child {
+  padding-top: 4px;
+}
+.settings-row:last-child {
+  padding-bottom: 4px;
+}
+.settings-row + .settings-row {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.settings-row-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
 }
 .settings-row label {
-  font-size: 0.9rem;
-  color: #c8c8e0;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #dce0ec;
+  line-height: 1.25;
 }
 .settings-row input[type="range"] {
   width: 100%;
-  accent-color: #8ab4ff;
+  height: 8px;
+  margin: 0;
+  accent-color: var(--section-accent, #8ab4ff);
+  cursor: pointer;
 }
 .settings-val {
   font-variant-numeric: tabular-nums;
-  font-size: 1rem;
-  color: #e8e8f0;
-  text-align: center;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--section-accent, #c8d8ff);
+  text-align: right;
+  flex-shrink: 0;
+  min-width: 2.5rem;
+}
+
+/* Game settings panel */
+#panel-settings.panel-settings-menu {
+  justify-content: flex-start;
+  padding-top: max(12px, env(safe-area-inset-top));
+  gap: 12px;
+}
+#panel-settings .settings-header {
+  flex-shrink: 0;
+}
+#panel-settings .settings-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: min(58vh, 520px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  padding: 4px 2px 8px;
+}
+.settings-section {
+  --section-accent: #8ab4ff;
+}
+.settings-section-kart {
+  --section-accent: #ff6b4a;
+}
+.settings-section-football {
+  --section-accent: #c87840;
+}
+.settings-section-air-hockey {
+  --section-accent: #58a8ff;
+}
+.settings-section-pacman {
+  --section-accent: #ffe14a;
+}
+.settings-section-title {
+  margin: 0 0 8px;
+  font-size: 0.98rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: #ebe8ff;
+}
+.settings-card {
+  padding: 4px 14px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--section-accent) 28%, rgba(255, 255, 255, 0.08));
+  background: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--section-accent) 10%, rgba(20, 20, 32, 0.92)),
+    rgba(12, 12, 20, 0.96)
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 8px 22px rgba(0, 0, 0, 0.28);
+}
+#panel-settings .settings-close-btn {
+  flex-shrink: 0;
+  min-height: 52px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #5a9a5a, #2e5a2e);
+  box-shadow:
+    0 5px 0 #1a3a1a,
+    0 8px 22px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+#panel-settings .settings-close-btn:active {
+  transform: translateY(3px);
+  box-shadow:
+    0 2px 0 #1a3a1a,
+    0 4px 12px rgba(0, 0, 0, 0.28);
 }
 .menu-preview {
   text-align: center;

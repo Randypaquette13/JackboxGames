@@ -282,49 +282,91 @@
       <button type="button" id="rs-confirm" class="primary">Choose</button>
     </div>
 
-    <div id="panel-settings" class="panel" hidden>
-      <p class="hint">Game settings</p>
-      <div class="settings-row">
-        <label for="set-kart-speed">Kart racing speed</label>
-        <input type="range" id="set-kart-speed" />
-        <span id="set-kart-speed-val" class="settings-val"></span>
+    <div id="panel-settings" class="panel panel-settings-menu" hidden>
+      <header class="menu-header settings-header">
+        <p class="menu-header-eyebrow">Customize</p>
+        <h1 class="menu-header-title">Game settings</h1>
+        <p class="menu-header-sub">Adjust rules for your party</p>
+      </header>
+      <div class="settings-scroll">
+        <section class="settings-section settings-section-kart">
+          <h2 class="settings-section-title">🏎️ Kart Racing</h2>
+          <div class="settings-card">
+            <div class="settings-row">
+              <div class="settings-row-head">
+                <label for="set-kart-speed">Racing speed</label>
+                <span id="set-kart-speed-val" class="settings-val"></span>
+              </div>
+              <input type="range" id="set-kart-speed" />
+            </div>
+          </div>
+        </section>
+        <section class="settings-section settings-section-football">
+          <h2 class="settings-section-title">🏈 Football</h2>
+          <div class="settings-card">
+            <div class="settings-row">
+              <div class="settings-row-head">
+                <label for="set-football-period">Match length (sec)</label>
+                <span id="set-football-period-val" class="settings-val"></span>
+              </div>
+              <input type="range" id="set-football-period" />
+            </div>
+            <div class="settings-row">
+              <div class="settings-row-head">
+                <label for="set-football-td">TDs to win</label>
+                <span id="set-football-td-val" class="settings-val"></span>
+              </div>
+              <input type="range" id="set-football-td" />
+            </div>
+            <div class="settings-row">
+              <div class="settings-row-head">
+                <label for="set-football-speed">Sprint speed</label>
+                <span id="set-football-speed-val" class="settings-val"></span>
+              </div>
+              <input type="range" id="set-football-speed" />
+            </div>
+          </div>
+        </section>
+        <section class="settings-section settings-section-air-hockey">
+          <h2 class="settings-section-title">🏒 Air Hockey</h2>
+          <div class="settings-card">
+            <div class="settings-row">
+              <div class="settings-row-head">
+                <label for="set-air-hockey-goals">Goals to win</label>
+                <span id="set-air-hockey-goals-val" class="settings-val"></span>
+              </div>
+              <input type="range" id="set-air-hockey-goals" />
+            </div>
+            <div class="settings-row">
+              <div class="settings-row-head">
+                <label for="set-air-hockey-period">Match length (sec)</label>
+                <span id="set-air-hockey-period-val" class="settings-val"></span>
+              </div>
+              <input type="range" id="set-air-hockey-period" />
+            </div>
+            <div class="settings-row">
+              <div class="settings-row-head">
+                <label for="set-air-hockey-speed">Mallet speed</label>
+                <span id="set-air-hockey-speed-val" class="settings-val"></span>
+              </div>
+              <input type="range" id="set-air-hockey-speed" />
+            </div>
+          </div>
+        </section>
+        <section class="settings-section settings-section-pacman">
+          <h2 class="settings-section-title">👻 Pac-Man</h2>
+          <div class="settings-card">
+            <div class="settings-row">
+              <div class="settings-row-head">
+                <label for="set-pacman-lives">Lives per player</label>
+                <span id="set-pacman-lives-val" class="settings-val"></span>
+              </div>
+              <input type="range" id="set-pacman-lives" />
+            </div>
+          </div>
+        </section>
       </div>
-      <div class="settings-row">
-        <label for="set-football-period">Football match length (sec)</label>
-        <input type="range" id="set-football-period" />
-        <span id="set-football-period-val" class="settings-val"></span>
-      </div>
-      <div class="settings-row">
-        <label for="set-football-td">Football TDs to win</label>
-        <input type="range" id="set-football-td" />
-        <span id="set-football-td-val" class="settings-val"></span>
-      </div>
-      <div class="settings-row">
-        <label for="set-football-speed">Football sprint speed</label>
-        <input type="range" id="set-football-speed" />
-        <span id="set-football-speed-val" class="settings-val"></span>
-      </div>
-      <div class="settings-row">
-        <label for="set-air-hockey-goals">Air Hockey goals to win</label>
-        <input type="range" id="set-air-hockey-goals" />
-        <span id="set-air-hockey-goals-val" class="settings-val"></span>
-      </div>
-      <div class="settings-row">
-        <label for="set-air-hockey-period">Air Hockey match length (sec)</label>
-        <input type="range" id="set-air-hockey-period" />
-        <span id="set-air-hockey-period-val" class="settings-val"></span>
-      </div>
-      <div class="settings-row">
-        <label for="set-air-hockey-speed">Air Hockey mallet speed</label>
-        <input type="range" id="set-air-hockey-speed" />
-        <span id="set-air-hockey-speed-val" class="settings-val"></span>
-      </div>
-      <div class="settings-row">
-        <label for="set-pacman-lives">Pac-Man lives per player</label>
-        <input type="range" id="set-pacman-lives" />
-        <span id="set-pacman-lives-val" class="settings-val"></span>
-      </div>
-      <button type="button" id="set-close" class="primary">Close</button>
+      <button type="button" id="set-close" class="primary settings-close-btn">Close</button>
     </div>
 
     <script type="module" src="/src/controller/main.ts"></script>
