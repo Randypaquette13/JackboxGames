@@ -80,6 +80,17 @@ export const MINIGAME_META: Record<MinigameId, { icon: string; accent: string }>
   pacman: { icon: "👻", accent: "#ffe14a" },
 };
 
+/** One-line pitch shown under each game on the minigame select menu. */
+export const MINIGAME_TAGLINE: Record<MinigameId, string> = {
+  kart: "Race two laps — boost past your rivals",
+  race_walk: "Blend in, find your runner, snipe the rest",
+  frogger: "Hop across traffic and rivers — go the distance",
+  football: "Pick a team, carry the ball to the end zone",
+  air_hockey: "Slide your mallet and bury the puck",
+  bomberman: "Drop bombs, dodge blasts, be the last alive",
+  pacman: "Team up to clear every pellet in the maze",
+};
+
 export type RaceWalkRunnerJson = {
   lane: number;
   x: number;

@@ -425,12 +425,6 @@ input.pj-name {
   background: rgba(154, 140, 255, 0.45);
   border-radius: 999px;
 }
-#panel-menu .settings-scroll * {
-  pointer-events: none;
-}
-#panel-menu .settings-scroll .settings-section {
-  flex-shrink: 0;
-}
 .settings-scroll-wrap.can-scroll:not(.at-bottom)::after {
   content: "";
   position: absolute;
@@ -611,17 +605,102 @@ input.pj-name {
   color: #ccc;
 }
 
-/* Minigame rows mirror settings rows (including native range inputs for iOS scroll). */
-#panel-menu .minigame-pick {
-  scroll-margin: 8px 0;
+/* Minigame select — tappable game cards (one row each, direct selection). */
+#panel-menu .minigame-grid {
+  gap: 10px;
 }
-#panel-menu .settings-card:has(.minigame-pick.selected) {
-  border-color: color-mix(in srgb, var(--section-accent) 58%, white 12%);
+.minigame-card {
+  --section-accent: #8ab4ff;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 16px;
+  scroll-margin: 8px 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(165deg, rgba(26, 26, 40, 0.92), rgba(12, 12, 20, 0.96));
   box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--section-accent) 38%, transparent),
-    0 10px 28px color-mix(in srgb, var(--section-accent) 24%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 8px 22px rgba(0, 0, 0, 0.28);
+  transition:
+    border-color 0.14s ease,
+    box-shadow 0.14s ease,
+    transform 0.08s ease;
+}
+.minigame-card.selected {
+  border-color: color-mix(in srgb, var(--section-accent) 62%, white 12%);
+  background: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--section-accent) 18%, rgba(20, 20, 32, 0.92)),
+    rgba(12, 12, 20, 0.96)
+  );
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--section-accent) 42%, transparent),
+    0 12px 30px color-mix(in srgb, var(--section-accent) 26%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
+.minigame-card-icon {
+  flex-shrink: 0;
+  width: 46px;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.7rem;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--section-accent) 16%, rgba(0, 0, 0, 0.3));
+  border: 1px solid color-mix(in srgb, var(--section-accent) 30%, transparent);
+}
+.minigame-card-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-align: left;
+}
+.minigame-card-name {
+  font-size: 1.12rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  color: #f2f0ff;
+  line-height: 1.15;
+}
+.minigame-card.selected .minigame-card-name {
+  color: #fff;
+}
+.minigame-card-tag {
+  font-size: 0.82rem;
+  line-height: 1.25;
+  color: #9a9ab8;
+}
+.minigame-card-check {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  font-weight: 800;
+  border-radius: 999px;
+  color: #0c0c14;
+  background: var(--section-accent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--section-accent) 55%, transparent);
+  opacity: 0;
+  transform: scale(0.6);
+  transition:
+    opacity 0.14s ease,
+    transform 0.14s ease;
+}
+.minigame-card.selected .minigame-card-check {
+  opacity: 1;
+  transform: scale(1);
+}
+
 .minigame-toolbar {
   flex-shrink: 0;
   display: flex;
@@ -629,24 +708,16 @@ input.pj-name {
   gap: 10px;
   width: 100%;
 }
-.minigame-nav-row,
-.minigame-secondary-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-.minigame-nav-btn,
-.minigame-secondary-row .secondary {
-  min-height: 42px;
-  font-size: 0.88rem;
-  font-weight: 700;
-}
-#panel-menu .minigame-select-btn {
+#panel-menu .minigame-play-btn {
   flex-shrink: 0;
-  min-height: 48px;
-  font-size: 1rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 56px;
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
   border-radius: 14px;
   background: linear-gradient(180deg, #5a9a5a, #2e5a2e);
   box-shadow:
@@ -654,11 +725,44 @@ input.pj-name {
     0 8px 22px rgba(0, 0, 0, 0.35),
     inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
-#panel-menu .minigame-select-btn:active {
+#panel-menu .minigame-play-btn:active {
   transform: translateY(3px);
   box-shadow:
     0 2px 0 #1a3a1a,
     0 4px 12px rgba(0, 0, 0, 0.28);
+}
+.minigame-play-icon {
+  font-size: 0.85em;
+}
+.minigame-play-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.minigame-action-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+#panel-menu .minigame-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 46px;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+.minigame-action-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  background: rgba(154, 140, 255, 0.18);
+  border: 1px solid rgba(154, 140, 255, 0.4);
 }
 #panel-menu .minigame-back-btn {
   min-height: 44px;

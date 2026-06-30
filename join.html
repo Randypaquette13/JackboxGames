@@ -55,25 +55,26 @@
       <header class="menu-header minigame-header">
         <p class="menu-header-eyebrow">Party Arcade</p>
         <h1 class="menu-header-title">Minigames</h1>
-        <p class="menu-header-sub">Pick your next game</p>
+        <p class="menu-header-sub">Tap a game, then press Play</p>
       </header>
       <div id="menu-scroll-wrap" class="settings-scroll-wrap">
-        <div id="menu-list" class="settings-scroll"></div>
+        <div id="menu-list" class="settings-scroll minigame-grid"></div>
         <p class="settings-scroll-hint" aria-hidden="true">Scroll for more ↓</p>
       </div>
       <div class="minigame-toolbar">
-        <div class="minigame-nav-row">
-          <button type="button" id="mn-up" class="secondary minigame-nav-btn" aria-label="Previous game">
-            ▲ Previous
+        <button type="button" id="mn-confirm" class="primary minigame-play-btn">
+          <span class="minigame-play-icon" aria-hidden="true">▶</span>
+          <span class="minigame-play-label" id="mn-play-label">Play</span>
+        </button>
+        <div class="minigame-action-row">
+          <button type="button" id="mn-howto" class="secondary minigame-action-btn">
+            <span class="minigame-action-icon" aria-hidden="true">?</span>
+            <span>How to play</span>
           </button>
-          <button type="button" id="mn-down" class="secondary minigame-nav-btn" aria-label="Next game">
-            Next ▼
+          <button type="button" id="mn-settings" class="secondary minigame-action-btn">
+            <span class="minigame-action-icon" aria-hidden="true">⚙</span>
+            <span>Game settings</span>
           </button>
-        </div>
-        <button type="button" id="mn-confirm" class="primary minigame-select-btn">Select game</button>
-        <div class="minigame-secondary-row">
-          <button type="button" id="mn-howto" class="secondary">How to play</button>
-          <button type="button" id="mn-settings" class="secondary">Game settings</button>
         </div>
         <button type="button" id="mn-add" class="secondary minigame-back-btn">← Back to lobby</button>
       </div>
