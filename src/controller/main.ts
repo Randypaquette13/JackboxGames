@@ -785,6 +785,11 @@ if (!roomId) {
       }
       menuListEl.appendChild(row);
     });
+    requestAnimationFrame(() => {
+      menuListEl.querySelector<HTMLElement>(".menu-game-card.selected")?.scrollIntoView({
+        block: "nearest",
+      });
+    });
   }
 
   function resultsFinishedTitle(phase: ControllerStateJson["phase"]): string {
