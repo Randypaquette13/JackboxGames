@@ -1140,7 +1140,10 @@ if (!roomId) {
     if (st.settingsOpen) {
       syncGameSettingsFromState(st);
       panels.settings.hidden = false;
-      requestAnimationFrame(updateSettingsScrollHint);
+      requestAnimationFrame(() => {
+        updateSettingsScrollHint();
+        requestAnimationFrame(updateSettingsScrollHint);
+      });
       return;
     }
     const ph = forcedControllerPhase ?? st.phase;
