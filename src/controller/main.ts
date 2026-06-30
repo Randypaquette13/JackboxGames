@@ -62,6 +62,16 @@ function wsUrl(): string {
   return `${p}//${location.host}/ws`;
 }
 
+const MINIGAME_SECTION_CLASS: Record<MinigameId, string> = {
+  kart: "settings-section-kart",
+  race_walk: "settings-section-race-walk",
+  frogger: "settings-section-frogger",
+  football: "settings-section-football",
+  air_hockey: "settings-section-air-hockey",
+  bomberman: "settings-section-bomberman",
+  pacman: "settings-section-pacman",
+};
+
 /** Block iOS Safari double-tap and pinch zoom — breaks game/controller taps. */
 function preventMobileBrowserZoom(): void {
   let lastTouchEnd = 0;
@@ -148,7 +158,7 @@ const pjBackBtn = document.querySelector<HTMLButtonElement>("#pj-back")!;
 const pjJoinBtn = document.querySelector<HTMLButtonElement>("#pj-join")!;
 
 const menuListEl = document.querySelector<HTMLElement>("#menu-list")!;
-const menuGameScrollWrapEl = document.querySelector<HTMLElement>("#menu-scroll-wrap")!;
+const menuScrollWrapEl = document.querySelector<HTMLElement>("#menu-scroll-wrap")!;
 const resultsHintEl = document.querySelector<HTMLElement>("#results-hint")!;
 const resultsListEl = document.querySelector<HTMLElement>("#results-list")!;
 const rwFireBtn = document.querySelector<HTMLButtonElement>("#rw-fire")!;
@@ -301,8 +311,8 @@ function updateSettingsScrollHint(): void {
 }
 
 function updateMinigameMenuScrollHint(): void {
-  if (!menuGameScrollWrapEl) return;
-  updatePanelScrollHint(menuGameScrollWrapEl, menuGameScrollWrapEl);
+  if (!menuListEl || !menuScrollWrapEl) return;
+  updatePanelScrollHint(menuListEl, menuScrollWrapEl);
 }
 
 function findMinigamePickAt(clientX: number, clientY: number): HTMLElement | null {
@@ -872,26 +882,23 @@ if (!roomId) {
       const selected = i === idx;
 
       const section = document.createElement("section");
-      section.className = "minigame-section";
-      if (meta) section.style.setProperty("--section-accent", meta.accent);
+      section.className = `settings-section ${MINIGAME_SECTION_CLASS[id]}`;
+
+      const title = document.createElement("h2");
+      title.className = "settings-section-title";
+      title.textContent = `${meta?.icon ?? "🎮"} ${item.label}`;
 
       const pick = document.createElement("div");
-      pick.className = `minigame-pick${selected ? " selected" : ""}`;
+      pick.className = `settings-card minigame-pick${selected ? " selected" : ""}`;
       pick.dataset.gameId = id;
       pick.dataset.menuIndex = String(i);
 
-      const label = document.createElement("span");
-      label.className = "minigame-pick-label";
-      label.textContent = `${meta?.icon ?? "🎮"} ${item.label}`;
-      pick.appendChild(label);
+      const status = document.createElement("span");
+      status.className = "minigame-pick-status";
+      status.textContent = selected ? "Selected" : "Tap to select";
+      pick.appendChild(status);
 
-      if (selected) {
-        const badge = document.createElement("span");
-        badge.className = "minigame-pick-badge";
-        badge.textContent = "Selected";
-        pick.appendChild(badge);
-      }
-
+      section.appendChild(title);
       section.appendChild(pick);
       menuListEl.appendChild(section);
     });
@@ -1463,12 +1470,12 @@ if (!roomId) {
     sendJson(ws, { type: "menu_select", index: idx });
   }
 
-  menuGameScrollWrapEl.addEventListener("click", (e) => {
+  menuListEl.addEventListener("click", (e) => {
     const pick = findMinigamePickAt(e.clientX, e.clientY);
     if (pick) tryMinigamePickFromElement(pick);
   });
 
-  menuGameScrollWrapEl.addEventListener("scroll", updateMinigameMenuScrollHint, { passive: true });
+  menuListEl.addEventListener("scroll", updateMinigameMenuScrollHint, { passive: true });
 
   window.addEventListener("resize", updateMinigameMenuScrollHint);
 

@@ -351,8 +351,9 @@ input.pj-name {
   min-width: 2.5rem;
 }
 
-/* Game settings panel */
-#panel-settings.panel-settings-menu {
+/* Settings + minigame menus — identical scroll shell */
+#panel-settings.panel-settings-menu,
+#panel-menu.panel-minigame-menu {
   justify-content: flex-start;
   padding-top: max(12px, env(safe-area-inset-top));
   gap: 12px;
@@ -366,14 +367,16 @@ input.pj-name {
 #panel-menu .minigame-header {
   flex-shrink: 0;
 }
-#panel-settings .settings-scroll-wrap {
+#panel-settings .settings-scroll-wrap,
+#panel-menu .settings-scroll-wrap {
   position: relative;
   flex: 1 1 auto;
   min-height: 0;
   width: 100%;
   overflow: hidden;
 }
-#panel-settings .settings-scroll {
+#panel-settings .settings-scroll,
+#panel-menu .settings-scroll {
   position: absolute;
   inset: 0;
   overflow-y: auto;
@@ -388,48 +391,23 @@ input.pj-name {
   scrollbar-width: thin;
   scrollbar-color: rgba(154, 140, 255, 0.45) transparent;
 }
-#panel-settings .settings-scroll::-webkit-scrollbar {
+#panel-settings .settings-scroll::-webkit-scrollbar,
+#panel-menu .settings-scroll::-webkit-scrollbar {
   width: 6px;
 }
-#panel-settings .settings-scroll::-webkit-scrollbar-thumb {
+#panel-settings .settings-scroll::-webkit-scrollbar-thumb,
+#panel-menu .settings-scroll::-webkit-scrollbar-thumb {
   background: rgba(154, 140, 255, 0.45);
   border-radius: 999px;
 }
-/* Minigame: native scroll on the wrap (static content inside). iOS fails to
-   finger-scroll absolute inner overflow layers in this flex shell. */
-#panel-menu .minigame-scroll-wrap {
-  position: relative;
-  flex: 1 1 auto;
-  min-height: 0;
-  width: 100%;
-  overflow-x: hidden;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  touch-action: pan-y;
-  min-height: 120px;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(154, 140, 255, 0.45) transparent;
-  transform: translateZ(0);
-}
-#panel-menu .minigame-scroll-wrap::-webkit-scrollbar {
-  width: 6px;
-}
-#panel-menu .minigame-scroll-wrap::-webkit-scrollbar-thumb {
-  background: rgba(154, 140, 255, 0.45);
-  border-radius: 999px;
-}
-#panel-menu .minigame-list {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  width: 100%;
-  padding: 4px 2px 36px;
-  min-height: min-content;
+/* Minigame cards are visual-only; touches go to .settings-scroll (same as settings). */
+#panel-menu .settings-scroll * {
   pointer-events: none;
 }
-.settings-scroll-wrap.can-scroll:not(.at-bottom)::after,
-.minigame-scroll-wrap.can-scroll:not(.at-bottom)::after {
+#panel-menu .settings-scroll .settings-section {
+  flex-shrink: 0;
+}
+.settings-scroll-wrap.can-scroll:not(.at-bottom)::after {
   content: "";
   position: absolute;
   left: 0;
@@ -460,8 +438,7 @@ input.pj-name {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
   animation: settings-scroll-hint-bob 1.5s ease-in-out infinite;
 }
-.settings-scroll-wrap.can-scroll:not(.at-bottom) .settings-scroll-hint,
-.minigame-scroll-wrap.can-scroll:not(.at-bottom) .settings-scroll-hint {
+.settings-scroll-wrap.can-scroll:not(.at-bottom) .settings-scroll-hint {
   display: block;
 }
 @keyframes settings-scroll-hint-bob {
@@ -518,6 +495,15 @@ input.pj-name {
 }
 .settings-section-pacman {
   --section-accent: #ffe14a;
+}
+.settings-section-race-walk {
+  --section-accent: #6bcbff;
+}
+.settings-section-frogger {
+  --section-accent: #5ee06a;
+}
+.settings-section-bomberman {
+  --section-accent: #ff8844;
 }
 .settings-section-title {
   margin: 0 0 8px;
@@ -601,74 +587,28 @@ input.pj-name {
   color: #ccc;
 }
 
-/* Minigame select — same shell + scroll as settings */
-#panel-menu.panel-minigame-menu {
-  justify-content: flex-start;
-  padding-top: max(12px, env(safe-area-inset-top));
-  gap: 12px;
-  height: calc(100dvh - 48px);
-  max-height: calc(100dvh - 48px);
-  min-height: 0;
-  overflow: hidden;
-  touch-action: pan-y;
-}
-.minigame-section {
-  --section-accent: #8ab4ff;
-  margin: 0;
-  flex-shrink: 0;
-  pointer-events: none;
-}
-/* Cards are visual only — touches hit the native scroll surface behind them. */
-.minigame-pick {
-  width: 100%;
-  margin: 0;
-  padding: 14px 16px;
+/* Minigame select — reuses settings section + card shell */
+#panel-menu .minigame-pick {
   scroll-margin: 8px 0;
-  pointer-events: none;
-  touch-action: pan-y;
-  user-select: none;
-  -webkit-user-select: none;
-  text-align: left;
-  font: inherit;
-  color: inherit;
-  border-radius: 14px;
-  border: 1px solid color-mix(in srgb, var(--section-accent) 28%, rgba(255, 255, 255, 0.08));
-  background: linear-gradient(
-    165deg,
-    color-mix(in srgb, var(--section-accent) 10%, rgba(20, 20, 32, 0.92)),
-    rgba(12, 12, 20, 0.96)
-  );
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    0 8px 22px rgba(0, 0, 0, 0.28);
-  transition:
-    border-color 0.18s ease,
-    box-shadow 0.18s ease,
-    transform 0.18s ease;
+  padding: 12px 14px;
 }
-.minigame-pick.selected {
+#panel-menu .minigame-pick.selected {
   border-color: color-mix(in srgb, var(--section-accent) 58%, white 12%);
   box-shadow:
     0 0 0 1px color-mix(in srgb, var(--section-accent) 38%, transparent),
     0 10px 28px color-mix(in srgb, var(--section-accent) 24%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  transform: translateY(-1px);
 }
-.minigame-pick-label {
+.minigame-pick-status {
   display: block;
-  font-size: 0.98rem;
-  font-weight: 800;
-  letter-spacing: 0.03em;
-  color: #ebe8ff;
-}
-.minigame-pick-badge {
-  display: block;
-  margin-top: 8px;
-  font-size: 0.72rem;
+  font-size: 0.82rem;
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--section-accent);
+  color: var(--section-accent, #b8b8d8);
+}
+#panel-menu .minigame-pick.selected .minigame-pick-status {
+  color: var(--section-accent, #ebe8ff);
 }
 .minigame-toolbar {
   flex-shrink: 0;
