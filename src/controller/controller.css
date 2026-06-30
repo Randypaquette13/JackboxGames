@@ -2,8 +2,8 @@
   box-sizing: border-box;
 }
 html {
-  /* iOS Safari: block pinch/double-tap page zoom on the controller surface. */
-  touch-action: none;
+  /* manipulation allows overflow scroll regions while reducing double-tap zoom. */
+  touch-action: manipulation;
 }
 html,
 body {
@@ -13,7 +13,7 @@ body {
   background: radial-gradient(ellipse at 50% 20%, #1e1e32, #0a0a12 55%);
   color: #e8e8f0;
   font-family: system-ui, Segoe UI, Roboto, sans-serif;
-  touch-action: none;
+  touch-action: manipulation;
   user-select: none;
   -webkit-user-select: none;
   -moz-user-select: none;
@@ -52,6 +52,10 @@ input.pj-name {
   max-width: 440px;
   margin: 0 auto;
 }
+/* Gameplay panels: block page pan; menu/settings keep native scroll regions working. */
+.panel:not(.panel-minigame-menu):not(.panel-settings-menu):not(.panel-menu-help) {
+  touch-action: none;
+}
 #panel-menu-help.panel.panel-menu-help {
   justify-content: flex-start;
   padding-top: max(16px, env(safe-area-inset-top));
@@ -62,6 +66,8 @@ input.pj-name {
   max-height: min(52vh, 440px);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
   text-align: left;
   padding: 10px 12px;
   border-radius: 12px;
@@ -375,6 +381,7 @@ input.pj-name {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+  touch-action: pan-y;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -609,6 +616,7 @@ input.pj-name {
   min-height: 0;
   width: 100%;
   overflow: hidden;
+  touch-action: pan-y;
   background:
     linear-gradient(165deg, rgba(36, 34, 58, 0.92), rgba(14, 14, 24, 0.96)),
     radial-gradient(ellipse at 50% 0%, rgba(120, 100, 200, 0.12), transparent 55%);
@@ -630,6 +638,7 @@ input.pj-name {
   gap: 8px;
   padding: 10px 10px 36px;
   min-height: 0;
+  max-height: none;
   background: transparent;
   border: none;
   border-radius: 0;
@@ -682,6 +691,7 @@ input.pj-name {
 .menu-game-card {
   --game-accent: #8ab4ff;
   cursor: pointer;
+  touch-action: pan-y;
   user-select: none;
   -webkit-user-select: none;
   display: grid;

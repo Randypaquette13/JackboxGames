@@ -68,7 +68,9 @@ function preventMobileBrowserZoom(): void {
   document.addEventListener(
     "touchend",
     (e) => {
-      if ((e.target as Element | null)?.closest("input, textarea, select")) return;
+      if ((e.target as Element | null)?.closest(
+        "input, textarea, select, .settings-scroll, .menu-game-list, .menu-help-scroll"
+      )) return;
       const now = Date.now();
       if (now - lastTouchEnd <= 300) e.preventDefault();
       lastTouchEnd = now;
