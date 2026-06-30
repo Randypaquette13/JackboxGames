@@ -107,6 +107,8 @@ export function parseClientIntent(raw) {
     }
     if (t === "football_start")
         return { type: "football_start" };
+    if (t === "team_select_back")
+        return { type: "team_select_back" };
     if (t === "air_hockey_results") {
         const a = o.action;
         if (a === "play_again" || a === "minigame_menu" || a === "add_controllers") {

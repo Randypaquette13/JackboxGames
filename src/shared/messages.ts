@@ -240,6 +240,7 @@ export type ClientIntent =
   | { type: "football_pick_team"; team: FootballTeam }
   /** At least two players required; unpicked players are auto-balanced onto teams. */
   | { type: "football_start" }
+  | { type: "team_select_back" }
   | { type: "air_hockey_results"; action: "play_again" | "minigame_menu" | "add_controllers" }
   | { type: "air_hockey_pick_team"; team: AirHockeyTeam }
   /** At least two players required; unpicked players are auto-balanced onto teams. */
@@ -597,6 +598,7 @@ export function parseClientIntent(raw: unknown): ClientIntent | null {
     if (tm === "red" || tm === "blue") return { type: "football_pick_team", team: tm };
   }
   if (t === "football_start") return { type: "football_start" };
+  if (t === "team_select_back") return { type: "team_select_back" };
   if (t === "air_hockey_results") {
     const a = o.action;
     if (a === "play_again" || a === "minigame_menu" || a === "add_controllers") {

@@ -1753,6 +1753,16 @@ export function applyIntent(room, _playerId, intent) {
                 airHockeyTryStart(room);
             }
             break;
+        case "team_select_back":
+            if (room.phase === "football_team_select" ||
+                room.phase === "football_summary" ||
+                room.phase === "air_hockey_team_select" ||
+                room.phase === "air_hockey_summary") {
+                goToMinigameMenu(room);
+                room.stubId = null;
+                room.showQr = false;
+            }
+            break;
         case "menu_add_players":
             if (room.phase === "menu") {
                 room.phase = "lobby";

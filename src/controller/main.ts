@@ -1332,6 +1332,12 @@ if (!roomId) {
     sendJson(ws, { type: "air_hockey_start" });
   });
 
+  function sendTeamSelectBack(): void {
+    sendJson(ws, { type: "team_select_back" });
+  }
+  document.querySelector("#fb-team-back")!.addEventListener("click", sendTeamSelectBack);
+  document.querySelector("#ah-team-back")!.addEventListener("click", sendTeamSelectBack);
+
   document.querySelector("#st-back")!.addEventListener("click", () => {
     sendJson(ws, { type: "stub_back" });
   });
