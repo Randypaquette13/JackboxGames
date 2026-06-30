@@ -146,6 +146,7 @@ const pjBackBtn = document.querySelector<HTMLButtonElement>("#pj-back")!;
 const pjJoinBtn = document.querySelector<HTMLButtonElement>("#pj-join")!;
 
 const menuListEl = document.querySelector<HTMLElement>("#menu-list")!;
+const menuGameScrollWrapEl = document.querySelector<HTMLElement>("#panel-menu .menu-game-scroll-wrap")!;
 const resultsHintEl = document.querySelector<HTMLElement>("#results-hint")!;
 const resultsListEl = document.querySelector<HTMLElement>("#results-list")!;
 const rwFireBtn = document.querySelector<HTMLButtonElement>("#rw-fire")!;
@@ -291,6 +292,15 @@ function updateSettingsScrollHint(): void {
     settingsScrollEl.scrollTop + settingsScrollEl.clientHeight >= settingsScrollEl.scrollHeight - 10;
   settingsScrollWrapEl.classList.toggle("can-scroll", canScroll);
   settingsScrollWrapEl.classList.toggle("at-bottom", atBottom);
+}
+
+function updateMinigameMenuScrollHint(): void {
+  if (!menuListEl || !menuGameScrollWrapEl) return;
+  const canScroll = menuListEl.scrollHeight > menuListEl.clientHeight + 4;
+  const atBottom =
+    menuListEl.scrollTop + menuListEl.clientHeight >= menuListEl.scrollHeight - 10;
+  menuGameScrollWrapEl.classList.toggle("can-scroll", canScroll);
+  menuGameScrollWrapEl.classList.toggle("at-bottom", atBottom);
 }
 pmLivesInput.min = String(PACMAN_GAME_LIVES_MIN);
 pmLivesInput.max = String(PACMAN_GAME_LIVES_MAX);
@@ -868,6 +878,8 @@ if (!roomId) {
       menuListEl.querySelector<HTMLElement>(".menu-game-card.selected")?.scrollIntoView({
         block: "nearest",
       });
+      updateMinigameMenuScrollHint();
+      requestAnimationFrame(updateMinigameMenuScrollHint);
     });
   }
 
@@ -1209,6 +1221,10 @@ if (!roomId) {
       } else {
         panels.menu.hidden = false;
         renderMinigameMenu(st);
+        requestAnimationFrame(() => {
+          updateMinigameMenuScrollHint();
+          requestAnimationFrame(updateMinigameMenuScrollHint);
+        });
       }
     } else if (ph === "stub") {
       panels.stub.hidden = false;
@@ -1404,10 +1420,9 @@ if (!roomId) {
     sendJson(ws, { type: "menu_game_settings" });
   });
 
-  const MENU_SWIPE_THRESHOLD_PX = 36;
-  let menuGestureStartY = 0;
-  let menuGestureStartX = 0;
-  let menuGestureTracking = false;
+  const MENU_TAP_MOVE_THRESHOLD_PX = 12;
+  let menuTapStartY = 0;
+  let menuTapStartX = 0;
 
   function isMinigameMenuPhase(): boolean {
     if (!ctrlState) return false;
@@ -1417,60 +1432,29 @@ if (!roomId) {
   menuListEl.addEventListener(
     "pointerdown",
     (e) => {
-      if (!ctrlState || ws.readyState !== WebSocket.OPEN) return;
-      if (!isMinigameMenuPhase()) return;
-      if (!canControlMenu(ctrlState)) return;
-      if (e.button !== 0 && e.button !== -1) return;
-      menuGestureStartY = e.clientY;
-      menuGestureStartX = e.clientX;
-      menuGestureTracking = true;
-      menuListEl.setPointerCapture(e.pointerId);
+      menuTapStartY = e.clientY;
+      menuTapStartX = e.clientX;
     },
     { passive: true }
   );
 
-  menuListEl.addEventListener(
-    "pointermove",
-    (e) => {
-      if (!menuGestureTracking) return;
-      const dy = e.clientY - menuGestureStartY;
-      const dx = e.clientX - menuGestureStartX;
-      if (Math.abs(dy) >= MENU_SWIPE_THRESHOLD_PX && Math.abs(dy) > Math.abs(dx)) {
-        e.preventDefault();
-      }
-    },
-    { passive: false }
-  );
-
-  function finishMinigameMenuGesture(e: PointerEvent): void {
-    if (!menuGestureTracking) return;
-    menuGestureTracking = false;
-    if (menuListEl.hasPointerCapture(e.pointerId)) {
-      menuListEl.releasePointerCapture(e.pointerId);
-    }
+  menuListEl.addEventListener("pointerup", (e) => {
     if (!ctrlState || ws.readyState !== WebSocket.OPEN) return;
     if (!isMinigameMenuPhase()) return;
     if (!canControlMenu(ctrlState)) return;
-
-    const dy = e.clientY - menuGestureStartY;
-    const dx = e.clientX - menuGestureStartX;
-
-    if (Math.abs(dy) >= MENU_SWIPE_THRESHOLD_PX && Math.abs(dy) > Math.abs(dx)) {
-      sendJson(ws, { type: "menu_nav", dir: dy < 0 ? "down" : "up" });
-      return;
-    }
+    const dy = Math.abs(e.clientY - menuTapStartY);
+    const dx = Math.abs(e.clientX - menuTapStartX);
+    if (dy > MENU_TAP_MOVE_THRESHOLD_PX || dx > MENU_TAP_MOVE_THRESHOLD_PX) return;
 
     const card = (e.target as HTMLElement | null)?.closest<HTMLElement>(".menu-game-card");
     if (!card) return;
     const idx = Number(card.dataset.menuIndex);
     if (!Number.isFinite(idx) || idx < 0) return;
     sendJson(ws, { type: "menu_select", index: idx });
-  }
-
-  menuListEl.addEventListener("pointerup", finishMinigameMenuGesture);
-  menuListEl.addEventListener("pointercancel", () => {
-    menuGestureTracking = false;
   });
+
+  menuListEl.addEventListener("scroll", updateMinigameMenuScrollHint, { passive: true });
+  window.addEventListener("resize", updateMinigameMenuScrollHint);
 
   function tryFootballPickTeam(team: "red" | "blue"): void {
     if (performance.now() < footballTeamPickLockUntil) return;
