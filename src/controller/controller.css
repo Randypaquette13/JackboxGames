@@ -372,10 +372,21 @@ input.pj-name {
   flex: 1 1 auto;
   min-height: 0;
   width: 100%;
+}
+#panel-settings .settings-scroll-wrap {
   overflow: hidden;
 }
-#panel-settings .settings-scroll,
-#panel-menu .settings-scroll {
+#panel-menu .settings-scroll-wrap {
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  min-height: 120px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(154, 140, 255, 0.45) transparent;
+}
+#panel-settings .settings-scroll {
   position: absolute;
   inset: 0;
   overflow-y: auto;
@@ -390,12 +401,23 @@ input.pj-name {
   scrollbar-width: thin;
   scrollbar-color: rgba(154, 140, 255, 0.45) transparent;
 }
+#panel-menu .settings-scroll {
+  position: static;
+  inset: auto;
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  padding: 4px 2px 36px;
+  min-height: min-content;
+}
 #panel-settings .settings-scroll::-webkit-scrollbar,
-#panel-menu .settings-scroll::-webkit-scrollbar {
+#panel-menu .settings-scroll-wrap::-webkit-scrollbar {
   width: 6px;
 }
 #panel-settings .settings-scroll::-webkit-scrollbar-thumb,
-#panel-menu .settings-scroll::-webkit-scrollbar-thumb {
+#panel-menu .settings-scroll-wrap::-webkit-scrollbar-thumb {
   background: rgba(154, 140, 255, 0.45);
   border-radius: 999px;
 }
@@ -581,13 +603,15 @@ input.pj-name {
 .minigame-section {
   --section-accent: #8ab4ff;
   margin: 0;
+  flex-shrink: 0;
 }
 .minigame-pick {
   width: 100%;
   margin: 0;
   padding: 14px 16px;
   scroll-margin: 8px 0;
-  touch-action: pan-y;
+  touch-action: inherit;
+  pointer-events: auto;
   text-align: left;
   cursor: pointer;
   font: inherit;
@@ -646,14 +670,14 @@ input.pj-name {
 }
 .minigame-nav-btn,
 .minigame-secondary-row .secondary {
-  min-height: 46px;
-  font-size: 0.92rem;
+  min-height: 42px;
+  font-size: 0.88rem;
   font-weight: 700;
 }
 #panel-menu .minigame-select-btn {
   flex-shrink: 0;
-  min-height: 52px;
-  font-size: 1.05rem;
+  min-height: 48px;
+  font-size: 1rem;
   font-weight: 700;
   letter-spacing: 0.05em;
   border-radius: 14px;
@@ -670,8 +694,8 @@ input.pj-name {
     0 4px 12px rgba(0, 0, 0, 0.28);
 }
 #panel-menu .minigame-back-btn {
-  min-height: 48px;
-  font-size: 0.95rem;
+  min-height: 44px;
+  font-size: 0.92rem;
   font-weight: 700;
   letter-spacing: 0.03em;
   color: #ffe8c8;

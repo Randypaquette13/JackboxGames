@@ -69,7 +69,7 @@ function preventMobileBrowserZoom(): void {
     "touchend",
     (e) => {
       if ((e.target as Element | null)?.closest(
-        "input, textarea, select, .settings-scroll-wrap, .settings-scroll, .menu-help-scroll"
+        "#panel-menu, #panel-settings, .menu-help-scroll, input, textarea, select"
       )) return;
       const now = Date.now();
       if (now - lastTouchEnd <= 300) e.preventDefault();
@@ -148,7 +148,7 @@ const pjBackBtn = document.querySelector<HTMLButtonElement>("#pj-back")!;
 const pjJoinBtn = document.querySelector<HTMLButtonElement>("#pj-join")!;
 
 const menuListEl = document.querySelector<HTMLElement>("#menu-list")!;
-const menuGameScrollWrapEl = document.querySelector<HTMLElement>("#panel-menu .settings-scroll-wrap")!;
+const menuGameScrollWrapEl = document.querySelector<HTMLElement>("#menu-scroll-wrap")!;
 const resultsHintEl = document.querySelector<HTMLElement>("#results-hint")!;
 const resultsListEl = document.querySelector<HTMLElement>("#results-list")!;
 const rwFireBtn = document.querySelector<HTMLButtonElement>("#rw-fire")!;
@@ -301,8 +301,93 @@ function updateSettingsScrollHint(): void {
 }
 
 function updateMinigameMenuScrollHint(): void {
-  if (!menuListEl || !menuGameScrollWrapEl) return;
-  updatePanelScrollHint(menuListEl, menuGameScrollWrapEl);
+  if (!menuGameScrollWrapEl) return;
+  updatePanelScrollHint(menuGameScrollWrapEl, menuGameScrollWrapEl);
+}
+
+const MINIGAME_TAP_THRESHOLD_PX = 12;
+
+/** Drive vertical scroll on touch devices when native overflow scrolling is blocked. */
+function bindMinigameListInteraction(
+  scrollEl: HTMLElement,
+  onPick: (target: EventTarget | null) => void,
+  onScroll: () => void
+): void {
+  let startY = 0;
+  let startX = 0;
+  let startScrollTop = 0;
+  let touchActive = false;
+
+  scrollEl.addEventListener(
+    "touchstart",
+    (e) => {
+      if (e.touches.length !== 1) return;
+      startY = e.touches[0].clientY;
+      startX = e.touches[0].clientX;
+      startScrollTop = scrollEl.scrollTop;
+      touchActive = true;
+    },
+    { passive: true }
+  );
+
+  scrollEl.addEventListener(
+    "touchmove",
+    (e) => {
+      if (!touchActive || e.touches.length !== 1) return;
+      if (scrollEl.scrollHeight <= scrollEl.clientHeight + 2) return;
+      const dy = e.touches[0].clientY - startY;
+      if (Math.abs(dy) < 2) return;
+      e.preventDefault();
+      const max = scrollEl.scrollHeight - scrollEl.clientHeight;
+      scrollEl.scrollTop = Math.max(0, Math.min(max, startScrollTop - dy));
+      onScroll();
+    },
+    { passive: false }
+  );
+
+  const endTouch = (e: TouchEvent): void => {
+    if (!touchActive) return;
+    touchActive = false;
+    const touch = e.changedTouches[0];
+    if (!touch) return;
+    const dy = Math.abs(touch.clientY - startY);
+    const dx = Math.abs(touch.clientX - startX);
+    if (dy <= MINIGAME_TAP_THRESHOLD_PX && dx <= MINIGAME_TAP_THRESHOLD_PX) onPick(e.target);
+    onScroll();
+  };
+  scrollEl.addEventListener("touchend", endTouch, { passive: true });
+  scrollEl.addEventListener(
+    "touchcancel",
+    () => {
+      touchActive = false;
+    },
+    { passive: true }
+  );
+
+  let ptrY = 0;
+  let ptrX = 0;
+  scrollEl.addEventListener(
+    "pointerdown",
+    (e) => {
+      if (e.pointerType === "touch") return;
+      ptrY = e.clientY;
+      ptrX = e.clientX;
+    },
+    { passive: true }
+  );
+  scrollEl.addEventListener(
+    "pointerup",
+    (e) => {
+      if (e.pointerType === "touch") return;
+      const dy = Math.abs(e.clientY - ptrY);
+      const dx = Math.abs(e.clientX - ptrX);
+      if (dy > MINIGAME_TAP_THRESHOLD_PX || dx > MINIGAME_TAP_THRESHOLD_PX) return;
+      onPick(e.target);
+    },
+    { passive: true }
+  );
+
+  scrollEl.addEventListener("scroll", onScroll, { passive: true });
 }
 pmLivesInput.min = String(PACMAN_GAME_LIVES_MIN);
 pmLivesInput.max = String(PACMAN_GAME_LIVES_MAX);
@@ -889,9 +974,9 @@ if (!roomId) {
     });
     requestAnimationFrame(() => {
       if (selectionChanged) {
-        menuListEl.querySelector<HTMLElement>(".minigame-pick.selected")?.scrollIntoView({
-          block: "nearest",
-        });
+        menuGameScrollWrapEl
+          ?.querySelector<HTMLElement>(".minigame-pick.selected")
+          ?.scrollIntoView({ block: "nearest" });
       }
       updateMinigameMenuScrollHint();
       requestAnimationFrame(updateMinigameMenuScrollHint);
@@ -1445,10 +1530,6 @@ if (!roomId) {
     return (forcedControllerPhase ?? ctrlState.phase) === "menu";
   }
 
-  const MINIGAME_PICK_TAP_THRESHOLD_PX = 12;
-  let minigamePickStartY = 0;
-  let minigamePickStartX = 0;
-
   function tryMinigamePick(target: EventTarget | null): void {
     if (!ctrlState || ws.readyState !== WebSocket.OPEN) return;
     if (!isMinigameMenuPhase()) return;
@@ -1461,25 +1542,9 @@ if (!roomId) {
     sendJson(ws, { type: "menu_select", index: idx });
   }
 
-  menuListEl.addEventListener(
-    "pointerdown",
-    (e) => {
-      minigamePickStartY = e.clientY;
-      minigamePickStartX = e.clientX;
-    },
-    { passive: true }
-  );
-
-  menuListEl.addEventListener(
-    "pointerup",
-    (e) => {
-      const dy = Math.abs(e.clientY - minigamePickStartY);
-      const dx = Math.abs(e.clientX - minigamePickStartX);
-      if (dy > MINIGAME_PICK_TAP_THRESHOLD_PX || dx > MINIGAME_PICK_TAP_THRESHOLD_PX) return;
-      tryMinigamePick(e.target);
-    },
-    { passive: true }
-  );
+  if (menuGameScrollWrapEl) {
+    bindMinigameListInteraction(menuGameScrollWrapEl, tryMinigamePick, updateMinigameMenuScrollHint);
+  }
 
   menuListEl.addEventListener("keydown", (e) => {
     if (e.key !== "Enter" && e.key !== " ") return;
@@ -1489,7 +1554,6 @@ if (!roomId) {
     tryMinigamePick(pick);
   });
 
-  menuListEl.addEventListener("scroll", updateMinigameMenuScrollHint, { passive: true });
   window.addEventListener("resize", updateMinigameMenuScrollHint);
 
   function tryFootballPickTeam(team: "red" | "blue"): void {
