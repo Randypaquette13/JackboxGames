@@ -2,8 +2,7 @@
   box-sizing: border-box;
 }
 html {
-  /* iOS Safari: block pinch/double-tap page zoom on the controller surface. */
-  touch-action: none;
+  touch-action: manipulation;
 }
 html,
 body {
@@ -13,7 +12,7 @@ body {
   background: radial-gradient(ellipse at 50% 20%, #1e1e32, #0a0a12 55%);
   color: #e8e8f0;
   font-family: system-ui, Segoe UI, Roboto, sans-serif;
-  touch-action: none;
+  touch-action: manipulation;
   user-select: none;
   -webkit-user-select: none;
   -moz-user-select: none;
@@ -51,6 +50,9 @@ input.pj-name {
   min-height: calc(100dvh - 48px);
   max-width: 440px;
   margin: 0 auto;
+}
+.panel:not(.panel-minigame-menu):not(.panel-settings-menu):not(.panel-menu-help) {
+  touch-action: none;
 }
 #panel-menu-help.panel.panel-menu-help {
   justify-content: flex-start;
@@ -368,15 +370,26 @@ input.pj-name {
   flex: 1 1 auto;
   min-height: 0;
   width: 100%;
+}
+#panel-settings .settings-scroll-wrap {
   overflow: hidden;
 }
-#panel-settings .settings-scroll,
-#panel-menu .settings-scroll {
+#panel-menu .settings-scroll-wrap {
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(154, 140, 255, 0.45) transparent;
+}
+#panel-settings .settings-scroll {
   position: absolute;
   inset: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+  touch-action: pan-y;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -387,12 +400,18 @@ input.pj-name {
   gap: 14px;
   padding: 4px 2px 36px;
 }
+#panel-menu #menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 10px 36px;
+}
 #panel-settings .settings-scroll::-webkit-scrollbar,
-#panel-menu .settings-scroll::-webkit-scrollbar {
+#panel-menu .settings-scroll-wrap::-webkit-scrollbar {
   width: 6px;
 }
 #panel-settings .settings-scroll::-webkit-scrollbar-thumb,
-#panel-menu .settings-scroll::-webkit-scrollbar-thumb {
+#panel-menu .settings-scroll-wrap::-webkit-scrollbar-thumb {
   background: rgba(154, 140, 255, 0.45);
   border-radius: 999px;
 }
@@ -574,6 +593,10 @@ input.pj-name {
   min-height: 0;
   overflow: hidden;
 }
+#panel-menu.panel-minigame-menu,
+#panel-settings.panel-settings-menu {
+  touch-action: pan-y;
+}
 #panel-menu .menu-header {
   flex-shrink: 0;
   text-align: center;
@@ -622,10 +645,6 @@ input.pj-name {
 #panel-menu .settings-scroll-wrap.can-scroll:not(.at-bottom)::after {
   border-radius: 0 0 16px 16px;
   background: linear-gradient(to bottom, transparent, rgba(14, 14, 24, 0.94));
-}
-#panel-menu .settings-scroll {
-  gap: 8px;
-  padding: 10px 10px 36px;
 }
 .menu-game-card {
   --game-accent: #8ab4ff;

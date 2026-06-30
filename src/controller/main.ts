@@ -68,7 +68,9 @@ function preventMobileBrowserZoom(): void {
   document.addEventListener(
     "touchend",
     (e) => {
-      if ((e.target as Element | null)?.closest("input, textarea, select")) return;
+      if ((e.target as Element | null)?.closest(
+        "input, textarea, select, .settings-scroll-wrap, .settings-scroll, .menu-help-scroll"
+      )) return;
       const now = Date.now();
       if (now - lastTouchEnd <= 300) e.preventDefault();
       lastTouchEnd = now;
@@ -146,7 +148,7 @@ const pjBackBtn = document.querySelector<HTMLButtonElement>("#pj-back")!;
 const pjJoinBtn = document.querySelector<HTMLButtonElement>("#pj-join")!;
 
 const menuListEl = document.querySelector<HTMLElement>("#menu-list")!;
-const menuGameScrollWrapEl = document.querySelector<HTMLElement>("#panel-menu .settings-scroll-wrap")!;
+const menuGameScrollWrapEl = document.querySelector<HTMLElement>("#menu-scroll-wrap")!;
 const resultsHintEl = document.querySelector<HTMLElement>("#results-hint")!;
 const resultsListEl = document.querySelector<HTMLElement>("#results-list")!;
 const rwFireBtn = document.querySelector<HTMLButtonElement>("#rw-fire")!;
@@ -299,8 +301,8 @@ function updateSettingsScrollHint(): void {
 }
 
 function updateMinigameMenuScrollHint(): void {
-  if (!menuListEl || !menuGameScrollWrapEl) return;
-  updatePanelScrollHint(menuListEl, menuGameScrollWrapEl);
+  if (!menuGameScrollWrapEl) return;
+  updatePanelScrollHint(menuGameScrollWrapEl, menuGameScrollWrapEl);
 }
 pmLivesInput.min = String(PACMAN_GAME_LIVES_MIN);
 pmLivesInput.max = String(PACMAN_GAME_LIVES_MAX);
@@ -1456,7 +1458,7 @@ if (!roomId) {
     sendJson(ws, { type: "menu_select", index: idx });
   });
 
-  menuListEl.addEventListener("scroll", updateMinigameMenuScrollHint, { passive: true });
+  menuGameScrollWrapEl.addEventListener("scroll", updateMinigameMenuScrollHint, { passive: true });
   window.addEventListener("resize", updateMinigameMenuScrollHint);
 
   function tryFootballPickTeam(team: "red" | "blue"): void {
