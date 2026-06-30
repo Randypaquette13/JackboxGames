@@ -301,162 +301,8 @@ function updateSettingsScrollHint(): void {
 }
 
 function updateMinigameMenuScrollHint(): void {
-  if (!menuGameScrollWrapEl) return;
-  updatePanelScrollHint(menuGameScrollWrapEl, menuGameScrollWrapEl);
-}
-
-const MINIGAME_TAP_THRESHOLD_PX = 12;
-const MINIGAME_MOMENTUM_MIN_VELOCITY = 0.08;
-const MINIGAME_MOMENTUM_FRICTION = 0.92;
-
-/** Drive vertical scroll on touch devices when native overflow scrolling is blocked. */
-function bindMinigameListInteraction(
-  scrollEl: HTMLElement,
-  onPick: (target: EventTarget | null) => void,
-  onScroll: () => void
-): void {
-  let startY = 0;
-  let startX = 0;
-  let startScrollTop = 0;
-  let touchActive = false;
-  let lastMoveY = 0;
-  let lastMoveT = 0;
-  let velocityY = 0;
-  let momentumRaf = 0;
-
-  const maxScrollTop = (): number =>
-    Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
-
-  const cancelMomentum = (): void => {
-    if (momentumRaf) {
-      cancelAnimationFrame(momentumRaf);
-      momentumRaf = 0;
-    }
-  };
-
-  const startMomentum = (initialVelocityPxPerMs: number): void => {
-    if (Math.abs(initialVelocityPxPerMs) < MINIGAME_MOMENTUM_MIN_VELOCITY) return;
-    cancelMomentum();
-    let velocity = initialVelocityPxPerMs;
-    let lastFrame = performance.now();
-
-    const step = (now: number): void => {
-      const dt = Math.min(32, now - lastFrame);
-      lastFrame = now;
-      if (Math.abs(velocity) < MINIGAME_MOMENTUM_MIN_VELOCITY) {
-        momentumRaf = 0;
-        return;
-      }
-
-      const max = maxScrollTop();
-      const next = scrollEl.scrollTop + velocity * dt;
-      if (next <= 0) {
-        scrollEl.scrollTop = 0;
-        momentumRaf = 0;
-        onScroll();
-        return;
-      }
-      if (next >= max) {
-        scrollEl.scrollTop = max;
-        momentumRaf = 0;
-        onScroll();
-        return;
-      }
-
-      scrollEl.scrollTop = next;
-      velocity *= MINIGAME_MOMENTUM_FRICTION ** (dt / 16);
-      momentumRaf = requestAnimationFrame(step);
-      onScroll();
-    };
-
-    momentumRaf = requestAnimationFrame(step);
-  };
-
-  scrollEl.addEventListener(
-    "touchstart",
-    (e) => {
-      if (e.touches.length !== 1) return;
-      cancelMomentum();
-      startY = e.touches[0].clientY;
-      startX = e.touches[0].clientX;
-      startScrollTop = scrollEl.scrollTop;
-      lastMoveY = startY;
-      lastMoveT = performance.now();
-      velocityY = 0;
-      touchActive = true;
-    },
-    { passive: true }
-  );
-
-  scrollEl.addEventListener(
-    "touchmove",
-    (e) => {
-      if (!touchActive || e.touches.length !== 1) return;
-      if (scrollEl.scrollHeight <= scrollEl.clientHeight + 2) return;
-      const y = e.touches[0].clientY;
-      const now = performance.now();
-      const dt = now - lastMoveT;
-      if (dt > 0) velocityY = (lastMoveY - y) / dt;
-      lastMoveY = y;
-      lastMoveT = now;
-
-      const dy = y - startY;
-      if (Math.abs(dy) < 2) return;
-      e.preventDefault();
-      scrollEl.scrollTop = Math.max(0, Math.min(maxScrollTop(), startScrollTop - dy));
-      onScroll();
-    },
-    { passive: false }
-  );
-
-  const endTouch = (e: TouchEvent): void => {
-    if (!touchActive) return;
-    touchActive = false;
-    const touch = e.changedTouches[0];
-    if (!touch) return;
-    const dy = Math.abs(touch.clientY - startY);
-    const dx = Math.abs(touch.clientX - startX);
-    if (dy <= MINIGAME_TAP_THRESHOLD_PX && dx <= MINIGAME_TAP_THRESHOLD_PX) {
-      onPick(e.target);
-    } else if (dy > MINIGAME_TAP_THRESHOLD_PX) {
-      startMomentum(velocityY);
-    }
-    onScroll();
-  };
-  scrollEl.addEventListener("touchend", endTouch, { passive: true });
-  scrollEl.addEventListener(
-    "touchcancel",
-    () => {
-      touchActive = false;
-      cancelMomentum();
-    },
-    { passive: true }
-  );
-
-  let ptrY = 0;
-  let ptrX = 0;
-  scrollEl.addEventListener(
-    "pointerdown",
-    (e) => {
-      if (e.pointerType === "touch") return;
-      ptrY = e.clientY;
-      ptrX = e.clientX;
-    },
-    { passive: true }
-  );
-  scrollEl.addEventListener(
-    "pointerup",
-    (e) => {
-      if (e.pointerType === "touch") return;
-      const dy = Math.abs(e.clientY - ptrY);
-      const dx = Math.abs(e.clientX - ptrX);
-      if (dy > MINIGAME_TAP_THRESHOLD_PX || dx > MINIGAME_TAP_THRESHOLD_PX) return;
-      onPick(e.target);
-    },
-    { passive: true }
-  );
-
-  scrollEl.addEventListener("scroll", onScroll, { passive: true });
+  if (!menuListEl || !menuGameScrollWrapEl) return;
+  updatePanelScrollHint(menuListEl, menuGameScrollWrapEl);
 }
 pmLivesInput.min = String(PACMAN_GAME_LIVES_MIN);
 pmLivesInput.max = String(PACMAN_GAME_LIVES_MAX);
@@ -1043,9 +889,9 @@ if (!roomId) {
     });
     requestAnimationFrame(() => {
       if (selectionChanged) {
-        menuGameScrollWrapEl
-          ?.querySelector<HTMLElement>(".minigame-pick.selected")
-          ?.scrollIntoView({ block: "nearest" });
+        menuListEl.querySelector<HTMLElement>(".minigame-pick.selected")?.scrollIntoView({
+          block: "nearest",
+        });
       }
       updateMinigameMenuScrollHint();
       requestAnimationFrame(updateMinigameMenuScrollHint);
@@ -1611,9 +1457,11 @@ if (!roomId) {
     sendJson(ws, { type: "menu_select", index: idx });
   }
 
-  if (menuGameScrollWrapEl) {
-    bindMinigameListInteraction(menuGameScrollWrapEl, tryMinigamePick, updateMinigameMenuScrollHint);
-  }
+  menuListEl.addEventListener("click", (e) => {
+    tryMinigamePick(e.target);
+  });
+
+  menuListEl.addEventListener("scroll", updateMinigameMenuScrollHint, { passive: true });
 
   menuListEl.addEventListener("keydown", (e) => {
     if (e.key !== "Enter" && e.key !== " ") return;
