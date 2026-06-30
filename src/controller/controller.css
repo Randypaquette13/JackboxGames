@@ -468,7 +468,16 @@ input.pj-name {
 #panel-menu.panel-minigame-menu {
   justify-content: flex-start;
   padding-top: max(12px, env(safe-area-inset-top));
-  gap: 12px;
+  gap: 10px;
+  height: calc(100dvh - 48px);
+  max-height: calc(100dvh - 48px);
+  min-height: 0;
+  overflow: hidden;
+}
+#panel-menu .menu-header {
+  flex-shrink: 0;
+  text-align: center;
+  margin: 0 0 4px;
 }
 .menu-header {
   text-align: center;
@@ -502,8 +511,8 @@ input.pj-name {
 }
 #panel-menu .menu-game-list {
   flex: 1 1 auto;
-  min-height: 0;
-  max-height: min(46vh, 360px);
+  min-height: 72px;
+  max-height: none;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   gap: 8px;
@@ -608,6 +617,7 @@ input.pj-name {
   margin: 0;
   font-size: 0.8rem;
   color: #787898;
+  flex-shrink: 0;
 }
 .menu-actions {
   display: flex;
@@ -636,7 +646,7 @@ input.pj-name {
   border-radius: 12px;
 }
 #panel-menu .menu-select-btn {
-  min-height: 96px;
+  min-height: clamp(72px, 14vh, 96px);
   font-size: 1.2rem;
   font-weight: 800;
   letter-spacing: 0.06em;
@@ -818,7 +828,8 @@ input.pj-name {
 }
 /** Minigame menu: leaving matchmaking — warmer outline + separator from pick/settings actions */
 #panel-menu #mn-add.menu-back-lobby {
-  margin-top: 8px;
+  flex-shrink: 0;
+  margin-top: 0;
   padding-top: 4px;
   border-top: 1px solid rgba(255, 200, 140, 0.18);
   min-height: 52px;
