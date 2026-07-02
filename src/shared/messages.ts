@@ -145,6 +145,8 @@ export type FroggerBandJson =
   | { kind: "street"; y0: number; h: number; dir: 1 | -1; cars: FroggerCarJson[] }
   | { kind: "water"; y0: number; h: number; dir: 1 | -1; platforms: FroggerPlatformJson[] };
 
+export type FroggerFacing = "up" | "down" | "left" | "right";
+
 export type FroggerFrogHostJson = {
   playerId: number;
   name: string;
@@ -154,6 +156,7 @@ export type FroggerFrogHostJson = {
   alive: boolean;
   /** Best distance (m) reached this round. */
   distance: number;
+  facing: FroggerFacing;
 };
 
 export type FootballRosterSlotJson = { playerId: number; name: string; hue: number };

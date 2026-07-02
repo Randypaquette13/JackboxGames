@@ -670,6 +670,7 @@ export function startFroggerFromMenu(room) {
             y,
             alive: true,
             maxY: y,
+            facing: "up",
             prevPauseHeld: false,
             prevAimUp: false,
             prevAimDown: false,
@@ -741,6 +742,7 @@ function tickFrogger(room, dt) {
         // Analog left/right (no cooldown). Keep a small deadzone to avoid drift.
         const deadzone = 12;
         if (Math.abs(h) > deadzone) {
+            f.facing = h < 0 ? "left" : "right";
             const nx = froggerClampX(f.x + (h / 100) * FROGGER_LATERAL_SPEED * dt);
             if (!grassBlocksPosition(room, nx, f.y)) {
                 f.x = nx;
@@ -750,7 +752,7 @@ function tickFrogger(room, dt) {
             f.moveCooldown -= dt;
         }
         else {
-            const tryMove = (dx, dy) => {
+            const tryMove = (dx, dy, facing) => {
                 const nx = froggerClampX(f.x + dx);
                 const ny = f.y + dy;
                 if (grassBlocksPosition(room, nx, ny))
@@ -758,12 +760,13 @@ function tickFrogger(room, dt) {
                 f.x = nx;
                 f.y = ny;
                 f.maxY = Math.max(f.maxY, f.y);
+                f.facing = facing;
                 f.moveCooldown = FROGGER_MOVE_COOLDOWN;
             };
             if (edgeUp)
-                tryMove(0, FROGGER_ROW_H);
+                tryMove(0, FROGGER_ROW_H, "up");
             else if (edgeDown)
-                tryMove(0, -FROGGER_ROW_H);
+                tryMove(0, -FROGGER_ROW_H, "down");
         }
         const curBand = froggerBandAt(room, f.y);
         if (curBand?.kind === "water") {
@@ -851,6 +854,7 @@ function buildFroggerHostJson(room) {
             y: fr.y,
             alive: fr.alive,
             distance: Math.max(0, Math.floor(fr.maxY / FROGGER_DISTANCE_UNIT)),
+            facing: fr.facing,
         });
     }
     frogs.sort((a, b) => a.playerId - b.playerId);
