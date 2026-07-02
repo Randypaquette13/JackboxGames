@@ -31,6 +31,23 @@ import {
   resolveAirHockeyPeriodSec,
 } from "@shared/airHockeyGameSettings";
 import {
+  DODGEBALL_GAME_ROUNDS_TO_WIN_MAX,
+  DODGEBALL_GAME_ROUNDS_TO_WIN_MIN,
+  DODGEBALL_GAME_SPEED_MAX,
+  DODGEBALL_GAME_SPEED_MIN,
+  DODGEBALL_GAME_THROW_HOMING_MAX,
+  DODGEBALL_GAME_THROW_HOMING_MIN,
+  DODGEBALL_GAME_THROW_RELEASE_AIM_MAX,
+  DODGEBALL_GAME_THROW_RELEASE_AIM_MIN,
+  DODGEBALL_GAME_THROW_SPEED_MAX,
+  DODGEBALL_GAME_THROW_SPEED_MIN,
+  resolveDodgeballMaxPlayerSpeed,
+  resolveDodgeballRoundsToWin,
+  resolveDodgeballThrowHomingRate,
+  resolveDodgeballThrowReleaseAim,
+  resolveDodgeballThrowSpeed,
+} from "@shared/dodgeballGameSettings";
+import {
   PACMAN_GAME_LIVES_MAX,
   PACMAN_GAME_LIVES_MIN,
   resolvePacmanLivesPerPlayer,
@@ -69,6 +86,7 @@ const MINIGAME_SECTION_CLASS: Record<MinigameId, string> = {
   frogger: "settings-section-frogger",
   football: "settings-section-football",
   air_hockey: "settings-section-air-hockey",
+  dodgeball: "settings-section-dodgeball",
   bomberman: "settings-section-bomberman",
   pacman: "settings-section-pacman",
 };
@@ -129,6 +147,8 @@ const panels = {
   football: document.querySelector<HTMLElement>("#panel-football")!,
   airHockeyTeams: document.querySelector<HTMLElement>("#panel-air-hockey-teams")!,
   airHockey: document.querySelector<HTMLElement>("#panel-air-hockey")!,
+  dodgeballTeams: document.querySelector<HTMLElement>("#panel-dodgeball-teams")!,
+  dodgeball: document.querySelector<HTMLElement>("#panel-dodgeball")!,
   kart: document.querySelector<HTMLElement>("#panel-kart")!,
   kartPause: document.querySelector<HTMLElement>("#panel-kart-pause")!,
   results: document.querySelector<HTMLElement>("#panel-results")!,
@@ -188,6 +208,17 @@ const ahPlayHudEl = document.querySelector<HTMLElement>("#ah-play-hud")!;
 const ahJoystickEl = document.querySelector<HTMLElement>("#ah-joystick")!;
 const ahKnobEl = document.querySelector<HTMLElement>("#ah-knob")!;
 
+const dbTeamTopEl = document.querySelector<HTMLElement>("#db-team-top")!;
+const dbTeamSubEl = document.querySelector<HTMLElement>("#db-team-sub")!;
+const dbTeamRedBtn = document.querySelector<HTMLButtonElement>("#db-team-red")!;
+const dbTeamBlueBtn = document.querySelector<HTMLButtonElement>("#db-team-blue")!;
+const dbStartGameBtn = document.querySelector<HTMLButtonElement>("#db-start-game")!;
+const dbStartHintEl = document.querySelector<HTMLElement>("#db-start-hint")!;
+const dbPlayHudEl = document.querySelector<HTMLElement>("#db-play-hud")!;
+const dbActionBtn = document.querySelector<HTMLButtonElement>("#db-action")!;
+const dbJoystickEl = document.querySelector<HTMLElement>("#db-joystick")!;
+const dbKnobEl = document.querySelector<HTMLElement>("#db-knob")!;
+
 /** SVG rings aligned to shared speed tiers (same normalization as stick clamp). */
 function injectFootballJoystickZones(base: HTMLElement, knob: HTMLElement): void {
   if (base.querySelector("svg.vj-zones")) return;
@@ -217,6 +248,7 @@ function injectFootballJoystickZones(base: HTMLElement, knob: HTMLElement): void
 }
 injectFootballJoystickZones(fbJoystickEl, fbKnobEl);
 injectFootballJoystickZones(ahJoystickEl, ahKnobEl);
+injectFootballJoystickZones(dbJoystickEl, dbKnobEl);
 
 const RESULT_LABELS = ["Play again", "Back to minigame select", "Add more controllers"];
 
@@ -261,6 +293,40 @@ const ahSpeedVal = document.querySelector<HTMLElement>("#set-air-hockey-speed-va
 ahSpeedInput.min = String(AIR_HOCKEY_GAME_SPEED_MIN);
 ahSpeedInput.max = String(AIR_HOCKEY_GAME_SPEED_MAX);
 ahSpeedInput.step = "5";
+
+const dbRoundsInput = document.querySelector<HTMLInputElement>("#set-dodgeball-rounds")!;
+const dbRoundsVal = document.querySelector<HTMLElement>("#set-dodgeball-rounds-val")!;
+dbRoundsInput.min = String(DODGEBALL_GAME_ROUNDS_TO_WIN_MIN);
+dbRoundsInput.max = String(DODGEBALL_GAME_ROUNDS_TO_WIN_MAX);
+dbRoundsInput.step = "1";
+
+const dbSpeedInput = document.querySelector<HTMLInputElement>("#set-dodgeball-speed")!;
+const dbSpeedVal = document.querySelector<HTMLElement>("#set-dodgeball-speed-val")!;
+dbSpeedInput.min = String(DODGEBALL_GAME_SPEED_MIN);
+dbSpeedInput.max = String(DODGEBALL_GAME_SPEED_MAX);
+dbSpeedInput.step = "5";
+
+const dbThrowSpeedInput = document.querySelector<HTMLInputElement>("#set-dodgeball-throw-speed")!;
+const dbThrowSpeedVal = document.querySelector<HTMLElement>("#set-dodgeball-throw-speed-val")!;
+dbThrowSpeedInput.min = String(DODGEBALL_GAME_THROW_SPEED_MIN);
+dbThrowSpeedInput.max = String(DODGEBALL_GAME_THROW_SPEED_MAX);
+dbThrowSpeedInput.step = "20";
+
+const dbHomingInput = document.querySelector<HTMLInputElement>("#set-dodgeball-homing")!;
+const dbHomingVal = document.querySelector<HTMLElement>("#set-dodgeball-homing-val")!;
+const dbHomingSliderMin = Math.round(DODGEBALL_GAME_THROW_HOMING_MIN * 2);
+const dbHomingSliderMax = Math.round(DODGEBALL_GAME_THROW_HOMING_MAX * 2);
+dbHomingInput.min = String(dbHomingSliderMin);
+dbHomingInput.max = String(dbHomingSliderMax);
+dbHomingInput.step = "1";
+
+const dbReleaseAimInput = document.querySelector<HTMLInputElement>("#set-dodgeball-release-aim")!;
+const dbReleaseAimVal = document.querySelector<HTMLElement>("#set-dodgeball-release-aim-val")!;
+const dbReleaseAimSliderMin = Math.round(DODGEBALL_GAME_THROW_RELEASE_AIM_MIN * 100);
+const dbReleaseAimSliderMax = Math.round(DODGEBALL_GAME_THROW_RELEASE_AIM_MAX * 100);
+dbReleaseAimInput.min = String(dbReleaseAimSliderMin);
+dbReleaseAimInput.max = String(dbReleaseAimSliderMax);
+dbReleaseAimInput.step = "5";
 
 const pmLivesInput = document.querySelector<HTMLInputElement>("#set-pacman-lives")!;
 const pmLivesVal = document.querySelector<HTMLElement>("#set-pacman-lives-val")!;
@@ -355,7 +421,7 @@ if (!roomId) {
   let forcedControllerPhase: ControllerStateJson["phase"] | null = null;
   /** Ignore RED/BLUE taps briefly after menu→team UI swap (avoids confirm release “click” hitting a team). */
   let footballTeamPickLockUntil = 0;
-  let airHockeyTeamPickLockUntil = 0;
+  let dodgeballTeamPickLockUntil = 0;
   let prevWsPhase: ControllerStateJson["phase"] | null = null;
   let prejoinMode: "resume" | "create" = "resume";
   let prejoinTouched = { name: false, hue: false };
@@ -803,6 +869,74 @@ if (!roomId) {
   ahJoystickEl.addEventListener("pointerup", centerAhStick);
   ahJoystickEl.addEventListener("pointercancel", centerAhStick);
 
+  let dbPause = false;
+  document.querySelector("#db-pause")!.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    dbPause = true;
+    setTimeout(() => {
+      dbPause = false;
+    }, 100);
+  });
+
+  let dbAction = false;
+  dbActionBtn.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    dbAction = true;
+    setTimeout(() => {
+      dbAction = false;
+    }, 100);
+  });
+
+  let dbStickX = 0;
+  let dbStickY = 0;
+
+  function updateDbKnobVisual(): void {
+    const rect = dbJoystickEl.getBoundingClientRect();
+    const radius = Math.max(24, (Math.min(rect.width, rect.height) / 2) * FOOTBALL_JOYSTICK_SURFACE_FRAC);
+    const dx = dbStickX * radius;
+    const dy = dbStickY * radius;
+    dbKnobEl.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+  }
+
+  function centerDbStick(): void {
+    dbStickX = 0;
+    dbStickY = 0;
+    updateDbKnobVisual();
+  }
+
+  function moveDbStickFromClient(clientX: number, clientY: number): void {
+    const r = dbJoystickEl.getBoundingClientRect();
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height / 2;
+    const max = Math.max(24, (Math.min(r.width, r.height) / 2) * FOOTBALL_JOYSTICK_SURFACE_FRAC);
+    let nx = (clientX - cx) / max;
+    let ny = (clientY - cy) / max;
+    const len = Math.hypot(nx, ny);
+    if (len > 1) {
+      nx /= len;
+      ny /= len;
+    }
+    dbStickX = nx;
+    dbStickY = ny;
+    updateDbKnobVisual();
+  }
+
+  dbJoystickEl.addEventListener(
+    "pointerdown",
+    (e) => {
+      e.preventDefault();
+      dbJoystickEl.setPointerCapture(e.pointerId);
+      moveDbStickFromClient(e.clientX, e.clientY);
+    },
+    { passive: false }
+  );
+  dbJoystickEl.addEventListener("pointermove", (e) => {
+    if (!dbJoystickEl.hasPointerCapture(e.pointerId)) return;
+    moveDbStickFromClient(e.clientX, e.clientY);
+  });
+  dbJoystickEl.addEventListener("pointerup", centerDbStick);
+  dbJoystickEl.addEventListener("pointercancel", centerDbStick);
+
   const ws = new WebSocket(`${wsUrl()}?cid=${encodeURIComponent(controllerClientId)}`);
   ws.binaryType = "arraybuffer";
 
@@ -838,6 +972,26 @@ if (!roomId) {
     const ahs = resolveAirHockeyMaxPlayerSpeed(st.gameSettings);
     ahSpeedInput.value = String(ahs);
     ahSpeedVal.textContent = String(ahs);
+
+    const dbRounds = resolveDodgeballRoundsToWin(st.gameSettings);
+    dbRoundsInput.value = String(dbRounds);
+    dbRoundsVal.textContent = String(dbRounds);
+
+    const dbs = resolveDodgeballMaxPlayerSpeed(st.gameSettings);
+    dbSpeedInput.value = String(dbs);
+    dbSpeedVal.textContent = String(dbs);
+
+    const dbThrow = resolveDodgeballThrowSpeed(st.gameSettings);
+    dbThrowSpeedInput.value = String(dbThrow);
+    dbThrowSpeedVal.textContent = String(dbThrow);
+
+    const dbHoming = resolveDodgeballThrowHomingRate(st.gameSettings);
+    dbHomingInput.value = String(Math.round(dbHoming * 2));
+    dbHomingVal.textContent = dbHoming % 1 === 0 ? String(dbHoming) : dbHoming.toFixed(1);
+
+    const dbRelease = resolveDodgeballThrowReleaseAim(st.gameSettings);
+    dbReleaseAimInput.value = String(Math.round(dbRelease * 100));
+    dbReleaseAimVal.textContent = `${Math.round(dbRelease * 100)}%`;
 
     const pmLives = resolvePacmanLivesPerPlayer(st.gameSettings);
     pmLivesInput.value = String(pmLives);
@@ -994,6 +1148,10 @@ if (!roomId) {
         return "Pac-Man finished";
       case "football_results":
         return "Football finished";
+      case "air_hockey_results":
+        return "Air Hockey finished";
+      case "dodgeball_results":
+        return "Dodgeball finished";
       default:
         return "Game finished";
     }
@@ -1254,6 +1412,45 @@ if (!roomId) {
     }
   }
 
+  function syncDodgeballUi(st: ControllerStateJson | null): void {
+    const db = st?.dodgeball;
+    const ph = forcedControllerPhase ?? st?.phase ?? "lobby";
+
+    dbTeamRedBtn.classList.toggle("my-pick", db?.myTeam === "red");
+    dbTeamBlueBtn.classList.toggle("my-pick", db?.myTeam === "blue");
+
+    if (ph === "dodgeball_team_select" && db) {
+      dbTeamTopEl.textContent = "Dodgeball — pick your team";
+      dbTeamSubEl.textContent = "";
+      dbStartGameBtn.hidden = false;
+      dbStartGameBtn.disabled = !db.canStart;
+      dbTeamRedBtn.disabled = false;
+      dbTeamBlueBtn.disabled = false;
+      dbStartHintEl.textContent = db.canStart
+        ? "START locks teams and opens the rush on the TV. Unpicked players are auto-balanced."
+        : "Need at least two joined players.";
+    } else if (ph === "dodgeball_summary" && db) {
+      dbTeamTopEl.textContent = "Dodgeball — teams locked";
+      dbTeamSubEl.textContent = "Center rush coming — glance at the host screen.";
+      dbStartGameBtn.hidden = true;
+      dbTeamRedBtn.disabled = true;
+      dbTeamBlueBtn.disabled = true;
+      dbStartHintEl.textContent = "";
+    }
+
+    if (db && (ph === "dodgeball" || ph === "dodgeball_paused")) {
+      const r = db.roundsToWin;
+      const status = db.isOut ? "You're out — watch your team!" : db.holdingBall ? "Throw!" : "Catch or dodge";
+      dbActionBtn.textContent = db.isOut ? "Out" : db.holdingBall ? "Throw" : "Catch";
+      dbActionBtn.disabled = db.isOut;
+      dbPlayHudEl.textContent = `${status} · RED ${db.redScore}/${r} — BLUE ${db.blueScore}/${r}`;
+    } else {
+      dbPlayHudEl.textContent = "";
+      dbActionBtn.textContent = "Catch";
+      dbActionBtn.disabled = false;
+    }
+  }
+
   function syncRaceWalkPanelState(st: ControllerStateJson | null): void {
     const rw = st?.raceWalk;
     if (!rw) {
@@ -1285,6 +1482,7 @@ if (!roomId) {
     syncPacmanPanelState(st);
     syncFootballUi(st);
     syncAirHockeyUi(st);
+    syncDodgeballUi(st);
     if (!st) {
       showOnly(null);
       statusEl.textContent = "Connecting…";
@@ -1312,6 +1510,7 @@ if (!roomId) {
     }
     if (ph !== "football") centerFbStick();
     if (ph !== "air_hockey") centerAhStick();
+    if (ph !== "dodgeball") centerDbStick();
     if (ph === "lobby") {
       showOnly(panels.lobby);
     } else if (ph === "menu") {
@@ -1346,6 +1545,10 @@ if (!roomId) {
       showOnly(panels.airHockeyTeams);
     } else if (ph === "air_hockey") {
       showOnly(panels.airHockey);
+    } else if (ph === "dodgeball_team_select" || ph === "dodgeball_summary") {
+      showOnly(panels.dodgeballTeams);
+    } else if (ph === "dodgeball") {
+      showOnly(panels.dodgeball);
     } else if (ph === "kart") {
       showOnly(panels.kart);
     } else if (
@@ -1355,7 +1558,8 @@ if (!roomId) {
       ph === "bomberman_paused" ||
       ph === "pacman_paused" ||
       ph === "football_paused" ||
-      ph === "air_hockey_paused"
+      ph === "air_hockey_paused" ||
+      ph === "dodgeball_paused"
     ) {
       showOnly(panels.kartPause);
     } else if (
@@ -1365,7 +1569,8 @@ if (!roomId) {
       ph === "bomberman_results" ||
       ph === "pacman_results" ||
       ph === "football_results" ||
-      ph === "air_hockey_results"
+      ph === "air_hockey_results" ||
+      ph === "dodgeball_results"
     ) {
       showOnly(panels.results);
       renderResultsMenu(st);
@@ -1402,6 +1607,9 @@ if (!roomId) {
           }
           if (ctrlState.phase === "air_hockey_team_select" && prevWsPhase !== "air_hockey_team_select") {
             airHockeyTeamPickLockUntil = performance.now() + 420;
+          }
+          if (ctrlState.phase === "dodgeball_team_select" && prevWsPhase !== "dodgeball_team_select") {
+            dodgeballTeamPickLockUntil = performance.now() + 420;
           }
           prevWsPhase = ctrlState.phase;
           refreshUI();
@@ -1562,11 +1770,22 @@ if (!roomId) {
     sendJson(ws, { type: "air_hockey_start" });
   });
 
+  function tryDodgeballPickTeam(team: "red" | "blue"): void {
+    if (performance.now() < dodgeballTeamPickLockUntil) return;
+    sendJson(ws, { type: "dodgeball_pick_team", team });
+  }
+  bindPointerTap(dbTeamRedBtn, () => tryDodgeballPickTeam("red"));
+  bindPointerTap(dbTeamBlueBtn, () => tryDodgeballPickTeam("blue"));
+  dbStartGameBtn.addEventListener("click", () => {
+    sendJson(ws, { type: "dodgeball_start" });
+  });
+
   function sendTeamSelectBack(): void {
     sendJson(ws, { type: "team_select_back" });
   }
   document.querySelector("#fb-team-back")!.addEventListener("click", sendTeamSelectBack);
   document.querySelector("#ah-team-back")!.addEventListener("click", sendTeamSelectBack);
+  document.querySelector("#db-team-back")!.addEventListener("click", sendTeamSelectBack);
 
   document.querySelector("#st-back")!.addEventListener("click", () => {
     sendJson(ws, { type: "stub_back" });
@@ -1603,7 +1822,8 @@ if (!roomId) {
       ph === "bomberman_results" ||
       ph === "pacman_results" ||
       ph === "football_results" ||
-      ph === "air_hockey_results";
+      ph === "air_hockey_results" ||
+      ph === "dodgeball_results";
     if (!menuLike) return;
     const el = e.target as HTMLElement | null;
     if (el?.closest("input, textarea, select")) return;
@@ -1681,6 +1901,36 @@ if (!roomId) {
     sendJson(ws, { type: "game_settings_patch", patch: { airHockeyMaxPlayerSpeed: n } });
   });
 
+  dbRoundsInput.addEventListener("input", () => {
+    const n = Number(dbRoundsInput.value);
+    dbRoundsVal.textContent = String(n);
+    sendJson(ws, { type: "game_settings_patch", patch: { dodgeballRoundsToWin: n } });
+  });
+
+  dbSpeedInput.addEventListener("input", () => {
+    const n = Number(dbSpeedInput.value);
+    dbSpeedVal.textContent = String(n);
+    sendJson(ws, { type: "game_settings_patch", patch: { dodgeballMaxPlayerSpeed: n } });
+  });
+
+  dbThrowSpeedInput.addEventListener("input", () => {
+    const n = Number(dbThrowSpeedInput.value);
+    dbThrowSpeedVal.textContent = String(n);
+    sendJson(ws, { type: "game_settings_patch", patch: { dodgeballThrowSpeed: n } });
+  });
+
+  dbHomingInput.addEventListener("input", () => {
+    const n = Number(dbHomingInput.value) * 0.5;
+    dbHomingVal.textContent = n % 1 === 0 ? String(n) : n.toFixed(1);
+    sendJson(ws, { type: "game_settings_patch", patch: { dodgeballThrowHomingRate: n } });
+  });
+
+  dbReleaseAimInput.addEventListener("input", () => {
+    const pct = Number(dbReleaseAimInput.value);
+    dbReleaseAimVal.textContent = `${pct}%`;
+    sendJson(ws, { type: "game_settings_patch", patch: { dodgeballThrowReleaseAim: pct / 100 } });
+  });
+
   pmLivesInput.addEventListener("input", () => {
     const n = Number(pmLivesInput.value);
     pmLivesVal.textContent = String(n);
@@ -1711,6 +1961,14 @@ if (!roomId) {
         if (ahPause) buttons |= Btn.Pause;
         ws.send(encodeFootballAxis(seq, packed, buttons));
       } else if (ph === "air_hockey_paused") {
+        ws.send(encodeFootballAxis(seq, joystickToPackedFootballAxis(0, 0), 0));
+      } else if (ph === "dodgeball") {
+        const packed = joystickToPackedFootballAxis(dbStickX, dbStickY);
+        let buttons = 0;
+        if (dbPause) buttons |= Btn.Pause;
+        if (dbAction) buttons |= Btn.Pass;
+        ws.send(encodeFootballAxis(seq, packed, buttons));
+      } else if (ph === "dodgeball_paused") {
         ws.send(encodeFootballAxis(seq, joystickToPackedFootballAxis(0, 0), 0));
       } else if (ph === "kart") {
         let h = 0;

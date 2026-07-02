@@ -510,6 +510,9 @@ input.pj-name {
 .settings-section-air-hockey {
   --section-accent: #58a8ff;
 }
+.settings-section-dodgeball {
+  --section-accent: #e85858;
+}
 .settings-section-pacman {
   --section-accent: #ffe14a;
 }

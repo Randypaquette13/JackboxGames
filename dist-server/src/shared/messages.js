@@ -2,13 +2,14 @@
  * JSON WebSocket messages (orchestration + host/controller state).
  * Binary join/input/ping stays in protocol.ts.
  */
-export const MINIGAME_IDS = ["kart", "race_walk", "frogger", "football", "air_hockey", "bomberman", "pacman"];
+export const MINIGAME_IDS = ["kart", "race_walk", "frogger", "football", "air_hockey", "dodgeball", "bomberman", "pacman"];
 export const MINIGAME_LABELS = {
     kart: "Kart Racing",
     race_walk: "Race Walk",
     frogger: "Frogger",
     football: "Football",
     air_hockey: "Air Hockey",
+    dodgeball: "Dodgeball",
     bomberman: "Bomberman",
     pacman: "Pac-Man",
 };
@@ -19,6 +20,7 @@ export const MINIGAME_META = {
     frogger: { icon: "🐸", accent: "#5ee06a" },
     football: { icon: "🏈", accent: "#c87840" },
     air_hockey: { icon: "🏒", accent: "#58a8ff" },
+    dodgeball: { icon: "🎯", accent: "#e85858" },
     bomberman: { icon: "💣", accent: "#ff8844" },
     pacman: { icon: "👻", accent: "#ffe14a" },
 };
@@ -29,6 +31,7 @@ export const MINIGAME_TAGLINE = {
     frogger: "Hop across traffic and rivers — go the distance",
     football: "Pick a team, carry the ball to the end zone",
     air_hockey: "Slide your mallet and bury the puck",
+    dodgeball: "Dodge, catch, and eliminate the other team",
     bomberman: "Drop bombs, dodge blasts, be the last alive",
     pacman: "Team up to clear every pellet in the maze",
 };
@@ -138,6 +141,19 @@ export function parseClientIntent(raw) {
     }
     if (t === "air_hockey_start")
         return { type: "air_hockey_start" };
+    if (t === "dodgeball_results") {
+        const a = o.action;
+        if (a === "play_again" || a === "minigame_menu" || a === "add_controllers") {
+            return { type: "dodgeball_results", action: a };
+        }
+    }
+    if (t === "dodgeball_pick_team") {
+        const tm = o.team;
+        if (tm === "red" || tm === "blue")
+            return { type: "dodgeball_pick_team", team: tm };
+    }
+    if (t === "dodgeball_start")
+        return { type: "dodgeball_start" };
     if (t === "pause_resume")
         return { type: "pause_resume" };
     if (t === "pause_to_menu")

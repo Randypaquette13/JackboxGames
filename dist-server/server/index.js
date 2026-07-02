@@ -8,10 +8,11 @@ import { TICK_DT } from "../src/shared/constants.js";
 import { parseClientIntent } from "../src/shared/messages.js";
 import { pickPlayerHue } from "../src/shared/playerColors.js";
 import { resolveFootballMaxPlayerSpeed } from "../src/shared/footballGameSettings.js";
+import { resolveDodgeballMaxPlayerSpeed } from "../src/shared/dodgeballGameSettings.js";
 import { resolveAirHockeyMaxPlayerSpeed } from "../src/shared/airHockeyGameSettings.js";
 import { packedAxisToVelocity } from "../src/shared/footballPackedInput.js";
 import { Btn, encodeError, encodePong, encodeWelcome, Op, parseInput, parseJoin, parsePing, } from "../src/shared/protocol.js";
-import { applyIntent, buildControllerState, buildHostState, createRoom, ensureKartCar, handleAirHockeyPauseEdge, handleBombermanPauseEdge, handlePacmanPauseEdge, handleFootballPauseEdge, handleFroggerPauseEdge, handleKartPauseEdge, handleRaceWalkPauseEdge, onMenuControllerPlayerRemoved, tickSimulation, } from "./gameRoom.js";
+import { applyIntent, buildControllerState, buildHostState, createRoom, ensureKartCar, handleAirHockeyPauseEdge, handleBombermanPauseEdge, handlePacmanPauseEdge, handleFootballPauseEdge, handleDodgeballPauseEdge, handleFroggerPauseEdge, handleKartPauseEdge, handleRaceWalkPauseEdge, onMenuControllerPlayerRemoved, tickSimulation, } from "./gameRoom.js";
 import { bombermanOnPlayerRemoved } from "./bombermanRoom.js";
 import { pacmanOnPlayerRemoved } from "./pacmanRoom.js";
 import { createPlayer, DEFAULT_PLATFORMS } from "./game.js";
@@ -22,10 +23,42 @@ const HEARTBEAT_MS = 30_000;
 /** Hourly diagnostics log. */
 const METRICS_INTERVAL_MS = 60 * 60 * 1000;
 const CONTROLLER_GRACE_MS = 30_000;
+/** End the session if no player joins within this window after the host opens a room. */
+const EMPTY_ROOM_JOIN_MS = 2 * 60 * 1000;
 const rooms = new Map();
 const reconnectGraceByRoom = new Map();
 const clientIdByPlayerByRoom = new Map();
 const prejoinControllersByRoom = new Map();
+const emptyRoomJoinTimeouts = new Map();
+function clearEmptyRoomJoinTimeout(roomId) {
+    const timeout = emptyRoomJoinTimeouts.get(roomId);
+    if (!timeout)
+        return;
+    clearTimeout(timeout);
+    emptyRoomJoinTimeouts.delete(roomId);
+}
+function scheduleEmptyRoomJoinTimeout(roomId) {
+    clearEmptyRoomJoinTimeout(roomId);
+    const timeout = setTimeout(() => {
+        emptyRoomJoinTimeouts.delete(roomId);
+        const room = rooms.get(roomId);
+        if (!room || room.players.size > 0)
+            return;
+        if (room.host && room.host.readyState === 1) {
+            try {
+                room.host.send(encodeError("session ended: no players joined within 2 minutes"));
+            }
+            catch {
+                /* ignore */
+            }
+        }
+        destroyRoom(roomId);
+    }, EMPTY_ROOM_JOIN_MS);
+    emptyRoomJoinTimeouts.set(roomId, timeout);
+}
+function onPlayerJoinedRoom(roomId) {
+    clearEmptyRoomJoinTimeout(roomId);
+}
 function prejoinSet(roomId) {
     let s = prejoinControllersByRoom.get(roomId);
     if (!s) {
@@ -66,6 +99,7 @@ function buildPrejoinState(room) {
         frogger: null,
         football: null,
         airHockey: null,
+        dodgeball: null,
         bomberman: null,
         pacman: null,
     };
@@ -122,6 +156,17 @@ function removePlayerFromRoom(room, playerId) {
     if (room.footballBall.carrierId === playerId) {
         room.footballBall.carrierId = null;
     }
+    room.dodgeballTeamPick.delete(playerId);
+    room.dodgeballTeamAssignment.delete(playerId);
+    room.dodgeballPlayers.delete(playerId);
+    for (const ball of room.dodgeballBalls) {
+        if (ball.carrierId === playerId)
+            ball.carrierId = null;
+        if (ball.thrownByPlayerId === playerId)
+            ball.thrownByPlayerId = null;
+    }
+    room.dodgeballRedElimOrder = room.dodgeballRedElimOrder.filter((id) => id !== playerId);
+    room.dodgeballBlueElimOrder = room.dodgeballBlueElimOrder.filter((id) => id !== playerId);
     for (const runner of room.raceWalkRunners) {
         if (runner.controllerId === playerId)
             runner.controllerId = null;
@@ -138,9 +183,12 @@ function removePlayerFromRoom(room, playerId) {
         room.pacmanPausedByPlayerId = null;
     if (room.footballPausedByPlayerId === playerId)
         room.footballPausedByPlayerId = null;
+    if (room.dodgeballPausedByPlayerId === playerId)
+        room.dodgeballPausedByPlayerId = null;
     onMenuControllerPlayerRemoved(room, playerId);
 }
 function destroyRoom(roomId) {
+    clearEmptyRoomJoinTimeout(roomId);
     const r = rooms.get(roomId);
     if (!r)
         return;
@@ -263,6 +311,7 @@ function handleTextMessage(ws, raw) {
             if (wsCid)
                 clientMap(att.roomId).set(playerId, wsCid);
             ensureKartCar(room, playerId);
+            onPlayerJoinedRoom(att.roomId);
             counters.joinsCreate++;
             ws.send(encodeWelcome(playerId, att.roomId));
             broadcastRoom(att.roomId);
@@ -283,6 +332,7 @@ function handleTextMessage(ws, raw) {
             if (wsCid)
                 clientMap(att.roomId).set(pid, wsCid);
             ensureKartCar(room, pid);
+            onPlayerJoinedRoom(att.roomId);
             counters.joinsClaim++;
             ws.send(encodeWelcome(pid, att.roomId));
             broadcastRoom(att.roomId);
@@ -324,6 +374,7 @@ function handleBinaryMessage(ws, data) {
             counters.roomsCreated++;
             setAttached(ws, { role: "host", roomId });
             ws.send(encodeWelcome(0, roomId));
+            scheduleEmptyRoomJoinTimeout(roomId);
             broadcastRoom(roomId);
             return;
         }
@@ -347,6 +398,7 @@ function handleBinaryMessage(ws, data) {
                 setAttached(ws, { role: "controller", roomId, playerId });
                 clientMap(roomId).set(playerId, wsCid);
                 ensureKartCar(room, playerId);
+                onPlayerJoinedRoom(roomId);
                 counters.autoResumes++;
                 ws.send(encodeWelcome(playerId, roomId));
                 broadcastRoom(roomId);
@@ -407,6 +459,10 @@ function handleBinaryMessage(ws, data) {
                 const { vx, vy } = packedAxisToVelocity(axisU8, resolveAirHockeyMaxPlayerSpeed(room.gameSettings));
                 player.input = { h: 0, buttons: inp.buttons, seq: inp.seq, footballVx: vx, footballVy: vy };
             }
+            else if (room.phase === "dodgeball" || room.phase === "dodgeball_paused") {
+                const { vx, vy } = packedAxisToVelocity(axisU8, resolveDodgeballMaxPlayerSpeed(room.gameSettings));
+                player.input = { h: 0, buttons: inp.buttons, seq: inp.seq, footballVx: vx, footballVy: vy };
+            }
             else {
                 player.input = { h: inp.h, buttons: inp.buttons, seq: inp.seq };
             }
@@ -444,6 +500,11 @@ function handleBinaryMessage(ws, data) {
             if (ahMallet && (room.phase === "air_hockey" || room.phase === "air_hockey_paused")) {
                 const pauseHeld = (inp.buttons & Btn.Pause) !== 0;
                 handleAirHockeyPauseEdge(room, att.playerId, ahMallet, pauseHeld);
+            }
+            const dbPlayer = room.dodgeballPlayers.get(att.playerId);
+            if (dbPlayer && (room.phase === "dodgeball" || room.phase === "dodgeball_paused")) {
+                const pauseHeld = (inp.buttons & Btn.Pause) !== 0;
+                handleDodgeballPauseEdge(room, att.playerId, dbPlayer, pauseHeld);
             }
             return;
         }

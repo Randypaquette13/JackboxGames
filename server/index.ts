@@ -8,6 +8,7 @@ import { TICK_DT } from "../src/shared/constants.js";
 import { parseClientIntent, type ControllerStateJson } from "../src/shared/messages.js";
 import { pickPlayerHue } from "../src/shared/playerColors.js";
 import { resolveFootballMaxPlayerSpeed } from "../src/shared/footballGameSettings.js";
+import { resolveDodgeballMaxPlayerSpeed } from "../src/shared/dodgeballGameSettings.js";
 import { resolveAirHockeyMaxPlayerSpeed } from "../src/shared/airHockeyGameSettings.js";
 import { packedAxisToVelocity } from "../src/shared/footballPackedInput.js";
 import {
@@ -30,6 +31,7 @@ import {
   handleBombermanPauseEdge,
   handlePacmanPauseEdge,
   handleFootballPauseEdge,
+  handleDodgeballPauseEdge,
   handleFroggerPauseEdge,
   handleKartPauseEdge,
   handleRaceWalkPauseEdge,
@@ -146,6 +148,7 @@ function buildPrejoinState(room: Room): ControllerStateJson {
     frogger: null,
     football: null,
     airHockey: null,
+    dodgeball: null,
     bomberman: null,
     pacman: null,
   };
@@ -212,6 +215,15 @@ function removePlayerFromRoom(room: Room, playerId: number): void {
   if (room.footballBall.carrierId === playerId) {
     room.footballBall.carrierId = null;
   }
+  room.dodgeballTeamPick.delete(playerId);
+  room.dodgeballTeamAssignment.delete(playerId);
+  room.dodgeballPlayers.delete(playerId);
+  for (const ball of room.dodgeballBalls) {
+    if (ball.carrierId === playerId) ball.carrierId = null;
+    if (ball.thrownByPlayerId === playerId) ball.thrownByPlayerId = null;
+  }
+  room.dodgeballRedElimOrder = room.dodgeballRedElimOrder.filter((id) => id !== playerId);
+  room.dodgeballBlueElimOrder = room.dodgeballBlueElimOrder.filter((id) => id !== playerId);
   for (const runner of room.raceWalkRunners) {
     if (runner.controllerId === playerId) runner.controllerId = null;
   }
@@ -221,6 +233,7 @@ function removePlayerFromRoom(room: Room, playerId: number): void {
   if (room.bombermanPausedByPlayerId === playerId) room.bombermanPausedByPlayerId = null;
   if (room.pacmanPausedByPlayerId === playerId) room.pacmanPausedByPlayerId = null;
   if (room.footballPausedByPlayerId === playerId) room.footballPausedByPlayerId = null;
+  if (room.dodgeballPausedByPlayerId === playerId) room.dodgeballPausedByPlayerId = null;
   onMenuControllerPlayerRemoved(room, playerId);
 }
 
@@ -488,6 +501,9 @@ function handleBinaryMessage(ws: WebSocket, data: Buffer): void {
       } else if (room.phase === "air_hockey" || room.phase === "air_hockey_paused") {
         const { vx, vy } = packedAxisToVelocity(axisU8, resolveAirHockeyMaxPlayerSpeed(room.gameSettings));
         player.input = { h: 0, buttons: inp.buttons, seq: inp.seq, footballVx: vx, footballVy: vy };
+      } else if (room.phase === "dodgeball" || room.phase === "dodgeball_paused") {
+        const { vx, vy } = packedAxisToVelocity(axisU8, resolveDodgeballMaxPlayerSpeed(room.gameSettings));
+        player.input = { h: 0, buttons: inp.buttons, seq: inp.seq, footballVx: vx, footballVy: vy };
       } else {
         player.input = { h: inp.h, buttons: inp.buttons, seq: inp.seq };
       }
@@ -525,6 +541,11 @@ function handleBinaryMessage(ws: WebSocket, data: Buffer): void {
       if (ahMallet && (room.phase === "air_hockey" || room.phase === "air_hockey_paused")) {
         const pauseHeld = (inp.buttons & Btn.Pause) !== 0;
         handleAirHockeyPauseEdge(room, att.playerId, ahMallet, pauseHeld);
+      }
+      const dbPlayer = room.dodgeballPlayers.get(att.playerId);
+      if (dbPlayer && (room.phase === "dodgeball" || room.phase === "dodgeball_paused")) {
+        const pauseHeld = (inp.buttons & Btn.Pause) !== 0;
+        handleDodgeballPauseEdge(room, att.playerId, dbPlayer, pauseHeld);
       }
       return;
     }

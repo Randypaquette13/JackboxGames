@@ -10,6 +10,7 @@
  * Bomberman: WASD or arrows move, Space bomb, P/Esc pause.
  * Football team select: 1 Red / 2 Blue, Enter START. Play: WASD or arrows move, E pass while carrying, P/Esc pause edge.
  * Air Hockey team select: 1 Red / 2 Blue, Enter START. Play: WASD or arrows move, P/Esc pause edge.
+ * Dodgeball team select: 1 Red / 2 Blue, Enter START. Play: WASD or arrows move, E catch/throw, P/Esc pause edge.
  */
 import type { ClientIntent, GamePhase } from "@shared/messages";
 import {
@@ -97,6 +98,16 @@ function devHintForScreen(ph: GamePhase, snap: DevHostSnapshot): string {
     case "air_hockey_paused":
       return "Enter: resume · Esc: to menu · Tab: target player";
     case "air_hockey_results":
+      return "↑↓: navigate · Enter: confirm · Tab: target player";
+    case "dodgeball_team_select":
+      return "1 Red · 2 Blue · Enter START (2+ players) · Tab: target";
+    case "dodgeball_summary":
+      return "Watch TV — center rush soon · Tab: target player";
+    case "dodgeball":
+      return "WASD or arrows: move · E: catch / throw · P/Esc: pause · Tab: target player";
+    case "dodgeball_paused":
+      return "Enter: resume · Esc: to menu · Tab: target player";
+    case "dodgeball_results":
       return "↑↓: navigate · Enter: confirm · Tab: target player";
     default:
       return `${String(ph)} · Tab: target`;
@@ -299,7 +310,8 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
             ph === "bomberman_results" ||
             ph === "pacman_results" ||
             ph === "football_results" ||
-            ph === "air_hockey_results")
+            ph === "air_hockey_results" ||
+            ph === "dodgeball_results")
         ) {
           if (e.code === "ArrowUp") {
             e.preventDefault();
@@ -391,6 +403,14 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
           }, 100);
           return;
         }
+        if (ph === "dodgeball" && (e.code === "KeyP" || e.code === "Escape")) {
+          e.preventDefault();
+          keys.pause = true;
+          setTimeout(() => {
+            keys.pause = false;
+          }, 100);
+          return;
+        }
         if (ph === "football_team_select" && !snap.settingsOpen) {
           if (e.code === "Digit1" || e.code === "Numpad1") {
             e.preventDefault();
@@ -425,6 +445,23 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
             return;
           }
         }
+        if (ph === "dodgeball_team_select" && !snap.settingsOpen) {
+          if (e.code === "Digit1" || e.code === "Numpad1") {
+            e.preventDefault();
+            sendIntent(ws, { type: "dodgeball_pick_team", team: "red" });
+            return;
+          }
+          if (e.code === "Digit2" || e.code === "Numpad2") {
+            e.preventDefault();
+            sendIntent(ws, { type: "dodgeball_pick_team", team: "blue" });
+            return;
+          }
+          if (e.code === "Enter") {
+            e.preventDefault();
+            sendIntent(ws, { type: "dodgeball_start" });
+            return;
+          }
+        }
         if (ph === "kart_paused" || ph === "race_walk_paused" || ph === "frogger_paused" || ph === "bomberman_paused" || ph === "pacman_paused") {
           if (e.code === "Enter") {
             e.preventDefault();
@@ -437,7 +474,7 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
             return;
           }
         }
-        if (ph === "football_paused" || ph === "air_hockey_paused") {
+        if (ph === "football_paused" || ph === "air_hockey_paused" || ph === "dodgeball_paused") {
           if (e.code === "Enter") {
             e.preventDefault();
             sendIntent(ws, { type: "pause_resume" });
@@ -462,8 +499,10 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
         ph === "pacman_results" ||
         ph === "football_results" ||
         ph === "air_hockey_results" ||
+        ph === "dodgeball_results" ||
         ph === "football_team_select" ||
-        ph === "air_hockey_team_select"
+        ph === "air_hockey_team_select" ||
+        ph === "dodgeball_team_select"
       ) {
         return;
       }
@@ -512,7 +551,7 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
         }
       }
 
-      if (ph === "football") {
+      if (ph === "football" || ph === "dodgeball") {
         if (e.code === "KeyE") {
           e.preventDefault();
           keys.footPass = true;
@@ -523,7 +562,7 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
         }
       }
 
-      if (ph === "football" || ph === "air_hockey") {
+      if (ph === "football" || ph === "air_hockey" || ph === "dodgeball") {
         if (e.code === "KeyW" || e.code === "ArrowUp") {
           e.preventDefault();
           keys.footUp = true;
@@ -556,7 +595,9 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
         ph !== "football" &&
         ph !== "football_paused" &&
         ph !== "air_hockey" &&
-        ph !== "air_hockey_paused"
+        ph !== "air_hockey_paused" &&
+        ph !== "dodgeball" &&
+        ph !== "dodgeball_paused"
       ) {
         if (
           ["ArrowLeft", "ArrowRight", "ArrowUp", "Space", "KeyA", "KeyD", "KeyW", "KeyP", "KeyB"].includes(e.code)
@@ -820,6 +861,9 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
         ph === "air_hockey_team_select" ||
         ph === "air_hockey_summary" ||
         ph === "air_hockey_results" ||
+        ph === "dodgeball_team_select" ||
+        ph === "dodgeball_summary" ||
+        ph === "dodgeball_results" ||
         ph === "kart_paused" ||
         ph === "race_walk_paused" ||
         ph === "frogger_paused" ||
@@ -833,19 +877,27 @@ export function initDevKeyboardControllers(roomId: string, url: string, host: De
       if (ph === "football") {
         const { x, y } = footballStickVector(forActive);
         const packed = joystickToPackedFootballAxis(x, y);
-        let buttons = keys.pause ? Btn.Pause : 0;
-        if (keys.footPass) buttons |= Btn.Pass;
+        let buttons = forActive && keys.pause ? Btn.Pause : 0;
+        if (forActive && keys.footPass) buttons |= Btn.Pass;
         slot.ws.send(encodeFootballAxis(slot.seq, packed, buttons));
         continue;
       }
       if (ph === "air_hockey") {
         const { x, y } = footballStickVector(forActive);
         const packed = joystickToPackedFootballAxis(x, y);
-        const buttons = keys.pause ? Btn.Pause : 0;
+        const buttons = forActive && keys.pause ? Btn.Pause : 0;
         slot.ws.send(encodeFootballAxis(slot.seq, packed, buttons));
         continue;
       }
-      if (ph === "football_paused" || ph === "air_hockey_paused") {
+      if (ph === "dodgeball") {
+        const { x, y } = footballStickVector(forActive);
+        const packed = joystickToPackedFootballAxis(x, y);
+        let buttons = forActive && keys.pause ? Btn.Pause : 0;
+        if (forActive && keys.footPass) buttons |= Btn.Pass;
+        slot.ws.send(encodeFootballAxis(slot.seq, packed, buttons));
+        continue;
+      }
+      if (ph === "football_paused" || ph === "air_hockey_paused" || ph === "dodgeball_paused") {
         slot.ws.send(encodeFootballAxis(slot.seq, joystickToPackedFootballAxis(0, 0), 0));
         continue;
       }

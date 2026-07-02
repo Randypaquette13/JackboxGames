@@ -70,6 +70,22 @@ export const MINIGAME_HELP = {
             "Pause — Pause on the TVs for everyone",
         ],
     },
+    dodgeball: {
+        rules: [
+            "Pick Red or Blue, then START when everyone is ready. Unpicked players are auto-balanced.",
+            "Stay on your own half of the court — you cannot cross the center line.",
+            "Six balls start at midfield. Grab loose balls by walking into them or press Catch to root briefly and snag one on contact.",
+            "While holding a ball, Throw sends it along your movement direction. The ball glows your team color for a short window.",
+            "During that live window, a hit on an opponent eliminates them. If they Catch your live throw, you are out, one of their eliminated teammates returns (first out, first back), and they take the ball.",
+            "Eliminate every player on the other team to win the round. First team to the rounds-to-win total takes the match.",
+        ],
+        controls: [
+            "Joystick — Move on your half (walk / run / sprint push)",
+            "Catch — When empty-handed, root briefly to grab a ball on contact",
+            "Throw — While holding a ball, hurl it along your move direction",
+            "Pause — Pause on the TVs for everyone",
+        ],
+    },
     bomberman: {
         rules: [
             "Move on a grid and place bombs to blast rivals and break soft blocks.",

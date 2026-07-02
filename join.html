@@ -194,6 +194,50 @@
       </div>
     </div>
 
+    <div id="panel-dodgeball-teams" class="panel football-teams-panel" hidden>
+      <div class="panel-top-bar">
+        <button type="button" id="db-team-back" class="secondary panel-back-btn">Back</button>
+      </div>
+      <p id="db-team-top" class="hint">Dodgeball — pick your team</p>
+      <p id="db-team-sub" class="subhint football-team-sub"></p>
+      <div class="football-team-btns">
+        <button type="button" id="db-team-red" class="football-team-btn football-team-red" data-team="red">
+          RED
+        </button>
+        <button type="button" id="db-team-blue" class="football-team-btn football-team-blue" data-team="blue">
+          BLUE
+        </button>
+      </div>
+      <button type="button" id="db-start-game" class="primary football-start-btn">START GAME</button>
+      <p id="db-start-hint" class="subhint football-start-hint"></p>
+    </div>
+
+    <div id="panel-dodgeball" class="panel football-play-panel" hidden>
+      <div class="football-play-main">
+        <div class="football-play-col football-play-col-stick">
+          <div id="db-joystick" class="vj-base" aria-label="Movement">
+            <div id="db-knob" class="vj-knob"></div>
+          </div>
+          <p class="vj-legend football-play-vj-legend">
+            <span class="vj-leg"><span class="vj-dot vj-dot-dead"></span> stop</span>
+            <span class="vj-leg"><span class="vj-dot vj-dot-walk"></span> slow</span>
+            <span class="vj-leg"><span class="vj-dot vj-dot-run"></span> fast</span>
+            <span class="vj-leg"><span class="vj-dot vj-dot-full"></span> full</span>
+          </p>
+        </div>
+        <div class="football-play-col football-play-col-mid">
+          <button type="button" id="db-pause" class="secondary small-pause football-play-pause">Pause</button>
+          <p class="hint football-play-hint">
+            Dodgeball — stay on your half. Catch or throw with the action button.
+          </p>
+          <p id="db-play-hud" class="subhint football-play-hud"></p>
+        </div>
+        <div class="football-play-col football-play-col-pass">
+          <button type="button" id="db-action" class="secondary football-pass-btn">Catch</button>
+        </div>
+      </div>
+    </div>
+
     <div id="panel-frogger" class="panel" hidden>
       <button type="button" id="fg-pause" class="secondary small-pause">Pause</button>
       <div id="fg-death-banner" class="frogger-death-banner" hidden>
@@ -358,6 +402,46 @@
                 <span id="set-air-hockey-speed-val" class="settings-val"></span>
               </div>
               <input type="range" id="set-air-hockey-speed" />
+            </div>
+          </div>
+        </section>
+        <section class="settings-section settings-section-dodgeball">
+          <h2 class="settings-section-title">🎯 Dodgeball</h2>
+          <div class="settings-card">
+            <div class="settings-row">
+              <div class="settings-row-head">
+                <label for="set-dodgeball-rounds">Rounds to win</label>
+                <span id="set-dodgeball-rounds-val" class="settings-val"></span>
+              </div>
+              <input type="range" id="set-dodgeball-rounds" />
+            </div>
+            <div class="settings-row">
+              <div class="settings-row-head">
+                <label for="set-dodgeball-speed">Move speed</label>
+                <span id="set-dodgeball-speed-val" class="settings-val"></span>
+              </div>
+              <input type="range" id="set-dodgeball-speed" />
+            </div>
+            <div class="settings-row">
+              <div class="settings-row-head">
+                <label for="set-dodgeball-throw-speed">Throw speed</label>
+                <span id="set-dodgeball-throw-speed-val" class="settings-val"></span>
+              </div>
+              <input type="range" id="set-dodgeball-throw-speed" />
+            </div>
+            <div class="settings-row">
+              <div class="settings-row-head">
+                <label for="set-dodgeball-homing">Throw homing (1/sec)</label>
+                <span id="set-dodgeball-homing-val" class="settings-val"></span>
+              </div>
+              <input type="range" id="set-dodgeball-homing" />
+            </div>
+            <div class="settings-row">
+              <div class="settings-row-head">
+                <label for="set-dodgeball-release-aim">Release aim (%)</label>
+                <span id="set-dodgeball-release-aim-val" class="settings-val"></span>
+              </div>
+              <input type="range" id="set-dodgeball-release-aim" />
             </div>
           </div>
         </section>

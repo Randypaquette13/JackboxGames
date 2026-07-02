@@ -22,6 +22,14 @@ import {
   resolveFootballTdToWin,
 } from "../src/shared/footballGameSettings.js";
 import {
+  clampDodgeballMaxPlayerSpeed,
+  clampDodgeballRoundsToWin,
+  clampDodgeballThrowHomingRate,
+  clampDodgeballThrowReleaseAim,
+  clampDodgeballThrowSpeed,
+  resolveDodgeballRoundsToWin,
+} from "../src/shared/dodgeballGameSettings.js";
+import {
   clampAirHockeyGoalsToWin,
   clampAirHockeyMaxPlayerSpeed,
   clampAirHockeyPeriodSec,
@@ -128,6 +136,15 @@ import {
   type AirHockeyMallet,
 } from "./airHockeyRoom.js";
 import {
+  bootstrapDodgeballFromMenu,
+  buildDodgeballHostJson,
+  clearDodgeballState,
+  dodgeballTryStart,
+  tickDodgeballPlay,
+  tickDodgeballSummary,
+  type DodgeballPlayer,
+} from "./dodgeballRoom.js";
+import {
   bootstrapBombermanFromMenu,
   buildBombermanHostJson,
   clearBombermanState,
@@ -149,6 +166,7 @@ import {
 
 export { handleFootballPauseEdge } from "./footballRoom.js";
 export { handleAirHockeyPauseEdge } from "./airHockeyRoom.js";
+export { handleDodgeballPauseEdge } from "./dodgeballRoom.js";
 export { handleBombermanPauseEdge } from "./bombermanRoom.js";
 export { handlePacmanPauseEdge } from "./pacmanRoom.js";
 
@@ -347,6 +365,19 @@ export type Room = {
   airHockeyWinner: AirHockeyTeam | "tie" | null;
   /** Mallet strikes this rally; ramps velocity transfer until a goal resets it. */
   airHockeyVelocityTransferHits: number;
+  dodgeballTeamPick: Map<number, import("../src/shared/messages.js").DodgeballTeam>;
+  dodgeballTeamAssignment: Map<number, import("../src/shared/messages.js").DodgeballTeam>;
+  dodgeballPlayers: Map<number, DodgeballPlayer>;
+  dodgeballBalls: import("./dodgeballRoom.js").DodgeballBall[];
+  dodgeballNextBallId: number;
+  dodgeballRedScore: number;
+  dodgeballBlueScore: number;
+  dodgeballRedElimOrder: number[];
+  dodgeballBlueElimOrder: number[];
+  dodgeballSummaryEndTick: number | null;
+  dodgeballKickoffCountdown: number | null;
+  dodgeballPausedByPlayerId: number | null;
+  dodgeballWinner: import("../src/shared/messages.js").DodgeballTeam | "tie" | null;
   bombermanCountdown: number | null;
   bombermanCells: BombermanCellKind[][];
   bombermanPlayers: Map<number, BombermanPlayerSim>;
@@ -449,6 +480,19 @@ export function createRoom(host: WebSocket, platforms: Platform[]): Room {
     airHockeyPausedByPlayerId: null,
     airHockeyWinner: null,
     airHockeyVelocityTransferHits: 0,
+    dodgeballTeamPick: new Map(),
+    dodgeballTeamAssignment: new Map(),
+    dodgeballPlayers: new Map(),
+    dodgeballBalls: [],
+    dodgeballNextBallId: 1,
+    dodgeballRedScore: 0,
+    dodgeballBlueScore: 0,
+    dodgeballRedElimOrder: [],
+    dodgeballBlueElimOrder: [],
+    dodgeballSummaryEndTick: null,
+    dodgeballKickoffCountdown: null,
+    dodgeballPausedByPlayerId: null,
+    dodgeballWinner: null,
     bombermanCountdown: null,
     bombermanCells: [],
     bombermanPlayers: new Map(),
@@ -1347,6 +1391,7 @@ export function buildHostState(
     frogger: buildFroggerHostJson(room),
     football: buildFootballHostJson(room),
     airHockey: buildAirHockeyHostJson(room),
+    dodgeball: buildDodgeballHostJson(room),
     bomberman: buildBombermanHostJson(room),
     pacman: buildPacmanHostJson(room),
   };
@@ -1457,6 +1502,48 @@ export function buildControllerState(room: Room, playerId: number): ControllerSt
         }
       : null;
 
+  const canDodgeballStart = nPlayers >= 2;
+  const dbTeamMapForUi =
+    room.phase === "dodgeball_team_select"
+      ? room.dodgeballTeamPick
+      : room.dodgeballTeamAssignment;
+  const dbPlayer = room.dodgeballPlayers.get(playerId);
+  let dbHoldingBall = false;
+  for (const ball of room.dodgeballBalls) {
+    if (ball.carrierId === playerId) {
+      dbHoldingBall = true;
+      break;
+    }
+  }
+  const dodgeballHud =
+    room.phase === "dodgeball_team_select" ||
+    room.phase === "dodgeball_summary" ||
+    room.phase === "dodgeball" ||
+    room.phase === "dodgeball_paused" ||
+    room.phase === "dodgeball_results"
+      ? {
+          teamSelect: room.phase === "dodgeball_team_select",
+          myTeam: (dbTeamMapForUi.get(playerId) ?? room.dodgeballTeamPick.get(playerId)) ?? null,
+          redIds: [...dbTeamMapForUi.entries()]
+            .filter(([, t]) => t === "red")
+            .map(([id]) => id)
+            .sort((a, b) => a - b),
+          blueIds: [...dbTeamMapForUi.entries()]
+            .filter(([, t]) => t === "blue")
+            .map(([id]) => id)
+            .sort((a, b) => a - b),
+          canStart: canDodgeballStart && room.phase === "dodgeball_team_select",
+          isStarter: room.phase === "dodgeball_team_select" && canDodgeballStart,
+          redScore: room.dodgeballRedScore,
+          blueScore: room.dodgeballBlueScore,
+          roundsToWin: resolveDodgeballRoundsToWin(room.gameSettings),
+          holdingBall: dbHoldingBall,
+          isOut: dbPlayer ? !dbPlayer.alive : false,
+          seriesWins: Object.fromEntries(room.seriesWins),
+          paused: room.phase === "dodgeball_paused",
+        }
+      : null;
+
   const bm = room.bombermanPlayers.get(playerId);
   const bmNotice = room.bombermanDeathNotices.get(playerId);
   const bombermanHud =
@@ -1523,6 +1610,7 @@ export function buildControllerState(room: Room, playerId: number): ControllerSt
     frogger: froggerHud,
     football: footballHud,
     airHockey: airHockeyHud,
+    dodgeball: dodgeballHud,
     bomberman: bombermanHud,
     pacman: pacmanHud,
   };
@@ -1577,6 +1665,7 @@ export function startBombermanFromMenu(room: Room): void {
   clearFroggerState(room);
   clearFootballState(room);
   clearAirHockeyState(room);
+  clearDodgeballState(room);
   clearPacmanState(room);
   room.kartCars.clear();
   room.kartWinnerId = null;
@@ -1594,12 +1683,14 @@ export function startKartFromMenu(room: Room): void {
   clearFroggerState(room);
   clearFootballState(room);
   clearAirHockeyState(room);
+  clearDodgeballState(room);
   clearBombermanState(room);
   clearPacmanState(room);
   resetKartRace(room);
 }
 
 export function startFootballFromMenu(room: Room): void {
+  clearDodgeballState(room);
   clearBombermanState(room);
   clearPacmanState(room);
   bootstrapFootballFromMenu(room);
@@ -1614,9 +1705,25 @@ export function startAirHockeyFromMenu(room: Room): void {
   clearRaceWalkState(room);
   clearFroggerState(room);
   clearFootballState(room);
+  clearDodgeballState(room);
   clearBombermanState(room);
   clearPacmanState(room);
   bootstrapAirHockeyFromMenu(room);
+}
+
+export function startDodgeballFromMenu(room: Room): void {
+  room.kartCars.clear();
+  room.kartWinnerId = null;
+  room.kartCountdown = null;
+  room.kartPaused = false;
+  room.kartPausedByPlayerId = null;
+  clearRaceWalkState(room);
+  clearFroggerState(room);
+  clearFootballState(room);
+  clearAirHockeyState(room);
+  clearBombermanState(room);
+  clearPacmanState(room);
+  bootstrapDodgeballFromMenu(room);
 }
 
 export function ensureKartCar(room: Room, playerId: number): void {
@@ -1709,6 +1816,20 @@ export function tickSimulation(room: Room, dt: number): void {
   }
   if (room.phase === "air_hockey") {
     tickAirHockeyPlay(room, dt);
+    return;
+  }
+  if (room.phase === "dodgeball_team_select" || room.phase === "dodgeball_results") {
+    return;
+  }
+  if (room.phase === "dodgeball_summary") {
+    tickDodgeballSummary(room);
+    return;
+  }
+  if (room.phase === "dodgeball_paused") {
+    return;
+  }
+  if (room.phase === "dodgeball") {
+    tickDodgeballPlay(room, dt);
     return;
   }
   if (room.phase === "bomberman_results") {
@@ -1947,6 +2068,7 @@ function goToMinigameMenu(room: Room): void {
   room.menuControllerId = null;
   clearFootballState(room);
   clearAirHockeyState(room);
+  clearDodgeballState(room);
   clearBombermanState(room);
   clearPacmanState(room);
 }
@@ -1958,6 +2080,7 @@ function isResultsPhase(phase: Room["phase"]): boolean {
     phase === "frogger_results" ||
     phase === "football_results" ||
     phase === "air_hockey_results" ||
+    phase === "dodgeball_results" ||
     phase === "bomberman_results" ||
     phase === "pacman_results"
   );
@@ -2013,6 +2136,7 @@ export function applyIntent(room: Room, _playerId: number, intent: ClientIntent)
     intent.type === "frogger_results" ||
     intent.type === "football_results" ||
     intent.type === "air_hockey_results" ||
+    intent.type === "dodgeball_results" ||
     intent.type === "bomberman_results" ||
     intent.type === "pacman_results"
   ) {
@@ -2035,6 +2159,7 @@ export function applyIntent(room: Room, _playerId: number, intent: ClientIntent)
         room.phase === "frogger_results" ||
         room.phase === "football_results" ||
         room.phase === "air_hockey_results" ||
+        room.phase === "dodgeball_results" ||
         room.phase === "bomberman_results" ||
         room.phase === "pacman_results"
       ) {
@@ -2187,6 +2312,27 @@ export function applyIntent(room: Room, _playerId: number, intent: ClientIntent)
         }
         break;
       }
+      if (room.phase === "dodgeball_results") {
+        const actions = ["play_again", "minigame_menu", "add_controllers"] as const;
+        const action = actions[room.menuIndex % 3];
+        if (action === "play_again") {
+          clearMenuController(room);
+          startDodgeballFromMenu(room);
+        } else if (action === "minigame_menu") {
+          goToMinigameMenu(room);
+          room.stubId = null;
+          clearDodgeballState(room);
+          room.showQr = false;
+        } else {
+          clearMenuController(room);
+          room.phase = "lobby";
+          room.menuIndex = 0;
+          room.stubId = null;
+          clearDodgeballState(room);
+          room.showQr = true;
+        }
+        break;
+      }
       if (room.phase === "bomberman_results") {
         const actions = ["play_again", "minigame_menu", "add_controllers"] as const;
         const action = actions[room.menuIndex % 3];
@@ -2243,6 +2389,7 @@ export function applyIntent(room: Room, _playerId: number, intent: ClientIntent)
         else if (id === "frogger") startFroggerFromMenu(room);
         else if (id === "football") startFootballFromMenu(room);
         else if (id === "air_hockey") startAirHockeyFromMenu(room);
+        else if (id === "dodgeball") startDodgeballFromMenu(room);
         else if (id === "bomberman") startBombermanFromMenu(room);
         else if (id === "pacman") startPacmanFromMenu(room);
         else {
@@ -2273,12 +2420,24 @@ export function applyIntent(room: Room, _playerId: number, intent: ClientIntent)
         airHockeyTryStart(room);
       }
       break;
+    case "dodgeball_pick_team":
+      if (room.phase === "dodgeball_team_select") {
+        room.dodgeballTeamPick.set(_playerId, intent.team);
+      }
+      break;
+    case "dodgeball_start":
+      if (room.phase === "dodgeball_team_select") {
+        dodgeballTryStart(room);
+      }
+      break;
     case "team_select_back":
       if (
         room.phase === "football_team_select" ||
         room.phase === "football_summary" ||
         room.phase === "air_hockey_team_select" ||
-        room.phase === "air_hockey_summary"
+        room.phase === "air_hockey_summary" ||
+        room.phase === "dodgeball_team_select" ||
+        room.phase === "dodgeball_summary"
       ) {
         goToMinigameMenu(room);
         room.stubId = null;
@@ -2301,6 +2460,7 @@ export function applyIntent(room: Room, _playerId: number, intent: ClientIntent)
         clearFroggerState(room);
         clearFootballState(room);
         clearAirHockeyState(room);
+        clearDodgeballState(room);
         clearBombermanState(room);
         clearPacmanState(room);
         room.showQr = true;
@@ -2357,6 +2517,36 @@ export function applyIntent(room: Room, _playerId: number, intent: ClientIntent)
         const v = p.airHockeyMaxPlayerSpeed;
         if (typeof v === "number" && Number.isFinite(v)) {
           room.gameSettings.airHockeyMaxPlayerSpeed = clampAirHockeyMaxPlayerSpeed(v);
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(p, "dodgeballRoundsToWin")) {
+        const v = p.dodgeballRoundsToWin;
+        if (typeof v === "number" && Number.isFinite(v)) {
+          room.gameSettings.dodgeballRoundsToWin = clampDodgeballRoundsToWin(v);
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(p, "dodgeballMaxPlayerSpeed")) {
+        const v = p.dodgeballMaxPlayerSpeed;
+        if (typeof v === "number" && Number.isFinite(v)) {
+          room.gameSettings.dodgeballMaxPlayerSpeed = clampDodgeballMaxPlayerSpeed(v);
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(p, "dodgeballThrowSpeed")) {
+        const v = p.dodgeballThrowSpeed;
+        if (typeof v === "number" && Number.isFinite(v)) {
+          room.gameSettings.dodgeballThrowSpeed = clampDodgeballThrowSpeed(v);
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(p, "dodgeballThrowHomingRate")) {
+        const v = p.dodgeballThrowHomingRate;
+        if (typeof v === "number" && Number.isFinite(v)) {
+          room.gameSettings.dodgeballThrowHomingRate = clampDodgeballThrowHomingRate(v);
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(p, "dodgeballThrowReleaseAim")) {
+        const v = p.dodgeballThrowReleaseAim;
+        if (typeof v === "number" && Number.isFinite(v)) {
+          room.gameSettings.dodgeballThrowReleaseAim = clampDodgeballThrowReleaseAim(v);
         }
       }
       if (Object.prototype.hasOwnProperty.call(p, "pacmanLivesPerPlayer")) {
@@ -2480,6 +2670,25 @@ export function applyIntent(room: Room, _playerId: number, intent: ClientIntent)
         room.showQr = true;
       }
       break;
+    case "dodgeball_results":
+      if (room.phase !== "dodgeball_results") break;
+      if (intent.action === "play_again") {
+        clearMenuController(room);
+        startDodgeballFromMenu(room);
+      } else if (intent.action === "minigame_menu") {
+        goToMinigameMenu(room);
+        room.stubId = null;
+        clearDodgeballState(room);
+        room.showQr = false;
+      } else if (intent.action === "add_controllers") {
+        clearMenuController(room);
+        room.phase = "lobby";
+        room.menuIndex = 0;
+        room.stubId = null;
+        clearDodgeballState(room);
+        room.showQr = true;
+      }
+      break;
     case "bomberman_results":
       if (room.phase !== "bomberman_results") break;
       if (intent.action === "play_again") {
@@ -2532,6 +2741,13 @@ export function applyIntent(room: Room, _playerId: number, intent: ClientIntent)
         for (const m of room.airHockeyMallets.values()) {
           m.prevPauseHeld = false;
         }
+      } else if (room.phase === "dodgeball_paused") {
+        room.phase = "dodgeball";
+        room.dodgeballPausedByPlayerId = null;
+        for (const p of room.dodgeballPlayers.values()) {
+          p.prevPauseHeld = false;
+          p.prevPassHeld = false;
+        }
       } else if (room.phase === "bomberman_paused") {
         room.phase = "bomberman";
         room.bombermanPausedByPlayerId = null;
@@ -2574,6 +2790,11 @@ export function applyIntent(room: Room, _playerId: number, intent: ClientIntent)
         goToMinigameMenu(room);
         room.stubId = null;
         clearAirHockeyState(room);
+        room.showQr = false;
+      } else if (room.phase === "dodgeball" || room.phase === "dodgeball_paused") {
+        goToMinigameMenu(room);
+        room.stubId = null;
+        clearDodgeballState(room);
         room.showQr = false;
       } else if (room.phase === "bomberman" || room.phase === "bomberman_paused") {
         goToMinigameMenu(room);
