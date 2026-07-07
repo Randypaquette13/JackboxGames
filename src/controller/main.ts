@@ -421,6 +421,7 @@ if (!roomId) {
   let forcedControllerPhase: ControllerStateJson["phase"] | null = null;
   /** Ignore RED/BLUE taps briefly after menu→team UI swap (avoids confirm release “click” hitting a team). */
   let footballTeamPickLockUntil = 0;
+  let airHockeyTeamPickLockUntil = 0;
   let dodgeballTeamPickLockUntil = 0;
   let prevWsPhase: ControllerStateJson["phase"] | null = null;
   let prejoinMode: "resume" | "create" = "resume";
