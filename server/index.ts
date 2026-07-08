@@ -32,6 +32,7 @@ import {
   handlePacmanPauseEdge,
   handleFootballPauseEdge,
   handleDodgeballPauseEdge,
+  handleTanksPauseEdge,
   handleFroggerPauseEdge,
   handleKartPauseEdge,
   handleRaceWalkPauseEdge,
@@ -149,6 +150,7 @@ function buildPrejoinState(room: Room): ControllerStateJson {
     football: null,
     airHockey: null,
     dodgeball: null,
+    tanks: null,
     bomberman: null,
     pacman: null,
   };
@@ -234,6 +236,7 @@ function removePlayerFromRoom(room: Room, playerId: number): void {
   if (room.pacmanPausedByPlayerId === playerId) room.pacmanPausedByPlayerId = null;
   if (room.footballPausedByPlayerId === playerId) room.footballPausedByPlayerId = null;
   if (room.dodgeballPausedByPlayerId === playerId) room.dodgeballPausedByPlayerId = null;
+  if (room.tanksPausedByPlayerId === playerId) room.tanksPausedByPlayerId = null;
   onMenuControllerPlayerRemoved(room, playerId);
 }
 
@@ -504,6 +507,8 @@ function handleBinaryMessage(ws: WebSocket, data: Buffer): void {
       } else if (room.phase === "dodgeball" || room.phase === "dodgeball_paused") {
         const { vx, vy } = packedAxisToVelocity(axisU8, resolveDodgeballMaxPlayerSpeed(room.gameSettings));
         player.input = { h: 0, buttons: inp.buttons, seq: inp.seq, footballVx: vx, footballVy: vy };
+      } else if (room.phase === "tanks" || room.phase === "tanks_paused") {
+        player.input = { h: inp.h, buttons: inp.buttons, seq: inp.seq };
       } else {
         player.input = { h: inp.h, buttons: inp.buttons, seq: inp.seq };
       }
@@ -546,6 +551,11 @@ function handleBinaryMessage(ws: WebSocket, data: Buffer): void {
       if (dbPlayer && (room.phase === "dodgeball" || room.phase === "dodgeball_paused")) {
         const pauseHeld = (inp.buttons & Btn.Pause) !== 0;
         handleDodgeballPauseEdge(room, att.playerId, dbPlayer, pauseHeld);
+      }
+      const tkPlayer = room.tanksPlayers.get(att.playerId);
+      if (tkPlayer && (room.phase === "tanks" || room.phase === "tanks_paused")) {
+        const pauseHeld = (inp.buttons & Btn.Pause) !== 0;
+        handleTanksPauseEdge(room, att.playerId, tkPlayer, pauseHeld);
       }
       return;
     }

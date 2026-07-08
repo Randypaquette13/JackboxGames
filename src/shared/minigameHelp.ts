@@ -93,6 +93,21 @@ export const MINIGAME_HELP: Record<MinigameId, MinigameHelpCopy> = {
       "Pause — Pause on the TVs for everyone",
     ],
   },
+  tanks: {
+    rules: [
+      "Pick Red or Blue, then START when everyone is ready. Unpicked players are auto-balanced.",
+      "Each player gets a stationary tank on their team's side of the battlefield — Red on the left, Blue on the right.",
+      "Take turns adjusting angle and power, then fire arcing shells at the other team.",
+      "Direct hits and splash damage destroy tanks. Eliminate every tank on the other team to win the round.",
+      "First team to the rounds-to-win total takes the match (set in Game settings on your phone).",
+    ],
+    controls: [
+      "Angle ▲ / ▼ — Raise or lower barrel angle on your turn",
+      "Power + / − — Increase or decrease shot power on your turn",
+      "Fire — Launch your shell when you're happy with the aim",
+      "Pause — Pause on the TVs for everyone",
+    ],
+  },
   bomberman: {
     rules: [
       "Move on a grid and place bombs to blast rivals and break soft blocks.",

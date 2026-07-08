@@ -21,6 +21,7 @@ import { drawRaceWalk } from "./renderRaceWalk";
 import { drawFootball } from "./renderFootball";
 import { drawAirHockey } from "./renderAirHockey";
 import { drawDodgeball } from "./renderDodgeball";
+import { drawTanks } from "./renderTanks";
 import { drawBomberman } from "./renderBomberman";
 import { drawPacman } from "./renderPacman";
 
@@ -79,6 +80,7 @@ function isMinigamePausedPhase(phase: GamePhase): boolean {
     phase === "football_paused" ||
     phase === "air_hockey_paused" ||
     phase === "dodgeball_paused" ||
+    phase === "tanks_paused" ||
     phase === "bomberman_paused" ||
     phase === "pacman_paused"
   );
@@ -325,6 +327,8 @@ function drawResultsMenu(w: number, h: number): void {
     title = "Air Hockey finished — choose on controller:";
   } else if (hostState.phase === "dodgeball_results" && hostState.dodgeball) {
     title = "Dodgeball finished — choose on controller:";
+  } else if (hostState.phase === "tanks_results" && hostState.tanks) {
+    title = "Tank Battle finished — choose on controller:";
   } else if (hostState.phase === "bomberman_results" && hostState.bomberman) {
     title = "Bomberman finished — choose on controller:";
   } else if (hostState.phase === "pacman_results" && hostState.pacman) {
@@ -424,6 +428,15 @@ function draw(): void {
     phase === "dodgeball_results"
   ) {
     if (hostState) drawDodgeball(ctx, hostState, w, h, scale, ox, oy);
+    drawResultsMenu(w, h);
+  } else if (
+    phase === "tanks_team_select" ||
+    phase === "tanks_summary" ||
+    phase === "tanks" ||
+    phase === "tanks_paused" ||
+    phase === "tanks_results"
+  ) {
+    if (hostState) drawTanks(ctx, hostState, w, h, scale, ox, oy);
     drawResultsMenu(w, h);
   } else if (phase === "bomberman" || phase === "bomberman_paused" || phase === "bomberman_results") {
     if (hostState) drawBomberman(ctx, hostState, w, h, scale, ox, oy);

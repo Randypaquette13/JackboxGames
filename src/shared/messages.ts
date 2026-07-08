@@ -50,6 +50,11 @@ export type GamePhase =
   | "dodgeball"
   | "dodgeball_paused"
   | "dodgeball_results"
+  | "tanks_team_select"
+  | "tanks_summary"
+  | "tanks"
+  | "tanks_paused"
+  | "tanks_results"
   | "bomberman"
   | "bomberman_paused"
   | "bomberman_results"
@@ -57,13 +62,14 @@ export type GamePhase =
   | "pacman_paused"
   | "pacman_results";
 
-export const MINIGAME_IDS = ["kart", "race_walk", "frogger", "football", "air_hockey", "dodgeball", "bomberman", "pacman"] as const;
+export const MINIGAME_IDS = ["kart", "race_walk", "frogger", "football", "air_hockey", "dodgeball", "tanks", "bomberman", "pacman"] as const;
 export type MinigameId = (typeof MINIGAME_IDS)[number];
 
 export type FootballTeam = "red" | "blue";
 /** Air hockey reuses the two-team model (red/blue sides). */
 export type AirHockeyTeam = FootballTeam;
 export type DodgeballTeam = FootballTeam;
+export type TanksTeam = FootballTeam;
 
 export const MINIGAME_LABELS: Record<MinigameId, string> = {
   kart: "Kart Racing",
@@ -72,6 +78,7 @@ export const MINIGAME_LABELS: Record<MinigameId, string> = {
   football: "Football",
   air_hockey: "Air Hockey",
   dodgeball: "Dodgeball",
+  tanks: "Tank Battle",
   bomberman: "Bomberman",
   pacman: "Pac-Man",
 };
@@ -84,6 +91,7 @@ export const MINIGAME_META: Record<MinigameId, { icon: string; accent: string }>
   football: { icon: "🏈", accent: "#c87840" },
   air_hockey: { icon: "🏒", accent: "#58a8ff" },
   dodgeball: { icon: "🎯", accent: "#e85858" },
+  tanks: { icon: "🛡️", accent: "#7a9a48" },
   bomberman: { icon: "💣", accent: "#ff8844" },
   pacman: { icon: "👻", accent: "#ffe14a" },
 };
@@ -96,6 +104,7 @@ export const MINIGAME_TAGLINE: Record<MinigameId, string> = {
   football: "Pick a team, carry the ball to the end zone",
   air_hockey: "Slide your mallet and bury the puck",
   dodgeball: "Dodge, catch, and eliminate the other team",
+  tanks: "Pick a team, aim your tank, blast the other side",
   bomberman: "Drop bombs, dodge blasts, be the last alive",
   pacman: "Team up to clear every pellet in the maze",
 };
@@ -204,6 +213,20 @@ export type DodgeballBallHudJson = {
   carrierId: number | null;
 };
 
+export type TanksRosterSlotJson = { playerId: number; name: string; hue: number };
+
+export type TanksPlayerHudJson = {
+  playerId: number;
+  name: string;
+  hue: number;
+  team: TanksTeam;
+  x: number;
+  y: number;
+  alive: boolean;
+  angle: number;
+  power: number;
+};
+
 export type BombermanCellJson = "empty" | "hard" | "soft";
 
 export type BombermanPowerKindJson = "bomb" | "fire" | "speed";
@@ -296,6 +319,9 @@ export type ClientIntent =
   | { type: "dodgeball_pick_team"; team: DodgeballTeam }
   /** At least two players required; unpicked players are auto-balanced onto teams. */
   | { type: "dodgeball_start" }
+  | { type: "tanks_results"; action: "play_again" | "minigame_menu" | "add_controllers" }
+  | { type: "tanks_pick_team"; team: TanksTeam }
+  | { type: "tanks_start" }
   | { type: "pause_resume" }
   | { type: "pause_to_menu" };
 
@@ -462,6 +488,31 @@ export type HostStateJson = {
       midX: number;
     };
   };
+  tanks: null | {
+    red: TanksRosterSlotJson[];
+    blue: TanksRosterSlotJson[];
+    players: TanksPlayerHudJson[];
+    turnPlayerId: number | null;
+    turnSecLeft: number;
+    subPhase: "aim" | "flight" | "explosion";
+    projectile: { x: number; y: number; ownerTeam: TanksTeam } | null;
+    explosion: { x: number; y: number; radius: number } | null;
+    redScore: number;
+    blueScore: number;
+    roundsToWin: number;
+    kickoffCountdown: number | null;
+    paused: boolean;
+    pausedByPlayerId: number | null;
+    seriesWins: Record<number, number>;
+    winner: TanksTeam | "tie" | null;
+    field: {
+      x0: number;
+      x1: number;
+      y0: number;
+      y1: number;
+      midX: number;
+    };
+  };
   bomberman: null | {
     countdown: number | null;
     originX: number;
@@ -598,6 +649,24 @@ export type ControllerStateJson = {
     seriesWins: Record<number, number>;
     paused: boolean;
   };
+  tanks: null | {
+    teamSelect: boolean;
+    myTeam: TanksTeam | null;
+    redIds: number[];
+    blueIds: number[];
+    canStart: boolean;
+    redScore: number;
+    blueScore: number;
+    roundsToWin: number;
+    isMyTurn: boolean;
+    isOut: boolean;
+    myAngle: number;
+    myPower: number;
+    turnSecLeft: number;
+    isStarter: boolean;
+    seriesWins: Record<number, number>;
+    paused: boolean;
+  };
   bomberman: null | {
     alive: boolean;
     deathNotice?: { text: string; untilTick: number };
@@ -717,6 +786,17 @@ export function parseClientIntent(raw: unknown): ClientIntent | null {
     if (tm === "red" || tm === "blue") return { type: "dodgeball_pick_team", team: tm };
   }
   if (t === "dodgeball_start") return { type: "dodgeball_start" };
+  if (t === "tanks_results") {
+    const a = o.action;
+    if (a === "play_again" || a === "minigame_menu" || a === "add_controllers") {
+      return { type: "tanks_results", action: a };
+    }
+  }
+  if (t === "tanks_pick_team") {
+    const tm = o.team;
+    if (tm === "red" || tm === "blue") return { type: "tanks_pick_team", team: tm };
+  }
+  if (t === "tanks_start") return { type: "tanks_start" };
   if (t === "pause_resume") return { type: "pause_resume" };
   if (t === "pause_to_menu") return { type: "pause_to_menu" };
   return null;

@@ -12,7 +12,7 @@ import { resolveDodgeballMaxPlayerSpeed } from "../src/shared/dodgeballGameSetti
 import { resolveAirHockeyMaxPlayerSpeed } from "../src/shared/airHockeyGameSettings.js";
 import { packedAxisToVelocity } from "../src/shared/footballPackedInput.js";
 import { Btn, encodeError, encodePong, encodeWelcome, Op, parseInput, parseJoin, parsePing, } from "../src/shared/protocol.js";
-import { applyIntent, buildControllerState, buildHostState, createRoom, ensureKartCar, handleAirHockeyPauseEdge, handleBombermanPauseEdge, handlePacmanPauseEdge, handleFootballPauseEdge, handleDodgeballPauseEdge, handleFroggerPauseEdge, handleKartPauseEdge, handleRaceWalkPauseEdge, onMenuControllerPlayerRemoved, tickSimulation, } from "./gameRoom.js";
+import { applyIntent, buildControllerState, buildHostState, createRoom, ensureKartCar, handleAirHockeyPauseEdge, handleBombermanPauseEdge, handlePacmanPauseEdge, handleFootballPauseEdge, handleDodgeballPauseEdge, handleTanksPauseEdge, handleFroggerPauseEdge, handleKartPauseEdge, handleRaceWalkPauseEdge, onMenuControllerPlayerRemoved, tickSimulation, } from "./gameRoom.js";
 import { bombermanOnPlayerRemoved } from "./bombermanRoom.js";
 import { pacmanOnPlayerRemoved } from "./pacmanRoom.js";
 import { createPlayer, DEFAULT_PLATFORMS } from "./game.js";
@@ -100,6 +100,7 @@ function buildPrejoinState(room) {
         football: null,
         airHockey: null,
         dodgeball: null,
+        tanks: null,
         bomberman: null,
         pacman: null,
     };
@@ -185,6 +186,8 @@ function removePlayerFromRoom(room, playerId) {
         room.footballPausedByPlayerId = null;
     if (room.dodgeballPausedByPlayerId === playerId)
         room.dodgeballPausedByPlayerId = null;
+    if (room.tanksPausedByPlayerId === playerId)
+        room.tanksPausedByPlayerId = null;
     onMenuControllerPlayerRemoved(room, playerId);
 }
 function destroyRoom(roomId) {
@@ -463,6 +466,9 @@ function handleBinaryMessage(ws, data) {
                 const { vx, vy } = packedAxisToVelocity(axisU8, resolveDodgeballMaxPlayerSpeed(room.gameSettings));
                 player.input = { h: 0, buttons: inp.buttons, seq: inp.seq, footballVx: vx, footballVy: vy };
             }
+            else if (room.phase === "tanks" || room.phase === "tanks_paused") {
+                player.input = { h: inp.h, buttons: inp.buttons, seq: inp.seq };
+            }
             else {
                 player.input = { h: inp.h, buttons: inp.buttons, seq: inp.seq };
             }
@@ -505,6 +511,11 @@ function handleBinaryMessage(ws, data) {
             if (dbPlayer && (room.phase === "dodgeball" || room.phase === "dodgeball_paused")) {
                 const pauseHeld = (inp.buttons & Btn.Pause) !== 0;
                 handleDodgeballPauseEdge(room, att.playerId, dbPlayer, pauseHeld);
+            }
+            const tkPlayer = room.tanksPlayers.get(att.playerId);
+            if (tkPlayer && (room.phase === "tanks" || room.phase === "tanks_paused")) {
+                const pauseHeld = (inp.buttons & Btn.Pause) !== 0;
+                handleTanksPauseEdge(room, att.playerId, tkPlayer, pauseHeld);
             }
             return;
         }

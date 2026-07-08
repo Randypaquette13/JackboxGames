@@ -48,6 +48,14 @@ import {
   resolveDodgeballThrowSpeed,
 } from "@shared/dodgeballGameSettings";
 import {
+  TANKS_GAME_ROUNDS_TO_WIN_MAX,
+  TANKS_GAME_ROUNDS_TO_WIN_MIN,
+  TANKS_GAME_TURN_SEC_MAX,
+  TANKS_GAME_TURN_SEC_MIN,
+  resolveTanksRoundsToWin,
+  resolveTanksTurnSec,
+} from "@shared/tanksGameSettings";
+import {
   PACMAN_GAME_LIVES_MAX,
   PACMAN_GAME_LIVES_MIN,
   resolvePacmanLivesPerPlayer,
@@ -87,6 +95,7 @@ const MINIGAME_SECTION_CLASS: Record<MinigameId, string> = {
   football: "settings-section-football",
   air_hockey: "settings-section-air-hockey",
   dodgeball: "settings-section-dodgeball",
+  tanks: "settings-section-tanks",
   bomberman: "settings-section-bomberman",
   pacman: "settings-section-pacman",
 };
@@ -149,6 +158,8 @@ const panels = {
   airHockey: document.querySelector<HTMLElement>("#panel-air-hockey")!,
   dodgeballTeams: document.querySelector<HTMLElement>("#panel-dodgeball-teams")!,
   dodgeball: document.querySelector<HTMLElement>("#panel-dodgeball")!,
+  tanksTeams: document.querySelector<HTMLElement>("#panel-tanks-teams")!,
+  tanks: document.querySelector<HTMLElement>("#panel-tanks")!,
   kart: document.querySelector<HTMLElement>("#panel-kart")!,
   kartPause: document.querySelector<HTMLElement>("#panel-kart-pause")!,
   results: document.querySelector<HTMLElement>("#panel-results")!,
@@ -218,6 +229,15 @@ const dbPlayHudEl = document.querySelector<HTMLElement>("#db-play-hud")!;
 const dbActionBtn = document.querySelector<HTMLButtonElement>("#db-action")!;
 const dbJoystickEl = document.querySelector<HTMLElement>("#db-joystick")!;
 const dbKnobEl = document.querySelector<HTMLElement>("#db-knob")!;
+
+const tkTeamTopEl = document.querySelector<HTMLElement>("#tk-team-top")!;
+const tkTeamSubEl = document.querySelector<HTMLElement>("#tk-team-sub")!;
+const tkTeamRedBtn = document.querySelector<HTMLButtonElement>("#tk-team-red")!;
+const tkTeamBlueBtn = document.querySelector<HTMLButtonElement>("#tk-team-blue")!;
+const tkStartGameBtn = document.querySelector<HTMLButtonElement>("#tk-start-game")!;
+const tkStartHintEl = document.querySelector<HTMLElement>("#tk-start-hint")!;
+const tkPlayHudEl = document.querySelector<HTMLElement>("#tk-play-hud")!;
+const tkFireBtn = document.querySelector<HTMLButtonElement>("#tk-fire")!;
 
 /** SVG rings aligned to shared speed tiers (same normalization as stick clamp). */
 function injectFootballJoystickZones(base: HTMLElement, knob: HTMLElement): void {
@@ -328,6 +348,18 @@ dbReleaseAimInput.min = String(dbReleaseAimSliderMin);
 dbReleaseAimInput.max = String(dbReleaseAimSliderMax);
 dbReleaseAimInput.step = "5";
 
+const tkRoundsInput = document.querySelector<HTMLInputElement>("#set-tanks-rounds")!;
+const tkRoundsVal = document.querySelector<HTMLElement>("#set-tanks-rounds-val")!;
+tkRoundsInput.min = String(TANKS_GAME_ROUNDS_TO_WIN_MIN);
+tkRoundsInput.max = String(TANKS_GAME_ROUNDS_TO_WIN_MAX);
+tkRoundsInput.step = "1";
+
+const tkTurnSecInput = document.querySelector<HTMLInputElement>("#set-tanks-turn-sec")!;
+const tkTurnSecVal = document.querySelector<HTMLElement>("#set-tanks-turn-sec-val")!;
+tkTurnSecInput.min = String(TANKS_GAME_TURN_SEC_MIN);
+tkTurnSecInput.max = String(TANKS_GAME_TURN_SEC_MAX);
+tkTurnSecInput.step = "1";
+
 const pmLivesInput = document.querySelector<HTMLInputElement>("#set-pacman-lives")!;
 const pmLivesVal = document.querySelector<HTMLElement>("#set-pacman-lives-val")!;
 
@@ -423,6 +455,7 @@ if (!roomId) {
   let footballTeamPickLockUntil = 0;
   let airHockeyTeamPickLockUntil = 0;
   let dodgeballTeamPickLockUntil = 0;
+  let tanksTeamPickLockUntil = 0;
   let prevWsPhase: ControllerStateJson["phase"] | null = null;
   let prejoinMode: "resume" | "create" = "resume";
   let prejoinTouched = { name: false, hue: false };
@@ -938,6 +971,47 @@ if (!roomId) {
   dbJoystickEl.addEventListener("pointerup", centerDbStick);
   dbJoystickEl.addEventListener("pointercancel", centerDbStick);
 
+  let tkPause = false;
+  document.querySelector("#tk-pause")!.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    tkPause = true;
+    setTimeout(() => {
+      tkPause = false;
+    }, 100);
+  });
+
+  let tkAngleUp = false;
+  let tkAngleDown = false;
+  let tkPowerUp = false;
+  let tkPowerDown = false;
+  let tkFire = false;
+
+  bindHold(document.querySelector("#tk-angle-up")!, () => {
+    tkAngleUp = true;
+  }, () => {
+    tkAngleUp = false;
+  });
+  bindHold(document.querySelector("#tk-angle-down")!, () => {
+    tkAngleDown = true;
+  }, () => {
+    tkAngleDown = false;
+  });
+  bindHold(document.querySelector("#tk-power-up")!, () => {
+    tkPowerUp = true;
+  }, () => {
+    tkPowerUp = false;
+  });
+  bindHold(document.querySelector("#tk-power-down")!, () => {
+    tkPowerDown = true;
+  }, () => {
+    tkPowerDown = false;
+  });
+  bindHold(tkFireBtn, () => {
+    tkFire = true;
+  }, () => {
+    tkFire = false;
+  });
+
   const ws = new WebSocket(`${wsUrl()}?cid=${encodeURIComponent(controllerClientId)}`);
   ws.binaryType = "arraybuffer";
 
@@ -993,6 +1067,14 @@ if (!roomId) {
     const dbRelease = resolveDodgeballThrowReleaseAim(st.gameSettings);
     dbReleaseAimInput.value = String(Math.round(dbRelease * 100));
     dbReleaseAimVal.textContent = `${Math.round(dbRelease * 100)}%`;
+
+    const tkRounds = resolveTanksRoundsToWin(st.gameSettings);
+    tkRoundsInput.value = String(tkRounds);
+    tkRoundsVal.textContent = String(tkRounds);
+
+    const tkTurn = resolveTanksTurnSec(st.gameSettings);
+    tkTurnSecInput.value = String(tkTurn);
+    tkTurnSecVal.textContent = String(tkTurn);
 
     const pmLives = resolvePacmanLivesPerPlayer(st.gameSettings);
     pmLivesInput.value = String(pmLives);
@@ -1153,6 +1235,8 @@ if (!roomId) {
         return "Air Hockey finished";
       case "dodgeball_results":
         return "Dodgeball finished";
+      case "tanks_results":
+        return "Tank Battle finished";
       default:
         return "Game finished";
     }
@@ -1452,6 +1536,47 @@ if (!roomId) {
     }
   }
 
+  function syncTanksUi(st: ControllerStateJson | null): void {
+    const tk = st?.tanks;
+    const ph = forcedControllerPhase ?? st?.phase ?? "lobby";
+
+    tkTeamRedBtn.classList.toggle("my-pick", tk?.myTeam === "red");
+    tkTeamBlueBtn.classList.toggle("my-pick", tk?.myTeam === "blue");
+
+    if (ph === "tanks_team_select" && tk) {
+      tkTeamTopEl.textContent = "Tank Battle — pick your team";
+      tkTeamSubEl.textContent = "";
+      tkStartGameBtn.hidden = false;
+      tkStartGameBtn.disabled = !tk.canStart;
+      tkTeamRedBtn.disabled = false;
+      tkTeamBlueBtn.disabled = false;
+      tkStartHintEl.textContent = tk.canStart
+        ? "START locks teams and deploys tanks on the TV. Unpicked players are auto-balanced."
+        : "Need at least two joined players.";
+    } else if (ph === "tanks_summary" && tk) {
+      tkTeamTopEl.textContent = "Tank Battle — teams locked";
+      tkTeamSubEl.textContent = "Battle begins — glance at the host screen.";
+      tkStartGameBtn.hidden = true;
+      tkTeamRedBtn.disabled = true;
+      tkTeamBlueBtn.disabled = true;
+      tkStartHintEl.textContent = "";
+    }
+
+    if (tk && (ph === "tanks" || ph === "tanks_paused")) {
+      const r = tk.roundsToWin;
+      const pct = Math.round(tk.myPower * 100);
+      const deg = Math.round((tk.myAngle * 180) / Math.PI);
+      let status = "Wait for your turn…";
+      if (tk.isOut) status = "Your tank was destroyed — cheer on your team!";
+      else if (tk.isMyTurn) status = `Your turn — angle ${deg}° · power ${pct}%`;
+      tkFireBtn.disabled = !tk.isMyTurn || tk.isOut;
+      tkPlayHudEl.textContent = `${status} · RED ${tk.redScore}/${r} — BLUE ${tk.blueScore}/${r} · ${tk.turnSecLeft}s`;
+    } else {
+      tkPlayHudEl.textContent = "";
+      tkFireBtn.disabled = false;
+    }
+  }
+
   function syncRaceWalkPanelState(st: ControllerStateJson | null): void {
     const rw = st?.raceWalk;
     if (!rw) {
@@ -1484,6 +1609,7 @@ if (!roomId) {
     syncFootballUi(st);
     syncAirHockeyUi(st);
     syncDodgeballUi(st);
+    syncTanksUi(st);
     if (!st) {
       showOnly(null);
       statusEl.textContent = "Connecting…";
@@ -1550,6 +1676,10 @@ if (!roomId) {
       showOnly(panels.dodgeballTeams);
     } else if (ph === "dodgeball") {
       showOnly(panels.dodgeball);
+    } else if (ph === "tanks_team_select" || ph === "tanks_summary") {
+      showOnly(panels.tanksTeams);
+    } else if (ph === "tanks") {
+      showOnly(panels.tanks);
     } else if (ph === "kart") {
       showOnly(panels.kart);
     } else if (
@@ -1560,7 +1690,8 @@ if (!roomId) {
       ph === "pacman_paused" ||
       ph === "football_paused" ||
       ph === "air_hockey_paused" ||
-      ph === "dodgeball_paused"
+      ph === "dodgeball_paused" ||
+      ph === "tanks_paused"
     ) {
       showOnly(panels.kartPause);
     } else if (
@@ -1571,7 +1702,8 @@ if (!roomId) {
       ph === "pacman_results" ||
       ph === "football_results" ||
       ph === "air_hockey_results" ||
-      ph === "dodgeball_results"
+      ph === "dodgeball_results" ||
+      ph === "tanks_results"
     ) {
       showOnly(panels.results);
       renderResultsMenu(st);
@@ -1611,6 +1743,9 @@ if (!roomId) {
           }
           if (ctrlState.phase === "dodgeball_team_select" && prevWsPhase !== "dodgeball_team_select") {
             dodgeballTeamPickLockUntil = performance.now() + 420;
+          }
+          if (ctrlState.phase === "tanks_team_select" && prevWsPhase !== "tanks_team_select") {
+            tanksTeamPickLockUntil = performance.now() + 420;
           }
           prevWsPhase = ctrlState.phase;
           refreshUI();
@@ -1781,12 +1916,23 @@ if (!roomId) {
     sendJson(ws, { type: "dodgeball_start" });
   });
 
+  function tryTanksPickTeam(team: "red" | "blue"): void {
+    if (performance.now() < tanksTeamPickLockUntil) return;
+    sendJson(ws, { type: "tanks_pick_team", team });
+  }
+  bindPointerTap(tkTeamRedBtn, () => tryTanksPickTeam("red"));
+  bindPointerTap(tkTeamBlueBtn, () => tryTanksPickTeam("blue"));
+  tkStartGameBtn.addEventListener("click", () => {
+    sendJson(ws, { type: "tanks_start" });
+  });
+
   function sendTeamSelectBack(): void {
     sendJson(ws, { type: "team_select_back" });
   }
   document.querySelector("#fb-team-back")!.addEventListener("click", sendTeamSelectBack);
   document.querySelector("#ah-team-back")!.addEventListener("click", sendTeamSelectBack);
   document.querySelector("#db-team-back")!.addEventListener("click", sendTeamSelectBack);
+  document.querySelector("#tk-team-back")!.addEventListener("click", sendTeamSelectBack);
 
   document.querySelector("#st-back")!.addEventListener("click", () => {
     sendJson(ws, { type: "stub_back" });
@@ -1824,7 +1970,8 @@ if (!roomId) {
       ph === "pacman_results" ||
       ph === "football_results" ||
       ph === "air_hockey_results" ||
-      ph === "dodgeball_results";
+      ph === "dodgeball_results" ||
+      ph === "tanks_results";
     if (!menuLike) return;
     const el = e.target as HTMLElement | null;
     if (el?.closest("input, textarea, select")) return;
@@ -1932,6 +2079,18 @@ if (!roomId) {
     sendJson(ws, { type: "game_settings_patch", patch: { dodgeballThrowReleaseAim: pct / 100 } });
   });
 
+  tkRoundsInput.addEventListener("input", () => {
+    const n = Number(tkRoundsInput.value);
+    tkRoundsVal.textContent = String(n);
+    sendJson(ws, { type: "game_settings_patch", patch: { tanksRoundsToWin: n } });
+  });
+
+  tkTurnSecInput.addEventListener("input", () => {
+    const n = Number(tkTurnSecInput.value);
+    tkTurnSecVal.textContent = String(n);
+    sendJson(ws, { type: "game_settings_patch", patch: { tanksTurnSec: n } });
+  });
+
   pmLivesInput.addEventListener("input", () => {
     const n = Number(pmLivesInput.value);
     pmLivesVal.textContent = String(n);
@@ -1971,6 +2130,17 @@ if (!roomId) {
         ws.send(encodeFootballAxis(seq, packed, buttons));
       } else if (ph === "dodgeball_paused") {
         ws.send(encodeFootballAxis(seq, joystickToPackedFootballAxis(0, 0), 0));
+      } else if (ph === "tanks") {
+        let buttons = 0;
+        if (tkPause) buttons |= Btn.Pause;
+        if (tkAngleUp) buttons |= Btn.AimUp;
+        if (tkAngleDown) buttons |= Btn.AimDown;
+        if (tkPowerUp) buttons |= Btn.Run;
+        if (tkPowerDown) buttons |= Btn.Jump;
+        if (tkFire) buttons |= Btn.Fire;
+        ws.send(encodeInput(seq, 0, buttons));
+      } else if (ph === "tanks_paused") {
+        ws.send(encodeInput(seq, 0, 0));
       } else if (ph === "kart") {
         let h = 0;
         if (kLeft && !kRight) h = -127;

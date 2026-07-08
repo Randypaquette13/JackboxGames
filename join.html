@@ -238,6 +238,49 @@
       </div>
     </div>
 
+    <div id="panel-tanks-teams" class="panel football-teams-panel" hidden>
+      <div class="panel-top-bar">
+        <button type="button" id="tk-team-back" class="secondary panel-back-btn">Back</button>
+      </div>
+      <p id="tk-team-top" class="hint">Tank Battle — pick your team</p>
+      <p id="tk-team-sub" class="subhint football-team-sub"></p>
+      <div class="football-team-btns">
+        <button type="button" id="tk-team-red" class="football-team-btn football-team-red" data-team="red">
+          RED
+        </button>
+        <button type="button" id="tk-team-blue" class="football-team-btn football-team-blue" data-team="blue">
+          BLUE
+        </button>
+      </div>
+      <button type="button" id="tk-start-game" class="primary football-start-btn">START GAME</button>
+      <p id="tk-start-hint" class="subhint football-start-hint"></p>
+    </div>
+
+    <div id="panel-tanks" class="panel football-play-panel" hidden>
+      <div class="football-play-main tanks-play-main">
+        <div class="football-play-col tanks-aim-col">
+          <p class="hint tanks-section-label">Angle</p>
+          <button type="button" id="tk-angle-up" class="pad sm tanks-adjust-btn">▲</button>
+          <button type="button" id="tk-angle-down" class="pad sm tanks-adjust-btn">▼</button>
+        </div>
+        <div class="football-play-col tanks-power-col">
+          <p class="hint tanks-section-label">Power</p>
+          <button type="button" id="tk-power-up" class="pad sm tanks-adjust-btn">+</button>
+          <button type="button" id="tk-power-down" class="pad sm tanks-adjust-btn">−</button>
+        </div>
+        <div class="football-play-col football-play-col-mid">
+          <button type="button" id="tk-pause" class="secondary small-pause football-play-pause">Pause</button>
+          <p class="hint football-play-hint">
+            Tank Battle — adjust angle and power, then fire on your turn
+          </p>
+          <p id="tk-play-hud" class="subhint football-play-hud"></p>
+        </div>
+        <div class="football-play-col football-play-col-pass">
+          <button type="button" id="tk-fire" class="primary football-pass-btn">Fire</button>
+        </div>
+      </div>
+    </div>
+
     <div id="panel-frogger" class="panel" hidden>
       <button type="button" id="fg-pause" class="secondary small-pause">Pause</button>
       <div id="fg-death-banner" class="frogger-death-banner" hidden>
@@ -442,6 +485,25 @@
                 <span id="set-dodgeball-release-aim-val" class="settings-val"></span>
               </div>
               <input type="range" id="set-dodgeball-release-aim" />
+            </div>
+          </div>
+        </section>
+        <section class="settings-section settings-section-tanks">
+          <h2 class="settings-section-title">🛡️ Tank Battle</h2>
+          <div class="settings-card">
+            <div class="settings-row">
+              <div class="settings-row-head">
+                <label for="set-tanks-rounds">Rounds to win</label>
+                <span id="set-tanks-rounds-val" class="settings-val"></span>
+              </div>
+              <input type="range" id="set-tanks-rounds" />
+            </div>
+            <div class="settings-row">
+              <div class="settings-row-head">
+                <label for="set-tanks-turn-sec">Turn time (sec)</label>
+                <span id="set-tanks-turn-sec-val" class="settings-val"></span>
+              </div>
+              <input type="range" id="set-tanks-turn-sec" />
             </div>
           </div>
         </section>

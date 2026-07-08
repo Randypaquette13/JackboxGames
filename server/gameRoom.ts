@@ -31,6 +31,11 @@ import {
   resolveDodgeballRoundsToWin,
 } from "../src/shared/dodgeballGameSettings.js";
 import {
+  clampTanksRoundsToWin,
+  clampTanksTurnSec,
+  resolveTanksRoundsToWin,
+} from "../src/shared/tanksGameSettings.js";
+import {
   clampAirHockeyGoalsToWin,
   clampAirHockeyMaxPlayerSpeed,
   clampAirHockeyPeriodSec,
@@ -146,6 +151,15 @@ import {
   type DodgeballPlayer,
 } from "./dodgeballRoom.js";
 import {
+  bootstrapTanksFromMenu,
+  buildTanksHostJson,
+  clearTanksState,
+  tanksTryStart,
+  tickTanksPlay,
+  tickTanksSummary,
+  type TanksPlayer,
+} from "./tanksRoom.js";
+import {
   bootstrapBombermanFromMenu,
   buildBombermanHostJson,
   clearBombermanState,
@@ -168,6 +182,7 @@ import {
 export { handleFootballPauseEdge } from "./footballRoom.js";
 export { handleAirHockeyPauseEdge } from "./airHockeyRoom.js";
 export { handleDodgeballPauseEdge } from "./dodgeballRoom.js";
+export { handleTanksPauseEdge } from "./tanksRoom.js";
 export { handleBombermanPauseEdge } from "./bombermanRoom.js";
 export { handlePacmanPauseEdge } from "./pacmanRoom.js";
 
@@ -380,6 +395,22 @@ export type Room = {
   dodgeballKickoffCountdown: number | null;
   dodgeballPausedByPlayerId: number | null;
   dodgeballWinner: import("../src/shared/messages.js").DodgeballTeam | "tie" | null;
+  tanksTeamPick: Map<number, import("../src/shared/messages.js").TanksTeam>;
+  tanksTeamAssignment: Map<number, import("../src/shared/messages.js").TanksTeam>;
+  tanksPlayers: Map<number, TanksPlayer>;
+  tanksTurnOrder: number[];
+  tanksTurnIndex: number;
+  tanksTurnPlayerId: number | null;
+  tanksSubPhase: "aim" | "flight" | "explosion";
+  tanksProjectile: import("./tanksRoom.js").TanksProjectile | null;
+  tanksExplosion: import("./tanksRoom.js").TanksExplosion | null;
+  tanksTurnSecLeft: number;
+  tanksRedScore: number;
+  tanksBlueScore: number;
+  tanksSummaryEndTick: number | null;
+  tanksKickoffCountdown: number | null;
+  tanksPausedByPlayerId: number | null;
+  tanksWinner: import("../src/shared/messages.js").TanksTeam | "tie" | null;
   bombermanCountdown: number | null;
   bombermanCells: BombermanCellKind[][];
   bombermanPlayers: Map<number, BombermanPlayerSim>;
@@ -495,6 +526,22 @@ export function createRoom(host: WebSocket, platforms: Platform[]): Room {
     dodgeballKickoffCountdown: null,
     dodgeballPausedByPlayerId: null,
     dodgeballWinner: null,
+    tanksTeamPick: new Map(),
+    tanksTeamAssignment: new Map(),
+    tanksPlayers: new Map(),
+    tanksTurnOrder: [],
+    tanksTurnIndex: 0,
+    tanksTurnPlayerId: null,
+    tanksSubPhase: "aim",
+    tanksProjectile: null,
+    tanksExplosion: null,
+    tanksTurnSecLeft: 0,
+    tanksRedScore: 0,
+    tanksBlueScore: 0,
+    tanksSummaryEndTick: null,
+    tanksKickoffCountdown: null,
+    tanksPausedByPlayerId: null,
+    tanksWinner: null,
     bombermanCountdown: null,
     bombermanCells: [],
     bombermanPlayers: new Map(),
@@ -1398,6 +1445,7 @@ export function buildHostState(
     football: buildFootballHostJson(room),
     airHockey: buildAirHockeyHostJson(room),
     dodgeball: buildDodgeballHostJson(room),
+    tanks: buildTanksHostJson(room),
     bomberman: buildBombermanHostJson(room),
     pacman: buildPacmanHostJson(room),
   };
@@ -1550,6 +1598,42 @@ export function buildControllerState(room: Room, playerId: number): ControllerSt
         }
       : null;
 
+  const canTanksStart = nPlayers >= 2;
+  const tkTeamMapForUi =
+    room.phase === "tanks_team_select" ? room.tanksTeamPick : room.tanksTeamAssignment;
+  const tkPlayer = room.tanksPlayers.get(playerId);
+  const tanksHud =
+    room.phase === "tanks_team_select" ||
+    room.phase === "tanks_summary" ||
+    room.phase === "tanks" ||
+    room.phase === "tanks_paused" ||
+    room.phase === "tanks_results"
+      ? {
+          teamSelect: room.phase === "tanks_team_select",
+          myTeam: (tkTeamMapForUi.get(playerId) ?? room.tanksTeamPick.get(playerId)) ?? null,
+          redIds: [...tkTeamMapForUi.entries()]
+            .filter(([, t]) => t === "red")
+            .map(([id]) => id)
+            .sort((a, b) => a - b),
+          blueIds: [...tkTeamMapForUi.entries()]
+            .filter(([, t]) => t === "blue")
+            .map(([id]) => id)
+            .sort((a, b) => a - b),
+          canStart: canTanksStart && room.phase === "tanks_team_select",
+          isStarter: room.phase === "tanks_team_select" && canTanksStart,
+          redScore: room.tanksRedScore,
+          blueScore: room.tanksBlueScore,
+          roundsToWin: resolveTanksRoundsToWin(room.gameSettings),
+          isMyTurn: room.tanksTurnPlayerId === playerId && room.tanksSubPhase === "aim",
+          isOut: tkPlayer ? !tkPlayer.alive : false,
+          myAngle: tkPlayer?.angle ?? 0,
+          myPower: tkPlayer?.power ?? 0.62,
+          turnSecLeft: Math.ceil(Math.max(0, room.tanksTurnSecLeft)),
+          seriesWins: Object.fromEntries(room.seriesWins),
+          paused: room.phase === "tanks_paused",
+        }
+      : null;
+
   const bm = room.bombermanPlayers.get(playerId);
   const bmNotice = room.bombermanDeathNotices.get(playerId);
   const bombermanHud =
@@ -1617,6 +1701,7 @@ export function buildControllerState(room: Room, playerId: number): ControllerSt
     football: footballHud,
     airHockey: airHockeyHud,
     dodgeball: dodgeballHud,
+    tanks: tanksHud,
     bomberman: bombermanHud,
     pacman: pacmanHud,
   };
@@ -1657,6 +1742,8 @@ export function startPacmanFromMenu(room: Room): void {
   clearFroggerState(room);
   clearFootballState(room);
   clearAirHockeyState(room);
+  clearDodgeballState(room);
+  clearTanksState(room);
   clearBombermanState(room);
   room.kartCars.clear();
   room.kartWinnerId = null;
@@ -1690,6 +1777,7 @@ export function startKartFromMenu(room: Room): void {
   clearFootballState(room);
   clearAirHockeyState(room);
   clearDodgeballState(room);
+  clearTanksState(room);
   clearBombermanState(room);
   clearPacmanState(room);
   resetKartRace(room);
@@ -1697,6 +1785,7 @@ export function startKartFromMenu(room: Room): void {
 
 export function startFootballFromMenu(room: Room): void {
   clearDodgeballState(room);
+  clearTanksState(room);
   clearBombermanState(room);
   clearPacmanState(room);
   bootstrapFootballFromMenu(room);
@@ -1727,9 +1816,27 @@ export function startDodgeballFromMenu(room: Room): void {
   clearFroggerState(room);
   clearFootballState(room);
   clearAirHockeyState(room);
+  clearTanksState(room);
   clearBombermanState(room);
   clearPacmanState(room);
   bootstrapDodgeballFromMenu(room);
+}
+
+export function startTanksFromMenu(room: Room): void {
+  room.kartCars.clear();
+  room.kartWinnerId = null;
+  room.kartCountdown = null;
+  room.kartPaused = false;
+  room.kartPausedByPlayerId = null;
+  clearRaceWalkState(room);
+  clearFroggerState(room);
+  clearFootballState(room);
+  clearAirHockeyState(room);
+  clearDodgeballState(room);
+  clearTanksState(room);
+  clearBombermanState(room);
+  clearPacmanState(room);
+  bootstrapTanksFromMenu(room);
 }
 
 export function ensureKartCar(room: Room, playerId: number): void {
@@ -1836,6 +1943,20 @@ export function tickSimulation(room: Room, dt: number): void {
   }
   if (room.phase === "dodgeball") {
     tickDodgeballPlay(room, dt);
+    return;
+  }
+  if (room.phase === "tanks_team_select" || room.phase === "tanks_results") {
+    return;
+  }
+  if (room.phase === "tanks_summary") {
+    tickTanksSummary(room);
+    return;
+  }
+  if (room.phase === "tanks_paused") {
+    return;
+  }
+  if (room.phase === "tanks") {
+    tickTanksPlay(room, dt);
     return;
   }
   if (room.phase === "bomberman_results") {
@@ -2075,6 +2196,7 @@ function goToMinigameMenu(room: Room): void {
   clearFootballState(room);
   clearAirHockeyState(room);
   clearDodgeballState(room);
+  clearTanksState(room);
   clearBombermanState(room);
   clearPacmanState(room);
 }
@@ -2087,6 +2209,7 @@ function isResultsPhase(phase: Room["phase"]): boolean {
     phase === "football_results" ||
     phase === "air_hockey_results" ||
     phase === "dodgeball_results" ||
+    phase === "tanks_results" ||
     phase === "bomberman_results" ||
     phase === "pacman_results"
   );
@@ -2143,6 +2266,7 @@ export function applyIntent(room: Room, _playerId: number, intent: ClientIntent)
     intent.type === "football_results" ||
     intent.type === "air_hockey_results" ||
     intent.type === "dodgeball_results" ||
+    intent.type === "tanks_results" ||
     intent.type === "bomberman_results" ||
     intent.type === "pacman_results"
   ) {
@@ -2166,6 +2290,7 @@ export function applyIntent(room: Room, _playerId: number, intent: ClientIntent)
         room.phase === "football_results" ||
         room.phase === "air_hockey_results" ||
         room.phase === "dodgeball_results" ||
+        room.phase === "tanks_results" ||
         room.phase === "bomberman_results" ||
         room.phase === "pacman_results"
       ) {
@@ -2339,6 +2464,27 @@ export function applyIntent(room: Room, _playerId: number, intent: ClientIntent)
         }
         break;
       }
+      if (room.phase === "tanks_results") {
+        const actions = ["play_again", "minigame_menu", "add_controllers"] as const;
+        const action = actions[room.menuIndex % 3];
+        if (action === "play_again") {
+          clearMenuController(room);
+          startTanksFromMenu(room);
+        } else if (action === "minigame_menu") {
+          goToMinigameMenu(room);
+          room.stubId = null;
+          clearTanksState(room);
+          room.showQr = false;
+        } else {
+          clearMenuController(room);
+          room.phase = "lobby";
+          room.menuIndex = 0;
+          room.stubId = null;
+          clearTanksState(room);
+          room.showQr = true;
+        }
+        break;
+      }
       if (room.phase === "bomberman_results") {
         const actions = ["play_again", "minigame_menu", "add_controllers"] as const;
         const action = actions[room.menuIndex % 3];
@@ -2396,6 +2542,7 @@ export function applyIntent(room: Room, _playerId: number, intent: ClientIntent)
         else if (id === "football") startFootballFromMenu(room);
         else if (id === "air_hockey") startAirHockeyFromMenu(room);
         else if (id === "dodgeball") startDodgeballFromMenu(room);
+        else if (id === "tanks") startTanksFromMenu(room);
         else if (id === "bomberman") startBombermanFromMenu(room);
         else if (id === "pacman") startPacmanFromMenu(room);
         else {
@@ -2436,6 +2583,16 @@ export function applyIntent(room: Room, _playerId: number, intent: ClientIntent)
         dodgeballTryStart(room);
       }
       break;
+    case "tanks_pick_team":
+      if (room.phase === "tanks_team_select") {
+        room.tanksTeamPick.set(_playerId, intent.team);
+      }
+      break;
+    case "tanks_start":
+      if (room.phase === "tanks_team_select") {
+        tanksTryStart(room);
+      }
+      break;
     case "team_select_back":
       if (
         room.phase === "football_team_select" ||
@@ -2443,7 +2600,9 @@ export function applyIntent(room: Room, _playerId: number, intent: ClientIntent)
         room.phase === "air_hockey_team_select" ||
         room.phase === "air_hockey_summary" ||
         room.phase === "dodgeball_team_select" ||
-        room.phase === "dodgeball_summary"
+        room.phase === "dodgeball_summary" ||
+        room.phase === "tanks_team_select" ||
+        room.phase === "tanks_summary"
       ) {
         goToMinigameMenu(room);
         room.stubId = null;
@@ -2467,6 +2626,7 @@ export function applyIntent(room: Room, _playerId: number, intent: ClientIntent)
         clearFootballState(room);
         clearAirHockeyState(room);
         clearDodgeballState(room);
+        clearTanksState(room);
         clearBombermanState(room);
         clearPacmanState(room);
         room.showQr = true;
@@ -2553,6 +2713,18 @@ export function applyIntent(room: Room, _playerId: number, intent: ClientIntent)
         const v = p.dodgeballThrowReleaseAim;
         if (typeof v === "number" && Number.isFinite(v)) {
           room.gameSettings.dodgeballThrowReleaseAim = clampDodgeballThrowReleaseAim(v);
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(p, "tanksRoundsToWin")) {
+        const v = p.tanksRoundsToWin;
+        if (typeof v === "number" && Number.isFinite(v)) {
+          room.gameSettings.tanksRoundsToWin = clampTanksRoundsToWin(v);
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(p, "tanksTurnSec")) {
+        const v = p.tanksTurnSec;
+        if (typeof v === "number" && Number.isFinite(v)) {
+          room.gameSettings.tanksTurnSec = clampTanksTurnSec(v);
         }
       }
       if (Object.prototype.hasOwnProperty.call(p, "pacmanLivesPerPlayer")) {
@@ -2695,6 +2867,25 @@ export function applyIntent(room: Room, _playerId: number, intent: ClientIntent)
         room.showQr = true;
       }
       break;
+    case "tanks_results":
+      if (room.phase !== "tanks_results") break;
+      if (intent.action === "play_again") {
+        clearMenuController(room);
+        startTanksFromMenu(room);
+      } else if (intent.action === "minigame_menu") {
+        goToMinigameMenu(room);
+        room.stubId = null;
+        clearTanksState(room);
+        room.showQr = false;
+      } else if (intent.action === "add_controllers") {
+        clearMenuController(room);
+        room.phase = "lobby";
+        room.menuIndex = 0;
+        room.stubId = null;
+        clearTanksState(room);
+        room.showQr = true;
+      }
+      break;
     case "bomberman_results":
       if (room.phase !== "bomberman_results") break;
       if (intent.action === "play_again") {
@@ -2754,6 +2945,13 @@ export function applyIntent(room: Room, _playerId: number, intent: ClientIntent)
           p.prevPauseHeld = false;
           p.prevPassHeld = false;
         }
+      } else if (room.phase === "tanks_paused") {
+        room.phase = "tanks";
+        room.tanksPausedByPlayerId = null;
+        for (const p of room.tanksPlayers.values()) {
+          p.prevPauseHeld = false;
+          p.prevFireHeld = false;
+        }
       } else if (room.phase === "bomberman_paused") {
         room.phase = "bomberman";
         room.bombermanPausedByPlayerId = null;
@@ -2801,6 +2999,11 @@ export function applyIntent(room: Room, _playerId: number, intent: ClientIntent)
         goToMinigameMenu(room);
         room.stubId = null;
         clearDodgeballState(room);
+        room.showQr = false;
+      } else if (room.phase === "tanks" || room.phase === "tanks_paused") {
+        goToMinigameMenu(room);
+        room.stubId = null;
+        clearTanksState(room);
         room.showQr = false;
       } else if (room.phase === "bomberman" || room.phase === "bomberman_paused") {
         goToMinigameMenu(room);

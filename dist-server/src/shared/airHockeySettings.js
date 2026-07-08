@@ -6,7 +6,7 @@ export const AIR_HOCKEY_GOALS_TO_WIN = 5;
 /** Seconds before play resumes after a goal / opening face-off. */
 export const AIR_HOCKEY_KICKOFF_COUNTDOWN_SEC = 3;
 export const AIR_HOCKEY_PLAYER_R = 18;
-export const AIR_HOCKEY_PUCK_R = 11;
+export const AIR_HOCKEY_PUCK_R = 15;
 export const AIR_HOCKEY_MAX_PLAYER_SPEED = 220;
 /** Rink band: inset from the world edges so the goals/nets are visible behind each end wall. */
 export const AIR_HOCKEY_RINK_MARGIN_Y = 36;

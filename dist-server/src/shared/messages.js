@@ -2,7 +2,7 @@
  * JSON WebSocket messages (orchestration + host/controller state).
  * Binary join/input/ping stays in protocol.ts.
  */
-export const MINIGAME_IDS = ["kart", "race_walk", "frogger", "football", "air_hockey", "dodgeball", "bomberman", "pacman"];
+export const MINIGAME_IDS = ["kart", "race_walk", "frogger", "football", "air_hockey", "dodgeball", "tanks", "bomberman", "pacman"];
 export const MINIGAME_LABELS = {
     kart: "Kart Racing",
     race_walk: "Race Walk",
@@ -10,6 +10,7 @@ export const MINIGAME_LABELS = {
     football: "Football",
     air_hockey: "Air Hockey",
     dodgeball: "Dodgeball",
+    tanks: "Tank Battle",
     bomberman: "Bomberman",
     pacman: "Pac-Man",
 };
@@ -21,6 +22,7 @@ export const MINIGAME_META = {
     football: { icon: "🏈", accent: "#c87840" },
     air_hockey: { icon: "🏒", accent: "#58a8ff" },
     dodgeball: { icon: "🎯", accent: "#e85858" },
+    tanks: { icon: "🛡️", accent: "#7a9a48" },
     bomberman: { icon: "💣", accent: "#ff8844" },
     pacman: { icon: "👻", accent: "#ffe14a" },
 };
@@ -32,6 +34,7 @@ export const MINIGAME_TAGLINE = {
     football: "Pick a team, carry the ball to the end zone",
     air_hockey: "Slide your mallet and bury the puck",
     dodgeball: "Dodge, catch, and eliminate the other team",
+    tanks: "Pick a team, aim your tank, blast the other side",
     bomberman: "Drop bombs, dodge blasts, be the last alive",
     pacman: "Team up to clear every pellet in the maze",
 };
@@ -154,6 +157,19 @@ export function parseClientIntent(raw) {
     }
     if (t === "dodgeball_start")
         return { type: "dodgeball_start" };
+    if (t === "tanks_results") {
+        const a = o.action;
+        if (a === "play_again" || a === "minigame_menu" || a === "add_controllers") {
+            return { type: "tanks_results", action: a };
+        }
+    }
+    if (t === "tanks_pick_team") {
+        const tm = o.team;
+        if (tm === "red" || tm === "blue")
+            return { type: "tanks_pick_team", team: tm };
+    }
+    if (t === "tanks_start")
+        return { type: "tanks_start" };
     if (t === "pause_resume")
         return { type: "pause_resume" };
     if (t === "pause_to_menu")
